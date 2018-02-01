@@ -14,69 +14,17 @@ import (
 // implementations.
 func ExampleServerFiles(genpkg string, root *httpdesign.RootExpr) []*codegen.File {
 	var fw []*codegen.File
-	for _, svc := range root.HTTPServices {
-		f := dummyServiceFile(genpkg, root, svc)
-		if f != nil {
-			fw = append(fw, f)
-		}
-	}
-	if m := exampleMain(genpkg, root); m != nil {
+	if m := exampleServer(genpkg, root); m != nil {
 		fw = append(fw, m)
+	}
+	if f := dummyMultipart(genpkg, root); f != nil {
+		fw = append(fw, f)
 	}
 	return fw
 }
 
-// dummyServiceFile returns a dummy implementation of the given service.
-func dummyServiceFile(genpkg string, root *httpdesign.RootExpr, svc *httpdesign.ServiceExpr) *codegen.File {
-	path := codegen.SnakeCase(svc.Name()) + ".go"
-	if _, err := os.Stat(path); !os.IsNotExist(err) {
-		return nil // file already exists, skip it.
-	}
-	data := HTTPServices.Get(svc.Name())
-	apiPkg := strings.ToLower(codegen.Goify(root.Design.API.Name, false))
-	sections := []*codegen.SectionTemplate{
-		codegen.Header("", apiPkg, []*codegen.ImportSpec{
-			{Path: "context"},
-			{Path: "log"},
-			{Path: "mime/multipart"},
-			{Path: genpkg + "/" + codegen.SnakeCase(svc.Name()), Name: data.Service.PkgName},
-		}),
-		{
-			Name:   "dummy-service",
-			Source: dummyServiceStructT,
-			Data:   data,
-		},
-	}
-	for _, e := range data.Endpoints {
-		sections = append(sections, &codegen.SectionTemplate{
-			Name:   "dummy-endpoint",
-			Source: dummyEndpointImplT,
-			Data:   e,
-		})
-		if e.MultipartRequestDecoder != nil {
-			sections = append(sections, &codegen.SectionTemplate{
-				Name:   "dummy-multipart-request-decoder",
-				Source: dummyMultipartRequestDecoderImplT,
-				Data:   e.MultipartRequestDecoder,
-			})
-		}
-		if e.MultipartRequestEncoder != nil {
-			sections = append(sections, &codegen.SectionTemplate{
-				Name:   "dummy-multipart-request-encoder",
-				Source: dummyMultipartRequestEncoderImplT,
-				Data:   e.MultipartRequestEncoder,
-			})
-		}
-	}
-
-	return &codegen.File{
-		Path:             path,
-		SectionTemplates: sections,
-	}
-}
-
-func exampleMain(genpkg string, root *httpdesign.RootExpr) *codegen.File {
-	mainPath := filepath.Join("cmd", codegen.SnakeCase(codegen.Goify(root.Design.API.Name, true))+"_svc", "main.go")
+func exampleServer(genpkg string, root *httpdesign.RootExpr) *codegen.File {
+	mainPath := filepath.Join("cmd", codegen.SnakeCase(codegen.Goify(root.Design.API.Name, true))+"_svc", "http.go")
 	if _, err := os.Stat(mainPath); !os.IsNotExist(err) {
 		return nil // file already exists, skip it.
 	}
@@ -88,14 +36,10 @@ func exampleMain(genpkg string, root *httpdesign.RootExpr) *codegen.File {
 	apiPkg := strings.ToLower(codegen.Goify(root.Design.API.Name, false))
 	specs := []*codegen.ImportSpec{
 		{Path: "context"},
-		{Path: "flag"},
-		{Path: "fmt"},
 		{Path: "log"},
 		{Path: "net/http"},
 		{Path: "os"},
-		{Path: "os/signal"},
 		{Path: "time"},
-		{Path: "goa.design/goa", Name: "goa"},
 		{Path: "goa.design/goa/http", Name: "goahttp"},
 		{Path: "goa.design/goa/http/middleware"},
 		{Path: "github.com/gorilla/websocket"},
@@ -125,8 +69,8 @@ func exampleMain(genpkg string, root *httpdesign.RootExpr) *codegen.File {
 		"APIPkg":   apiPkg,
 	}
 	sections = append(sections, &codegen.SectionTemplate{
-		Name:   "service-main",
-		Source: mainT,
+		Name:   "serve-http",
+		Source: serveHTTPT,
 		Data:   data,
 		FuncMap: map[string]interface{}{
 			"needStream": needStream,
@@ -134,6 +78,63 @@ func exampleMain(genpkg string, root *httpdesign.RootExpr) *codegen.File {
 	})
 
 	return &codegen.File{Path: mainPath, SectionTemplates: sections}
+}
+
+// dummyMultipart returns a dummy implementation of the multipart decoders
+// and encoders.
+func dummyMultipart(genpkg string, root *httpdesign.RootExpr) *codegen.File {
+	mpath := "multipart.go"
+	if _, err := os.Stat(mpath); !os.IsNotExist(err) {
+		return nil // file already exists, skip it.
+	}
+	var (
+		sections []*codegen.SectionTemplate
+		mustGen  bool
+
+		apiPkg = strings.ToLower(codegen.Goify(root.Design.API.Name, false))
+	)
+	{
+		specs := []*codegen.ImportSpec{
+			{Path: "mime/multipart"},
+		}
+		for _, svc := range root.HTTPServices {
+			pkgName := HTTPServices.Get(svc.Name()).Service.PkgName
+			specs = append(specs, &codegen.ImportSpec{
+				Path: path.Join(genpkg, codegen.SnakeCase(svc.Name())),
+				Name: pkgName,
+			})
+		}
+		header := codegen.Header("", apiPkg, specs)
+		sections = []*codegen.SectionTemplate{header}
+		for _, svc := range root.HTTPServices {
+			data := HTTPServices.Get(svc.Name())
+			for _, e := range data.Endpoints {
+				if e.MultipartRequestDecoder != nil {
+					mustGen = true
+					sections = append(sections, &codegen.SectionTemplate{
+						Name:   "dummy-multipart-request-decoder",
+						Source: dummyMultipartRequestDecoderImplT,
+						Data:   e.MultipartRequestDecoder,
+					})
+				}
+				if e.MultipartRequestEncoder != nil {
+					mustGen = true
+					sections = append(sections, &codegen.SectionTemplate{
+						Name:   "dummy-multipart-request-encoder",
+						Source: dummyMultipartRequestEncoderImplT,
+						Data:   e.MultipartRequestEncoder,
+					})
+				}
+			}
+		}
+	}
+	if !mustGen {
+		return nil
+	}
+	return &codegen.File{
+		Path:             mpath,
+		SectionTemplates: sections,
+	}
 }
 
 // needStream returns true if at least one method in the list of services
@@ -146,40 +147,6 @@ func needStream(data []*ServiceData) bool {
 	}
 	return false
 }
-
-// input: ServiceData
-const dummyServiceStructT = `{{ printf "%s service example implementation.\nThe example methods log the requests and return zero values." .Service.Name | comment }}
-type {{ .Service.VarName }}Svc struct {
-	logger *log.Logger
-}
-
-{{ printf "New%s returns the %s service implementation." .Service.StructName .Service.Name | comment }}
-func New{{ .Service.StructName }}(logger *log.Logger) {{ .Service.PkgName }}.Service {
-	return &{{ .Service.VarName }}Svc{logger}
-}
-`
-
-// input: EndpointData
-const dummyEndpointImplT = `{{ comment .Method.Description }}
-{{- if .ServerStream }}
-func (s *{{ .ServiceVarName }}Svc) {{ .Method.VarName }}(ctx context.Context{{ if .Payload.Ref }}, p {{ .Payload.Ref }}{{ end }}, stream {{ .ServerStream.Interface }}) (err error) {
-{{- else }}
-func (s *{{ .ServiceVarName }}Svc) {{ .Method.VarName }}(ctx context.Context{{ if .Payload.Ref }}, p {{ .Payload.Ref }}{{ end }}) ({{ if .Result.Ref }}res {{ .Result.Ref }}, {{ if .Method.ViewedResult }}{{ if not .Method.ViewedResult.ViewName }}view string, {{ end }}{{ end }} {{ end }}err error) {
-{{- end }}
-{{- if and (and .Result.Ref .Result.IsStruct) (not .ServerStream) }}
-	res = &{{ .Result.Name }}{}
-{{- end }}
-{{- if .Method.ViewedResult }}
-	{{- if .ServerStream }}
-	stream.SetView({{ printf "%q" .Result.View }})
-	{{- else if not .Method.ViewedResult.ViewName }}
-	view = {{ printf "%q" .Result.View }}
-	{{- end }}
-{{- end }}
-	s.logger.Print("{{ .ServiceVarName }}.{{ .Method.Name }}")
-	return
-}
-`
 
 // input: MultipartData
 const dummyMultipartRequestDecoderImplT = `{{ printf "%s implements the multipart decoder for service %q endpoint %q. The decoder must populate the argument p after encoding." .FuncName .ServiceName .MethodName | comment }}
@@ -198,58 +165,15 @@ func {{ .FuncName }}(mw *multipart.Writer, p {{ .Payload.Ref }}) error {
 `
 
 // input: map[string]interface{}{"Services":[]ServiceData, "APIPkg": string}
-const mainT = `func main() {
-	// Define command line flags, add any other flag required to configure
-	// the service.
-	var (
-		addr = flag.String("listen", ":8080", "HTTP listen ` + "`" + `address` + "`" + `")
-		dbg  = flag.Bool("debug", false, "Log request and response bodies")
-	)
-	flag.Parse()
-
-	// Setup logger and goa log adapter. Replace logger with your own using
-	// your log package of choice. The goa.design/middleware/logging/...
-	// packages define log adapters for common log packages.
+const serveHTTPT = `func httpServe(addr string{{ range .Services }}{{ if .Endpoints }}, {{ .Service.VarName }}Endpoints *{{ .Service.PkgName }}.Endpoints{{ end }}{{ end }}, errc chan error, logger *log.Logger, debug bool) *http.Server {
+	// Setup goa log adapter. Replace logger with your own using your
+	// log package of choice. The goa.design/middleware/logging/...
+	// ackages define log adapters for common log packages.
 	var (
 		adapter middleware.Logger
-		logger *log.Logger
 	)
 	{
-		logger = log.New(os.Stderr, "[{{ .APIPkg }}] ", log.Ltime)
 		adapter = middleware.NewLogger(logger)
-	}
-
-	// Create the structs that implement the services.
-	var (
-	{{- range .Services }}
-		{{-  if .Endpoints }}
-		{{ .Service.VarName }}Svc {{.Service.PkgName}}.Service
-		{{-  end }}
-	{{- end }}
-	)
-	{
-	{{- range .Services }}
-		{{-  if .Endpoints }}
-		{{ .Service.VarName }}Svc = {{ $.APIPkg }}.New{{ .Service.StructName }}(logger)
-		{{-  end }}
-	{{- end }}
-	}
-
-	// Wrap the services in endpoints that can be invoked from other
-	// services potentially running in different processes.
-	var (
-	{{- range .Services }}
-		{{-  if .Endpoints }}
-		{{ .Service.VarName }}Endpoints *{{.Service.PkgName}}.Endpoints
-		{{-  end }}
-	{{- end }}
-	)
-	{
-	{{- range .Services }}{{ $svc := . }}
-		{{-  if .Endpoints }}
-		{{ .Service.VarName }}Endpoints = {{ .Service.PkgName }}.NewEndpoints({{ .Service.VarName }}Svc{{ range .Service.Schemes }}, {{ $.APIPkg }}.{{ $svc.Service.StructName }}{{ .Type }}Auth{{ end }})
-		{{-  end }}
-	{{- end }}
 	}
 
 	// Provide the transport specific request decoder and response encoder.
@@ -278,12 +202,12 @@ const mainT = `func main() {
 	{{- end }}
 	)
 	{
-		eh := ErrorHandler(logger)
+		eh := errorHandler(logger)
 	{{- if needStream .Services }}
 		upgrader := &websocket.Upgrader{}
 	{{- end }}
 	{{- range .Services }}
-		{{-  if .Endpoints }}
+		{{- if .Endpoints }}
 		{{ .Service.VarName }}Server = {{ .Service.PkgName }}svr.New({{ .Service.VarName }}Endpoints, mux, dec, enc, eh{{ if needStream $.Services }}, upgrader, nil{{ end }}{{ range .Endpoints }}{{ if .MultipartRequestDecoder }}, {{ $.APIPkg }}.{{ .MultipartRequestDecoder.FuncName }}{{ end }}{{ end }})
 		{{-  else }}
 		{{ .Service.VarName }}Server = {{ .Service.PkgName }}svr.New(nil, mux, dec, enc, eh)
@@ -300,28 +224,16 @@ const mainT = `func main() {
 	// here apply to all the service endpoints.
 	var handler http.Handler = mux
 	{
-		if *dbg {
+		if debug {
 			handler = middleware.Debug(mux, os.Stdout)(handler)
 		}
 		handler = middleware.Log(adapter)(handler)
 		handler = middleware.RequestID()(handler)
 	}
 
-	// Create channel used by both the signal handler and server goroutines
-	// to notify the main goroutine when to stop the server.
-	errc := make(chan error)
-
-	// Setup interrupt handler. This optional step configures the process so
-	// that SIGINT and SIGTERM signals cause the service to stop gracefully.
-	go func() {
-		c := make(chan os.Signal, 1)
-		signal.Notify(c, os.Interrupt)
-		errc <- fmt.Errorf("%s", <-c)
-	}()
-
 	// Start HTTP server using default configuration, change the code to
 	// configure the server as required by your service.
-	srv := &http.Server{Addr: *addr, Handler: handler}
+	srv := &http.Server{Addr: addr, Handler: handler}
 	go func() {
 		{{- range .Services }}
 		for _, m := range {{ .Service.VarName }}Server.Mounts {
@@ -332,25 +244,24 @@ const mainT = `func main() {
 			{{- end }}
 		}
 		{{- end }}
-		logger.Printf("listening on %s", *addr)
+		logger.Printf("HTTP listening on %s", addr)
 		errc <- srv.ListenAndServe()
 	}()
 
-	// Wait for signal.
-	logger.Printf("exiting (%v)", <-errc)
-
-	// Shutdown gracefully with a 30s timeout.
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-	srv.Shutdown(ctx)
-
-	logger.Println("exited")
+	return srv
 }
 
-// ErrorHandler returns a function that writes and logs the given error.
+func httpStop(srv *http.Server) {
+	// Shutdown gracefully with a 30s timeout.
+  ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+  defer cancel()
+	srv.Shutdown(ctx)
+}
+
+// errorHandler returns a function that writes and logs the given error.
 // The function also writes and logs the error unique ID so that it's possible
 // to correlate.
-func ErrorHandler(logger *log.Logger) func(context.Context, http.ResponseWriter, error) {
+func errorHandler(logger *log.Logger) func(context.Context, http.ResponseWriter, error) {
 	return func(ctx context.Context, w http.ResponseWriter, err error) {
 		id := ctx.Value(middleware.RequestIDKey).(string)
 		w.Write([]byte("[" + id + "] encoding: " + err.Error()))

@@ -96,12 +96,17 @@ type (
 		Description string
 		// VarName is the Go method name.
 		VarName string
+		// ServiceVarName is the service variable name.
+		ServiceVarName string
 		// Payload is the name of the payload type if any,
 		Payload string
 		// PayloadDef is the payload type definition if any.
 		PayloadDef string
 		// PayloadRef is a reference to the payload type if any,
 		PayloadRef string
+		// PayloadFullRef is the fully qualified reference to the payload type
+		// (includes the service package name).
+		PayloadFullRef string
 		// PayloadDesc is the payload type description if any.
 		PayloadDesc string
 		// PayloadEx is an example of a valid payload value.
@@ -122,6 +127,9 @@ type (
 		ResultDef string
 		// ResultRef is the reference to the result type if any.
 		ResultRef string
+		// ResultFullRef is the fully qualified reference to the result type
+		// (includes the service package name).
+		ResultFullRef string
 		// ResultDesc is the result type description if any.
 		ResultDesc string
 		// ResultEx is an example of a valid result value.
@@ -496,7 +504,7 @@ func (d ServicesData) analyze(service *design.ServiceExpr) *Data {
 	{
 		methods = make([]*MethodData, len(service.Methods))
 		for i, e := range service.Methods {
-			m := buildMethodData(e, pkgName, scope)
+			m := buildMethodData(e, pkgName, service, scope)
 			if rt, ok := e.Result.Type.(*design.ResultTypeExpr); ok {
 				if vrt, ok := seenViewed[m.Result]; ok {
 					m.ViewedResult = vrt
@@ -611,7 +619,7 @@ func buildErrorInitData(er *design.ErrorExpr, scope *codegen.NameScope) *ErrorIn
 
 // buildMethodData creates the data needed to render the given endpoint. It
 // records the user types needed by the service definition in userTypes.
-func buildMethodData(m *design.MethodExpr, svcPkgName string, scope *codegen.NameScope) *MethodData {
+func buildMethodData(m *design.MethodExpr, svcPkgName string, service *design.ServiceExpr, scope *codegen.NameScope) *MethodData {
 	var (
 		vname        string
 		desc         string
@@ -754,6 +762,7 @@ func buildMethodData(m *design.MethodExpr, svcPkgName string, scope *codegen.Nam
 		Name:                 m.Name,
 		VarName:              vname,
 		Description:          desc,
+		ServiceVarName:       codegen.Goify(service.Name, false),
 		Payload:              payloadName,
 		PayloadDef:           payloadDef,
 		PayloadRef:           payloadRef,

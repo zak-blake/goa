@@ -10,7 +10,7 @@ import (
 
 	"goa.design/goa/codegen"
 	"goa.design/goa/design"
-	httpdesign "goa.design/goa/http/design"
+	grpcdesign "goa.design/goa/grpc/design"
 )
 
 var cmds = map[string]*subcommandData{}
@@ -29,11 +29,9 @@ type (
 		// Example is a valid command invocation, starting with the
 		// command name.
 		Example string
-		// PkgName is the service HTTP client package import name,
+		// PkgName is the service gRPC client package import name,
 		// e.g. "storagec".
 		PkgName string
-		// NeedStream if true passes websocket specific arguments to the CLI.
-		NeedStream bool
 	}
 
 	subcommandData struct {
@@ -56,9 +54,6 @@ type (
 		// Example is a valid command invocation, starting with the
 		// command name.
 		Example string
-		// MultipartRequestEncoder is the data necessary to render
-		// multipart request encoder.
-		MultipartRequestEncoder *MultipartData
 	}
 
 	flagData struct {
@@ -90,7 +85,7 @@ type (
 		ServiceName string
 		// MethodName is the name of the method.
 		MethodName string
-		// ResultType is the fully qualified payload type name.
+		// ResultType is the fully qualified result type name.
 		ResultType string
 		// Fields describes the payload fields.
 		Fields []*fieldData
@@ -120,14 +115,14 @@ type (
 	}
 )
 
-// ClientCLIFiles returns the client HTTP CLI support file.
-func ClientCLIFiles(genpkg string, root *httpdesign.RootExpr) []*codegen.File {
+// ClientCLIFiles returns the client gRPC CLI support file.
+func ClientCLIFiles(genpkg string, root *grpcdesign.RootExpr) []*codegen.File {
 	var (
 		data []*commandData
-		svcs []*httpdesign.ServiceExpr
+		svcs []*grpcdesign.ServiceExpr
 	)
-	for _, svc := range root.HTTPServices {
-		sd := HTTPServices.Get(svc.Name())
+	for _, svc := range root.GRPCServices {
+		sd := GRPCServices.Get(svc.Name())
 		if len(sd.Endpoints) > 0 {
 			data = append(data, buildCommandData(sd))
 			svcs = append(svcs, svc)
@@ -143,24 +138,20 @@ func ClientCLIFiles(genpkg string, root *httpdesign.RootExpr) []*codegen.File {
 
 // endpointParser returns the file that implements the command line parser that
 // builds the client endpoint and payload necessary to perform a request.
-func endpointParser(genpkg string, root *httpdesign.RootExpr, data []*commandData) *codegen.File {
-	path := filepath.Join(codegen.Gendir, "http", "cli", "cli.go")
-	title := fmt.Sprintf("%s HTTP client CLI support package", root.Design.API.Name)
+func endpointParser(genpkg string, root *grpcdesign.RootExpr, data []*commandData) *codegen.File {
+	path := filepath.Join(codegen.Gendir, "grpc", "cli", "cli.go")
+	title := fmt.Sprintf("%s gRPC client CLI support package", root.Design.API.Name)
 	specs := []*codegen.ImportSpec{
-		{Path: "encoding/json"},
 		{Path: "flag"},
 		{Path: "fmt"},
-		{Path: "net/http"},
 		{Path: "os"},
-		{Path: "strconv"},
-		{Path: "unicode/utf8"},
 		{Path: "goa.design/goa", Name: "goa"},
-		{Path: "goa.design/goa/http", Name: "goahttp"},
+		{Path: "google.golang.org/grpc", Name: "grpc"},
 	}
-	for _, svc := range root.HTTPServices {
-		sd := HTTPServices.Get(svc.Name())
+	for _, svc := range root.GRPCServices {
+		sd := GRPCServices.Get(svc.Name())
 		specs = append(specs, &codegen.ImportSpec{
-			Path: genpkg + "/http/" + codegen.SnakeCase(sd.Service.Name) + "/client",
+			Path: genpkg + "/grpc/" + codegen.SnakeCase(sd.Service.Name) + "/client",
 			Name: sd.Service.PkgName + "c",
 		})
 	}
@@ -191,9 +182,6 @@ func endpointParser(genpkg string, root *httpdesign.RootExpr, data []*commandDat
 		Name:   "parse-endpoint",
 		Source: parseT,
 		Data:   data,
-		FuncMap: map[string]interface{}{
-			"streamingCmdExists": streamingCmdExists,
-		},
 	})
 	for _, cmd := range data {
 		sections = append(sections, &codegen.SectionTemplate{
@@ -215,20 +203,15 @@ func printDescription(desc string) string {
 
 // payloadBuilders returns the file that contains the payload constructors that
 // use flag values as arguments.
-func payloadBuilders(genpkg string, svc *httpdesign.ServiceExpr, data *commandData) *codegen.File {
-	path := filepath.Join(codegen.Gendir, "http", codegen.SnakeCase(svc.Name()), "client", "cli.go")
-	title := fmt.Sprintf("%s HTTP client CLI support package", svc.Name())
-	sd := HTTPServices.Get(svc.Name())
+func payloadBuilders(genpkg string, svc *grpcdesign.ServiceExpr, data *commandData) *codegen.File {
+	path := filepath.Join(codegen.Gendir, "grpc", codegen.SnakeCase(svc.Name()), "client", "cli.go")
+	title := fmt.Sprintf("%s gRPC client CLI support package", svc.Name())
+	sd := GRPCServices.Get(svc.Name())
 	specs := []*codegen.ImportSpec{
 		{Path: "encoding/json"},
 		{Path: "fmt"},
-		{Path: "net/http"},
-		{Path: "os"},
-		{Path: "strconv"},
-		{Path: "unicode/utf8"},
-		{Path: "goa.design/goa", Name: "goa"},
-		{Path: "goa.design/goa/http", Name: "goahttp"},
 		{Path: genpkg + "/" + codegen.SnakeCase(svc.Name()), Name: sd.Service.PkgName},
+		{Path: genpkg + "/grpc/" + codegen.SnakeCase(svc.Name()), Name: svc.Name() + "pb"},
 	}
 	sections := []*codegen.SectionTemplate{
 		codegen.Header(title, "client", specs),
@@ -276,7 +259,6 @@ func buildCommandData(svc *ServiceData) *commandData {
 		Subcommands: subcommands,
 		Example:     example,
 		PkgName:     svc.Service.PkgName + "c",
-		NeedStream:  streamingEndpointExists(svc),
 	}
 }
 
@@ -298,23 +280,10 @@ func buildSubcommandData(svc *ServiceData, e *EndpointData) *subcommandData {
 		if description == "" {
 			description = fmt.Sprintf("Make request to the %q endpoint", e.Method.Name)
 		}
-		if e.Payload != nil {
-			if e.Payload.Request.PayloadInit != nil {
-				args := e.Payload.Request.PayloadInit.ClientArgs
-				args = append(args, e.Payload.Request.PayloadInit.CLIArgs...)
-				flags, buildFunction = makeFlags(e, args)
-			} else if e.Payload.Ref != "" {
-				ex := jsonExample(e.Method.PayloadEx)
-				fn := goify(svcn, en, "p")
-				flags = append(flags, &flagData{
-					Name:        "p",
-					Type:        flagType(e.Method.PayloadRef),
-					FullName:    fn,
-					Description: e.Method.PayloadDesc,
-					Required:    true,
-					Example:     ex,
-				})
-			}
+		if e.ServerRequest != nil {
+			args := e.ServerRequest.Init.Args
+			args = append(args, e.ServerRequest.Init.CLIArgs...)
+			flags, buildFunction = makeFlags(e, args)
 			if buildFunction == nil && len(flags) > 0 {
 				// No build function, just convert the arg to the body type
 				var convPre, convSuff string
@@ -355,9 +324,6 @@ func buildSubcommandData(svc *ServiceData, e *EndpointData) *subcommandData {
 		BuildFunction: buildFunction,
 		Conversion:    conversion,
 	}
-	if e.MultipartRequestEncoder != nil {
-		sub.MultipartRequestEncoder = e.MultipartRequestEncoder
-	}
 	generateExample(sub, svc.Service.Name)
 	cmds[fullName] = sub
 
@@ -365,7 +331,7 @@ func buildSubcommandData(svc *ServiceData, e *EndpointData) *subcommandData {
 }
 
 func generateExample(sub *subcommandData, svc string) {
-	ex := "--transport=http " + codegen.KebabCase(svc) + " " + codegen.KebabCase(sub.Name)
+	ex := "--transport=grpc " + codegen.KebabCase(svc) + " " + codegen.KebabCase(sub.Name)
 	for _, f := range sub.Flags {
 		ex += " --" + f.Name + " " + f.Example
 	}
@@ -383,9 +349,6 @@ func makeFlags(e *EndpointData, args []*InitArgData) ([]*flagData, *buildFunctio
 		f := argToFlag(e.ServiceName, e.Method.Name, arg)
 		flags[i] = f
 		params[i] = f.FullName
-		if arg.FieldName == "" && arg.Name != "body" {
-			continue
-		}
 		code, chek := fieldLoadCode(f.FullName, f.Type, arg)
 		check = check || chek
 		tn := arg.TypeRef
@@ -409,9 +372,9 @@ func makeFlags(e *EndpointData, args []*InitArgData) ([]*flagData, *buildFunctio
 		FormalParams: params,
 		ServiceName:  e.ServiceName,
 		MethodName:   e.Method.Name,
-		ResultType:   e.Payload.Ref,
+		ResultType:   e.PayloadRef,
 		Fields:       fdata,
-		PayloadInit:  e.Payload.Request.PayloadInit,
+		PayloadInit:  e.ServerRequest.Init,
 		CheckErr:     check,
 		Args:         args,
 	}
@@ -622,17 +585,6 @@ func argToFlag(svcn, en string, arg *InitArgData) *flagData {
 	}
 }
 
-// streamingCmdExists returns true if at least one command in the list of commands
-// uses stream for sending payload/result.
-func streamingCmdExists(data []*commandData) bool {
-	for _, c := range data {
-		if c.NeedStream {
-			return true
-		}
-	}
-	return false
-}
-
 // input: []string
 const usageT = `// UsageCommands returns the set of commands and sub-commands using the format
 //
@@ -655,24 +607,7 @@ func UsageExamples() string {
 // input: []commandData
 const parseT = `// ParseEndpoint returns the endpoint and payload as specified on the command
 // line.
-func ParseEndpoint(
-	scheme, host string,
-	doer goahttp.Doer,
-	enc func(*http.Request) goahttp.Encoder,
-	dec func(*http.Response) goahttp.Decoder,
-	restore bool,
-	{{- if streamingCmdExists . }}
-	dialer goahttp.Dialer,
-	connConfigFn goahttp.ConnConfigureFunc,
-	{{- end }}
-	{{- range $c := . }}
-	{{- range .Subcommands }}
-		{{- if .MultipartRequestEncoder }}
-	{{ .MultipartRequestEncoder.VarName }} {{ $c.PkgName }}.{{ .MultipartRequestEncoder.FuncName }},
-		{{- end }}
-	{{- end }}
-{{- end }}
-) (goa.Endpoint, interface{}, error) {
+func ParseEndpoint(cc *grpc.ClientConn, opts ...grpc.CallOption) (goa.Endpoint, interface{}, error) {
 	var (
 		{{- range . }}
 		{{ .VarName }}Flags = flag.NewFlagSet("{{ .Name }}", flag.ContinueOnError)
@@ -757,11 +692,11 @@ func ParseEndpoint(
 		switch svcn {
 	{{- range . }}
 		case "{{ .Name }}":
-			c := {{ .PkgName }}.NewClient(scheme, host, doer, enc, dec, restore{{ if .NeedStream }}, dialer, connConfigFn{{- end }})
+			c := {{ .PkgName }}.NewClient(cc, opts...)
 			switch epn {
 		{{- $pkgName := .PkgName }}{{ range .Subcommands }}
 			case "{{ .Name }}":
-				endpoint = c.{{ .MethodVarName }}({{ if .MultipartRequestEncoder }}{{ .MultipartRequestEncoder.VarName }}{{ end }})
+				endpoint = c.{{ .MethodVarName }}()
 			{{- if .BuildFunction }}
 				data, err = {{ $pkgName}}.{{ .BuildFunction.Name }}({{ range .BuildFunction.ActualParams }}*{{ . }}Flag, {{ end }})
 			{{- else if .Conversion }}
@@ -785,55 +720,26 @@ func ParseEndpoint(
 // input: buildFunctionData
 const buildPayloadT = `{{ printf "%s builds the payload for the %s %s endpoint from CLI flags." .Name .ServiceName .MethodName | comment }}
 func {{ .Name }}({{ range .FormalParams }}{{ . }} string, {{ end }}) ({{ .ResultType }}, error) {
-	{{- if .CheckErr }}
+{{- if .CheckErr }}
 	var err error
+{{- end }}
+{{- range .Fields }}
+	{{- if .VarName }}
+		var {{ .VarName }} {{ if .Pointer }}*{{ end }}{{ .TypeName }}
+		{
+			{{ .Init }}
+		}
 	{{- end }}
-	{{- range .Fields }}
-		{{- if .VarName }}
-	var {{ .VarName }} {{ if .Pointer }}*{{ end }}{{ .TypeName }}
-	{
-		{{ .Init }}
-	}
-		{{- end }}
-	{{- end }}
-	{{- if .CheckErr }}
+{{- end }}
+{{- if .CheckErr }}
 	if err != nil {
 		return nil, err
 	}
-	{{- end }}
-	{{- with .PayloadInit }}
-
-		{{- if .ClientCode }}
-	{{ .ClientCode }}
-			{{- if .ReturnTypeAttribute }}
-	res := &{{ .ReturnTypeName }}{
-		{{ .ReturnTypeAttribute }}: v,
-	}
-			{{- end }}
-			{{- if .ReturnIsStruct }}
-				{{- range $.Args }}
-					{{- if .FieldName }}
-	{{ if $.PayloadInit.ReturnTypeAttribute }}res{{ else }}v{{ end }}.{{ .FieldName }} = {{ .Name }}
-       				{{- end }}
-       			{{- end }}
-       		{{- end }}
-	return {{ if .ReturnTypeAttribute }}res{{ else }}v{{ end }}, nil
-
-		{{- else }}
-
-			{{- if .ReturnIsStruct }}
-	payload := &{{ .ReturnTypeName }}{
-				{{- range $.Args }}
-					{{- if .FieldName }}
-		{{ .FieldName }}: {{ .Name }},
-					{{- end }}
-				{{- end }}
-        }
-	return payload, nil
-			{{-  end }}
-
-		{{- end }}
-	{{- end }}
+{{- end }}
+{{- with .PayloadInit }}
+	{{ .Code }}
+	return v, nil
+{{- end }}
 }
 `
 

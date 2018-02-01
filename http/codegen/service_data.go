@@ -199,8 +199,6 @@ type (
 		// Responses contains the data for the corresponding HTTP
 		// responses.
 		Responses []*ResponseData
-		// View is the view used to render the result.
-		View string
 	}
 
 	// ErrorGroupData contains the error information required to generate
@@ -1247,17 +1245,10 @@ func buildResultData(e *httpdesign.EndpointExpr, sd *ServiceData) *ResultData {
 		name   string
 		ref    string
 		pkg    string
-		view   string
 		viewed bool
 	)
 	{
 		pkg = svc.PkgName
-		view = "default"
-		if result.Metadata != nil {
-			if v, ok := result.Metadata["view"]; ok {
-				view = v[0]
-			}
-		}
 		if result.Type != design.Empty {
 			name = svc.Scope.GoFullTypeName(result, svc.PkgName)
 			ref = svc.Scope.GoFullTypeRef(result, svc.PkgName)
@@ -1273,7 +1264,6 @@ func buildResultData(e *httpdesign.EndpointExpr, sd *ServiceData) *ResultData {
 		Name:      name,
 		Ref:       ref,
 		Responses: buildResponses(e, result, viewed, sd, pkg),
-		View:      view,
 	}
 }
 
