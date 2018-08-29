@@ -34,11 +34,11 @@ func serverType(genpkg string, svc *grpcdesign.ServiceExpr, seen map[string]stru
 		path = filepath.Join(codegen.Gendir, "grpc", codegen.SnakeCase(svc.Name()), "server", "types.go")
 		for _, a := range svc.GRPCEndpoints {
 			ed := sd.Endpoint(a.Name())
-			if ed.ServerRequest != nil && ed.ServerRequest.Init != nil {
-				initData = append(initData, ed.ServerRequest.Init)
+			if ed.Request.ServerType != nil && ed.Request.ServerType.Init != nil {
+				initData = append(initData, ed.Request.ServerType.Init)
 			}
-			if ed.ServerResponse != nil && ed.ServerResponse.Init != nil {
-				initData = append(initData, ed.ServerResponse.Init)
+			if ed.Response.ServerType != nil && ed.Response.ServerType.Init != nil {
+				initData = append(initData, ed.Response.ServerType.Init)
 			}
 		}
 	}

@@ -5,6 +5,7 @@ import (
 
 	"goa.design/goa/design"
 	"goa.design/goa/eval"
+	grpccodes "google.golang.org/grpc/codes"
 )
 
 type (
@@ -16,12 +17,15 @@ type (
 		MethodExpr *design.MethodExpr
 		// Service is the parent service.
 		Service *ServiceExpr
-		// Request is the message passed to the gRPC method. The attribute type
-		// is always a user type.
+		// Request is the message passed to the gRPC method.
 		Request *design.AttributeExpr
-		// Response is the message returned by the gRPC method. The attribute type
-		// is always a user type.
-		Response *design.AttributeExpr
+		// Responses is the success gRPC response from the method.
+		Response *GRPCResponseExpr
+		// GRPCErrors is the list of all the possible error gRPC responses.
+		GRPCErrors []*ErrorExpr
+		// Metadata is a set of key/value pairs with semantic that is
+		// specific to each generator, see dsl.Metadata.
+		Metadata design.MetadataExpr
 	}
 )
 
@@ -54,44 +58,60 @@ func (e *EndpointExpr) Prepare() {
 	if e.Request == nil {
 		e.Request = &design.AttributeExpr{Type: design.Empty}
 	}
+
+	// Make sure there's a default response if none define explicitly
 	if e.Response == nil {
-		e.Response = &design.AttributeExpr{Type: design.Empty}
+		e.Response = &GRPCResponseExpr{StatusCode: grpccodes.OK}
+	}
+
+	// Inherit gRPC errors from service and root
+	for _, r := range e.Service.GRPCErrors {
+		e.GRPCErrors = append(e.GRPCErrors, r.Dup())
+	}
+	for _, r := range Root.GRPCErrors {
+		e.GRPCErrors = append(e.GRPCErrors, r.Dup())
+	}
+
+	// Prepare response
+	e.Response.Prepare()
+	for _, er := range e.GRPCErrors {
+		er.Response.Prepare()
 	}
 }
 
 // Validate validates the endpoint expression by checking if the request
-// and response attribute expressions contains the "rpc:tag" in the metadata.
+// and responses contains the "rpc:tag" in the metadata. It also makes sure
+// that there is only one response per status code.
 func (e *EndpointExpr) Validate() error {
 	verr := new(eval.ValidationErrors)
 	if e.Name() == "" {
 		verr.Add(e, "Endpoint name cannot be empty")
 	}
 
+	// Validate request
 	verr.Merge(e.Request.Validate("gRPC request message", e))
-	verr.Merge(e.Response.Validate("gRPC response message", e))
-
 	verr.Merge(validateMessage(e.Request, e.MethodExpr.Payload, e, true))
-	verr.Merge(validateMessage(e.Response, e.MethodExpr.Result, e, false))
 
+	// Validate response
+	verr.Merge(e.Response.Validate(e))
+
+	// Validate errors
+	for _, er := range e.GRPCErrors {
+		verr.Merge(er.Validate())
+	}
 	return verr
 }
 
 // Finalize ensures the request and response attributes are initialized.
 func (e *EndpointExpr) Finalize() {
-	init := func(att *design.AttributeExpr, src *design.AttributeExpr) {
-		if att.Type == design.Empty {
-			initAttrFromDesign(att, src)
-			return
-		}
-		matt := design.NewMappedAttributeExpr(att)
-		srcobj := design.AsObject(src.Type)
-		for _, nat := range *design.AsObject(matt.Type) {
-			initAttrFromDesign(nat.Attribute, srcobj.Attribute(nat.Name))
-		}
-		att = matt.Attribute()
+	// Finalize request
+	initMessage(e.Request, e.MethodExpr.Payload)
+	// Finalize response
+	e.Response.Finalize(e, e.MethodExpr.Result)
+	// Finalize errors
+	for _, gerr := range e.GRPCErrors {
+		gerr.Finalize(e)
 	}
-	init(e.Request, e.MethodExpr.Payload)
-	init(e.Response, e.MethodExpr.Result)
 }
 
 // validateMessage validates the gRPC message.
@@ -161,6 +181,21 @@ func validateMessage(msgAtt, serviceAtt *design.AttributeExpr, e *EndpointExpr, 
 		verr.Add(e, "%s is not an object or a user type", msgKind)
 	}
 	return verr
+}
+
+// initMessage initializes the message attribute from the src attribute.
+// src may be method Payload or Result expression.
+func initMessage(msg *design.AttributeExpr, src *design.AttributeExpr) {
+	if msg.Type == design.Empty {
+		initAttrFromDesign(msg, src)
+		return
+	}
+	matt := design.NewMappedAttributeExpr(msg)
+	srcobj := design.AsObject(src.Type)
+	for _, nat := range *design.AsObject(matt.Type) {
+		initAttrFromDesign(nat.Attribute, srcobj.Attribute(nat.Name))
+	}
+	msg = matt.Attribute()
 }
 
 // initAttrFromDesign overrides the type of att with the one of patt and

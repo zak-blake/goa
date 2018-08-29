@@ -20,6 +20,12 @@ type Server struct {
 	endpoints *calcsvc.Endpoints
 }
 
+// ErrorNamer is an interface implemented by generated error structs that
+// exposes the name of the error as defined in the design.
+type ErrorNamer interface {
+	ErrorName() string
+}
+
 // New instantiates the server struct with the calc service endpoints.
 func New(e *calcsvc.Endpoints) *Server {
 	return &Server{e}

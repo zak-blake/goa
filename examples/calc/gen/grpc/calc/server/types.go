@@ -13,8 +13,8 @@ import (
 	calcpb "goa.design/goa/examples/calc/gen/grpc/calc"
 )
 
-// NewAddPayload builds the payload from the gRPC request type of the "add"
-// endpoint of the "calc" service.
+// NewAddPayload builds the payload of the "add" endpoint of the "calc" service
+// from the gRPC request type.
 func NewAddPayload(p *calcpb.AddRequest) *calcsvc.AddPayload {
 	v := &calcsvc.AddPayload{
 		A: int(p.A),

@@ -77,6 +77,9 @@ func exampleServer(genpkg string, root *grpcdesign.RootExpr) *codegen.File {
 			Name:   "serve-grpc",
 			Source: serveGRPCT,
 			Data:   data,
+			FuncMap: map[string]interface{}{
+				"goify": codegen.Goify,
+			},
 		})
 	}
 	return &codegen.File{Path: mainPath, SectionTemplates: sections}
@@ -108,7 +111,7 @@ const serveGRPCT = `func grpcServe(addr string{{ range .Services }}{{ if .Endpoi
 
 	// Register the servers.
 	{{- range .Services }}
-	{{ .PkgName }}.RegisterCalcServer(srv, {{ .Service.VarName }}Server)
+	{{ .PkgName }}.Register{{ goify .Service.VarName true }}Server(srv, {{ .Service.VarName }}Server)
 	{{- end }}
 
 	// Start gRPC server using default configuration, change the code to

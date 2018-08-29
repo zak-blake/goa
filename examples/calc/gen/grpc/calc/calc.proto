@@ -13,7 +13,7 @@ package calc;
 // The calc service performs operations on numbers
 service calc {
 	// Adds the operands
-	rpc add (AddRequest) returns (AddResponse);
+	rpc Add (AddRequest) returns (AddResponse);
 }
 
 message AddRequest  {

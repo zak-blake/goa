@@ -280,9 +280,9 @@ func buildSubcommandData(svc *ServiceData, e *EndpointData) *subcommandData {
 		if description == "" {
 			description = fmt.Sprintf("Make request to the %q endpoint", e.Method.Name)
 		}
-		if e.ServerRequest != nil {
-			args := e.ServerRequest.Init.Args
-			args = append(args, e.ServerRequest.Init.CLIArgs...)
+		if e.Request.ServerType != nil {
+			args := e.Request.ServerType.Init.Args
+			args = append(args, e.Request.ServerType.Init.CLIArgs...)
 			flags, buildFunction = makeFlags(e, args)
 			if buildFunction == nil && len(flags) > 0 {
 				// No build function, just convert the arg to the body type
@@ -374,7 +374,7 @@ func makeFlags(e *EndpointData, args []*InitArgData) ([]*flagData, *buildFunctio
 		MethodName:   e.Method.Name,
 		ResultType:   e.PayloadRef,
 		Fields:       fdata,
-		PayloadInit:  e.ServerRequest.Init,
+		PayloadInit:  e.Request.ServerType.Init,
 		CheckErr:     check,
 		Args:         args,
 	}

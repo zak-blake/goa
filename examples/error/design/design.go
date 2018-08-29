@@ -1,7 +1,14 @@
 package design
 
-import . "goa.design/goa/http/design"
-import . "goa.design/goa/http/dsl"
+import (
+	. "goa.design/goa/design"
+	. "goa.design/goa/dsl"
+	grpcdsl "goa.design/goa/grpc/dsl"
+	httpdesign "goa.design/goa/http/design"
+	httpdsl "goa.design/goa/http/dsl"
+	"google.golang.org/grpc/codes"
+	grpccodes "google.golang.org/grpc/codes"
+)
 
 var _ = API("divider", func() {
 	Title("Divider Service")
@@ -22,14 +29,24 @@ var _ = Service("divider", func() {
 		Temporary()
 	})
 
-	HTTP(func() {
+	httpdsl.HTTP(func() {
 		// Use HTTP status code 400 Bad Request for "div_by_zero"
 		// errors.
-		Response("div_by_zero", StatusBadRequest)
+		httpdsl.Response("div_by_zero", httpdesign.StatusBadRequest)
 
 		// Use HTTP status code 504 Gateway Timeout for "timeout"
 		// errors.
-		Response("timeout", StatusGatewayTimeout)
+		httpdsl.Response("timeout", httpdesign.StatusGatewayTimeout)
+	})
+
+	grpcdsl.GRPC(func() {
+		// Use gRPC status code "InvalidArgument" for "div_by_zero"
+		// errors.
+		grpcdsl.Response("div_by_zero", codes.InvalidArgument)
+
+		// Use gRPC status code "DeadlineExceeded" for "timeout"
+		// errors.
+		grpcdsl.Response("timeout", codes.DeadlineExceeded)
 	})
 
 	Method("integer_divide", func() {
@@ -40,31 +57,41 @@ var _ = Service("divider", func() {
 		// level and is thus specific to "integer_divide".
 		Error("has_remainder", ErrorResult, "integer division has remainder")
 
-		HTTP(func() {
-			GET("/idiv/{a}/{b}")
-			Response(StatusOK)
-			Response("has_remainder", StatusExpectationFailed)
+		httpdsl.HTTP(func() {
+			httpdsl.GET("/idiv/{a}/{b}")
+			httpdsl.Response(httpdesign.StatusOK)
+			httpdsl.Response("has_remainder", httpdesign.StatusExpectationFailed)
+		})
+
+		grpcdsl.GRPC(func() {
+			grpcdsl.Response(grpccodes.OK)
+			grpcdsl.Response("has_remainder", grpccodes.Unknown)
 		})
 	})
 
 	Method("divide", func() {
 		Payload(FloatOperands)
 		Result(Float64)
-		HTTP(func() {
-			GET("/div/{a}/{b}")
-			Response(StatusOK)
+
+		httpdsl.HTTP(func() {
+			httpdsl.GET("/div/{a}/{b}")
+			httpdsl.Response(httpdesign.StatusOK)
+		})
+
+		grpcdsl.GRPC(func() {
+			grpcdsl.Response(grpccodes.OK)
 		})
 	})
 })
 
 var IntOperands = Type("IntOperands", func() {
-	Attribute("a", Int, "Left operand")
-	Attribute("b", Int, "Right operand")
+	Field(1, "a", Int, "Left operand")
+	Field(2, "b", Int, "Right operand")
 	Required("a", "b")
 })
 
 var FloatOperands = Type("FloatOperands", func() {
-	Attribute("a", Float64, "Left operand")
-	Attribute("b", Float64, "Right operand")
+	Field(1, "a", Float64, "Left operand")
+	Field(2, "b", Float64, "Right operand")
 	Required("a", "b")
 })

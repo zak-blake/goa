@@ -1,20 +1,17 @@
 package design
 
-import . "goa.design/goa/design"
-import httpdesign "goa.design/goa/http/design"
-import . "goa.design/goa/http/dsl"
-import grpcdsl "goa.design/goa/grpc/dsl"
+import (
+	. "goa.design/goa/design"
+	grpcdsl "goa.design/goa/grpc/dsl"
+	httpdesign "goa.design/goa/http/design"
+	. "goa.design/goa/http/dsl"
+	grpccodes "google.golang.org/grpc/codes"
+)
 
 // API describes the global properties of the API server.
 var _ = API("calc", func() {
 	Title("Calculator Service")
 	Description("HTTP service for adding numbers, a goa teaser")
-})
-
-var RT = Type("FooType", func() {
-	Attribute("c", Int, "Sum", func() {
-		Metadata("rpc:tag", "1")
-	})
 })
 
 // Service describes a service
@@ -46,7 +43,10 @@ var _ = Service("calc", func() {
 			Response(httpdesign.StatusOK)
 		})
 
-		grpcdsl.GRPC(func() {})
+		// GRPC describes the gRPC transport mapping
+		grpcdsl.GRPC(func() {
+			grpcdsl.Response(grpccodes.OK)
+		})
 	})
 })
 

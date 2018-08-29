@@ -62,8 +62,8 @@ const (
 	serviceT = `{{ .Description | comment }}
 service {{ .Name }} {
 	{{- range .Endpoints }}
-	{{ if .Description }}{{ .Description | comment }}{{ end }}
-	rpc {{ .Name }} ({{ .Request.Name }}) returns ({{ .Response.Name }});
+	{{ if .Method.Description }}{{ .Method.Description | comment }}{{ end }}
+	rpc {{ .Method.VarName }} ({{ .Request.Message.Name }}) returns ({{ .Response.Message.Name }});
 	{{- end }}
 }
 `

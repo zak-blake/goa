@@ -74,20 +74,20 @@ func New{{ .ClientStruct }}(cc *grpc.ClientConn, opts ...grpc.CallOption) *{{ .C
 `
 
 // input: EndpointData
-const clientGRPCInterfaceT = `{{ printf "%s calls the %q function in %s.%s interface." .VarName .Name .PkgName .ClientInterface | comment }}
-func (c *{{ .ClientStruct }}) {{ .VarName }}() goa.Endpoint {
+const clientGRPCInterfaceT = `{{ printf "%s calls the %q function in %s.%s interface." .Method.VarName .Method.VarName .PkgName .ClientInterface | comment }}
+func (c *{{ .ClientStruct }}) {{ .Method.VarName }}() goa.Endpoint {
 	return func(ctx context.Context, v interface{}) (interface{}, error) {
 		p, ok := v.({{ .PayloadRef }})
 		if !ok {
 			return nil, goagrpc.ErrInvalidType("{{ .ServiceName }}", "{{ .Method.Name }}", "{{ .PayloadRef }}", v)
     }
-		req := {{ .ClientRequest.Init.Name }}({{ range .ClientRequest.Init.Args }}{{ .Name }}, {{ end }})
-		resp, err := c.grpccli.{{ .VarName }}(ctx, req, c.opts...)
+		req := {{ .Request.ClientType.Init.Name }}({{ range .Request.ClientType.Init.Args }}{{ .Name }}, {{ end }})
+		resp, err := c.grpccli.{{ .Method.VarName }}(ctx, req, c.opts...)
 		if err != nil {
 			return nil, err
 		}
-		{{- if .ClientResponse.Init }}
-			res := {{ .ClientResponse.Init.Name }}({{ range .ClientResponse.Init.Args }}{{ .Name }}, {{ end }})
+		{{- if .Response.ClientType.Init }}
+			res := {{ .Response.ClientType.Init.Name }}({{ range .Response.ClientType.Init.Args }}{{ .Name }}, {{ end }})
 		{{- else }}
 			res := {{ typeCast "resp.Field" . false }}
 		{{- end }}
