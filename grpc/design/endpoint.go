@@ -29,12 +29,12 @@ type (
 	}
 )
 
-// Name of HTTP endpoint
+// Name of gRPC endpoint
 func (e *EndpointExpr) Name() string {
 	return e.MethodExpr.Name
 }
 
-// Description of HTTP endpoint
+// Description of gRPC endpoint
 func (e *EndpointExpr) Description() string {
 	return e.MethodExpr.Description
 }

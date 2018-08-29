@@ -93,7 +93,7 @@ func GRPC(fn func()) {
 //
 //     Method("create", func() {
 //         Payload(CreatePayload)
-//         HTTP(func() {
+//         GRPC(func() {
 //			       Message(func() {
 //						     Attribute("name")
 //						 })

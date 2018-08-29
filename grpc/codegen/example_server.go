@@ -40,7 +40,9 @@ func exampleServer(genpkg string, root *grpcdesign.RootExpr) *codegen.File {
 			{Path: "log"},
 			{Path: "net"},
 			{Path: "os"},
+			{Path: "goa.design/goa/grpc/middleware"},
 			{Path: "google.golang.org/grpc"},
+			{Path: "github.com/grpc-ecosystem/go-grpc-middleware", Name: "grpc_middleware"},
 			{Path: "goa.design/goa/grpc", Name: "goagrpc"},
 			{Path: rootPath, Name: apiPkg},
 		}
@@ -87,6 +89,16 @@ func exampleServer(genpkg string, root *grpcdesign.RootExpr) *codegen.File {
 
 // input: map[string]interface{}{"Services":[]ServiceData, "APIPkg": string}
 const serveGRPCT = `func grpcServe(addr string{{ range .Services }}{{ if .Endpoints }}, {{ .Service.VarName }}Endpoints *{{ .Service.PkgName }}.Endpoints{{ end }}{{ end }}, errc chan error, logger *log.Logger, debug bool) *grpc.Server {
+	// Setup goa log adapter. Replace logger with your own using your
+  // log package of choice. The goa.design/middleware/logging/...
+  // packages define log adapters for common log packages.
+  var (
+    adapter middleware.Logger
+  )
+  {
+    adapter = middleware.NewLogger(logger)
+  }
+
 	// Wrap the endpoints with the transport specific layers. The generated
 	// server packages contains code generated from the design which maps
 	// the service input and output data structures to gRPC requests and
@@ -106,8 +118,14 @@ const serveGRPCT = `func grpcServe(addr string{{ range .Services }}{{ if .Endpoi
 	{{- end }}
 	}
 
-	// Initialize gRPC server using default configuration.
-	srv := grpc.NewServer()
+	// Initialize gRPC server with the middleware.
+	srv := grpc.NewServer(
+		grpc.UnaryInterceptor(grpc_middleware.ChainUnaryServer(
+			middleware.RequestID(),
+      middleware.Log(adapter),
+	  )),
+	)
+	
 
 	// Register the servers.
 	{{- range .Services }}
