@@ -640,10 +640,10 @@ func protoBufTypeTransformHelper(src, tgt *design.AttributeExpr, srcVar, tgtVar,
 		// tgt is a protocol buffer message type. src type is wrapped in an
 		// attribute called "field" in tgt.
 		pbType := ProtoBufFullMessageName(tgt, tgtPkg, svc.Scope)
-		code = fmt.Sprintf("%s := &%s{\nField: %s,\n}", tgtVar, pbType, typeCast(srcVar, src.Type, tgt.Type, proto))
+		code = fmt.Sprintf("%s := &%s{\nField: %s,\n}", tgtVar, pbType, typeConvert(srcVar, src.Type, tgt.Type, proto))
 	} else {
 		// tgt is a Go type. src is a protocol buffer message type.
-		code = fmt.Sprintf("%s := %s\n", tgtVar, typeCast(srcVar+".Field", src.Type, tgt.Type, proto))
+		code = fmt.Sprintf("%s := %s\n", tgtVar, typeConvert(srcVar+".Field", src.Type, tgt.Type, proto))
 	}
 	return code
 }

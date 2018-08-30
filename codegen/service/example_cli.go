@@ -57,7 +57,7 @@ func defaultTransport(transports []*TransportData) *TransportData {
 func allowedTransports(transports []*TransportData) string {
 	allowed := make([]string, 0, len(transports))
 	for _, t := range transports {
-		allowed = append(allowed, t.Name)
+		allowed = append(allowed, t.Name())
 	}
 	return strings.Join(allowed, ", ")
 }

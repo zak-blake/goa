@@ -11,13 +11,14 @@ import (
 )
 
 type (
+	// transport is a type for supported transports.
+	transport int
+
 	// TransportData contains the data about a transport. It is used only by the
 	// example codegen functions.
 	TransportData struct {
-		// Name is the transport name (http or grpc).
-		Name string
-		// DisplayName is the display name for the transport (HTTP or gRPC).
-		DisplayName string
+		// Type is the transport type.
+		Type transport
 		// Services is the list of services that support the transport.
 		Services []string
 		// Addr is the default address of the service implementing the transport.
@@ -29,7 +30,7 @@ type (
 	}
 
 	// dummyEndpointData contains the data needed to render dummy endpoint
-	// implmentation in the dummy service file.
+	// implementation in the dummy service file.
 	dummyEndpointData struct {
 		*MethodData
 		// ServiceVarName is the service variable name.
@@ -45,6 +46,35 @@ type (
 		ResultView string
 	}
 )
+
+const (
+	// TransportHTTP is the HTTP transport.
+	TransportHTTP transport = iota + 1
+	// TransportGRPC is the gRPC transport.
+	TransportGRPC
+)
+
+// Name returns the name of the transport.
+func (t *TransportData) Name() string {
+	switch t.Type {
+	case TransportHTTP:
+		return "http"
+	case TransportGRPC:
+		return "grpc"
+	}
+	return ""
+}
+
+// DisplayName returns the display name for the transport.
+func (t *TransportData) DisplayName() string {
+	switch t.Type {
+	case TransportHTTP:
+		return "HTTP"
+	case TransportGRPC:
+		return "gRPC"
+	}
+	return ""
+}
 
 // URL returns the URL for the transport. It panics if the URL is invalid.
 func (t *TransportData) URL() string {

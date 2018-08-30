@@ -42,7 +42,7 @@ func server(genpkg string, svc *grpcdesign.ServiceExpr) *codegen.File {
 			Source: serverGRPCInterfaceT,
 			Data:   e,
 			FuncMap: map[string]interface{}{
-				"typeCast": typeCastField,
+				"convertType": typeConvertField,
 			},
 		})
 	}
@@ -50,11 +50,11 @@ func server(genpkg string, svc *grpcdesign.ServiceExpr) *codegen.File {
 	return &codegen.File{Path: path, SectionTemplates: sections}
 }
 
-// typeCastField type casts the request/response "field" attribute type as per
-// the method payload/result type.
+// typeConvertField type converts the request/response "field" attribute type
+// as per the method payload/result type.
 // NOTE: If the method payload/result type is not an  object it is wrapped
 // into a "field" attribute in the gRPC request/response message type.
-func typeCastField(srcVar string, ed *EndpointData, payload bool) string {
+func typeConvertField(srcVar string, ed *EndpointData, payload bool) string {
 	se := grpcdesign.Root.Service(ed.ServiceName)
 	ep := se.Endpoint(ed.Method.Name)
 	src := ep.Response.Message.Type
@@ -64,7 +64,7 @@ func typeCastField(srcVar string, ed *EndpointData, payload bool) string {
 		tgt = ep.MethodExpr.Payload.Type
 	}
 	src = design.AsObject(src).Attribute("field").Type
-	return typeCast(srcVar, src, tgt, false)
+	return typeConvert(srcVar, src, tgt, false)
 }
 
 // input: ServiceData
@@ -93,7 +93,7 @@ func (s *{{ .ServerStruct }}) {{ .Method.VarName }}(ctx context.Context, p {{ .R
 	{{- if .Request.ServerType.Init }}
 		payload := {{ .Request.ServerType.Init.Name }}({{ range .Request.ServerType.Init.Args }}{{ .Name }}{{ end }})
 	{{- else }}
-		payload := {{ typeCast "p.Field" . true }}
+		payload := {{ convertType "p.Field" . true }}
 	{{- end }}
 	v, err := s.endpoints.{{ .Method.VarName }}(ctx, payload)
 	if err != nil {

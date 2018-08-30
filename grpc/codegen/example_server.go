@@ -42,7 +42,7 @@ func exampleServer(genpkg string, root *grpcdesign.RootExpr) *codegen.File {
 			{Path: "os"},
 			{Path: "goa.design/goa/grpc/middleware"},
 			{Path: "google.golang.org/grpc"},
-			{Path: "github.com/grpc-ecosystem/go-grpc-middleware", Name: "grpc_middleware"},
+			{Path: "github.com/grpc-ecosystem/go-grpc-middleware", Name: "grpcmiddleware"},
 			{Path: "goa.design/goa/grpc", Name: "goagrpc"},
 			{Path: rootPath, Name: apiPkg},
 		}
@@ -120,7 +120,7 @@ const serveGRPCT = `func grpcServe(addr string{{ range .Services }}{{ if .Endpoi
 
 	// Initialize gRPC server with the middleware.
 	srv := grpc.NewServer(
-		grpc.UnaryInterceptor(grpc_middleware.ChainUnaryServer(
+		grpc.UnaryInterceptor(grpcmiddleware.ChainUnaryServer(
 			middleware.RequestID(),
       middleware.Log(adapter),
 	  )),

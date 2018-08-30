@@ -48,7 +48,7 @@ func client(genpkg string, svc *grpcdesign.ServiceExpr) *codegen.File {
 			Source: clientGRPCInterfaceT,
 			Data:   e,
 			FuncMap: map[string]interface{}{
-				"typeCast": typeCastField,
+				"convertType": typeConvertField,
 			},
 		})
 	}
@@ -89,7 +89,7 @@ func (c *{{ .ClientStruct }}) {{ .Method.VarName }}() goa.Endpoint {
 		{{- if .Response.ClientType.Init }}
 			res := {{ .Response.ClientType.Init.Name }}({{ range .Response.ClientType.Init.Args }}{{ .Name }}, {{ end }})
 		{{- else }}
-			res := {{ typeCast "resp.Field" . false }}
+			res := {{ convertType "resp.Field" . false }}
 		{{- end }}
 		return res, nil
 	}

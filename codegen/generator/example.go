@@ -33,11 +33,10 @@ func Example(genpkg string, roots []eval.Root) ([]*codegen.File, error) {
 				svcs = append(svcs, s.Name())
 			}
 			transports = append(transports, &service.TransportData{
-				Name:        "http",
-				DisplayName: "HTTP",
-				Services:    svcs,
-				Host:        "http://localhost",
-				Port:        "8080",
+				Type:     service.TransportHTTP,
+				Services: svcs,
+				Host:     "http://localhost",
+				Port:     "8080",
 			})
 			files = append(files, httpcodegen.ExampleServerFiles(genpkg, r)...)
 			if cli := httpcodegen.ExampleCLI(genpkg, r); cli != nil {
@@ -49,11 +48,10 @@ func Example(genpkg string, roots []eval.Root) ([]*codegen.File, error) {
 				svcs = append(svcs, s.Name())
 			}
 			transports = append(transports, &service.TransportData{
-				Name:        "grpc",
-				DisplayName: "gRPC",
-				Services:    svcs,
-				Host:        "http://localhost",
-				Port:        "8081",
+				Type:     service.TransportGRPC,
+				Services: svcs,
+				Host:     "localhost",
+				Port:     "8081",
 			})
 			if f := grpccodegen.ExampleServerFiles(genpkg, r); f != nil {
 				files = append(files, f)
@@ -77,7 +75,7 @@ func Example(genpkg string, roots []eval.Root) ([]*codegen.File, error) {
 		panic("no transports available!")
 	case tlen > 1:
 		for _, t := range transports {
-			if t.Name == "http" {
+			if t.Type == service.TransportHTTP {
 				t.IsDefault = true
 			}
 		}

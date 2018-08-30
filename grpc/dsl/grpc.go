@@ -32,6 +32,7 @@ import (
 //        Method("add", func() {
 //            Description("Add two operands")
 //            Payload(Operands)
+//            Result(Int)
 //            Error(BadRequest, ErrorResult)
 //
 //            GRPC(func() {
@@ -65,10 +66,11 @@ func GRPC(fn func()) {
 // message. If Message is absent then the message is built using the gRPC
 // endpoint request or response type attributes.
 //
-// Message accepts one argument which describes the shape of the body, it can be:
+// Message accepts one argument which describes the shape of the body, it can
+// be:
 //
-//  - The name of an attribute of the request or response type. In this case the
-//    attribute type describes the shape of the message.
+//  - The name of an attribute of the request or response type. In this case
+//    the attribute type describes the shape of the message.
 //
 //  - A function listing the message attributes. The attributes inherit the
 //    properties (description, type, validations etc.) of the request or
@@ -84,7 +86,7 @@ func GRPC(fn func()) {
 //
 //     Method("create", func() {
 //         Payload(CreatePayload)
-//				 GRPC(func() {
+//         GRPC(func() {
 //         })
 //     })
 //
@@ -93,9 +95,9 @@ func GRPC(fn func()) {
 //     Method("create", func() {
 //         Payload(CreatePayload)
 //         GRPC(func() {
-//			       Message(func() {
-//						     Attribute("name")
-//						 })
+//             Message(func() {
+//                 Attribute("name")
+//             })
 //         })
 //     })
 //
@@ -242,34 +244,34 @@ func Message(args ...interface{}) {
 //
 // Example:
 //
-//		// Response (success and error) message definition
-//
-//		Method("create", func() {
-//				Payload(CreatePayload)
-//				Result(CreateResult)
-//				Error("an_error", String)
-//
-//				GRPC(func() {
-//						Response(OK)
-//						Response("an_error", StatusInternal)
-//				})
-//		})
-//
-//		// Success response defined using func()
+//    // Response (success and error) message definition
 //
 //    Method("create", func() {
 //        Payload(CreatePayload)
 //        Result(CreateResult)
-//        Error("an_error")							// uses in-built ErrorResult type
+//        Error("an_error", String)
+//
+//        GRPC(func() {
+//            Response(OK)
+//            Response("an_error", StatusInternal)
+//        })
+//    })
+//
+//    // Success response defined using func()
+//
+//    Method("create", func() {
+//        Payload(CreatePayload)
+//        Result(CreateResult)
+//        Error("an_error")             // uses in-built ErrorResult type
 //
 //        GRPC(func() {
 //            Response(func() {
 //                Description("Response used when item already exists")
-//                Code(StatusOK)				// gRPC status code set using Code
+//                Code(StatusOK)        // gRPC status code set using Code
 //                Message(CreateResult) // gRPC response set using Message
 //            })
 //
-//						Response("an_error", StatusUnknown)	// error response
+//            Response("an_error", StatusUnknown) // error response
 //        })
 //    })
 //

@@ -4,7 +4,7 @@ import (
 	"log"
 	"net"
 
-	grpc_middleware "github.com/grpc-ecosystem/go-grpc-middleware"
+	grpcmiddleware "github.com/grpc-ecosystem/go-grpc-middleware"
 	dividersvc "goa.design/goa/examples/error/gen/divider"
 	dividerpb "goa.design/goa/examples/error/gen/grpc/divider"
 	dividersvcsvr "goa.design/goa/examples/error/gen/grpc/divider/server"
@@ -36,7 +36,7 @@ func grpcServe(addr string, dividerEndpoints *dividersvc.Endpoints, errc chan er
 
 	// Initialize gRPC server with the middleware.
 	srv := grpc.NewServer(
-		grpc.UnaryInterceptor(grpc_middleware.ChainUnaryServer(
+		grpc.UnaryInterceptor(grpcmiddleware.ChainUnaryServer(
 			middleware.RequestID(),
 			middleware.Log(adapter),
 		)),

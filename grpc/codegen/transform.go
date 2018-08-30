@@ -110,7 +110,7 @@ func transformAttribute(source, target *design.AttributeExpr, newVar bool, a tar
 		if newVar {
 			assign = ":="
 		}
-		code = fmt.Sprintf("%s %s %s\n", a.targetVar, assign, typeCast(a.sourceVar, source.Type, target.Type, a.proto))
+		code = fmt.Sprintf("%s %s %s\n", a.targetVar, assign, typeConvert(a.sourceVar, source.Type, target.Type, a.proto))
 	}
 	return code, nil
 }
@@ -143,20 +143,20 @@ func transformObject(source, target *design.AttributeExpr, newVar bool, a targs)
 			case srcPtr && !tgtPtr:
 				if !source.IsRequired(n) {
 					postInitCode += fmt.Sprintf("if %s != nil {\n\t%s.%s = %s\n}\n",
-						srcField, a.targetVar, codegen.Goify(tgt.ElemName(n), true), typeCast("*"+srcField, srcAtt.Type, tgtAtt.Type, a.proto))
+						srcField, a.targetVar, codegen.Goify(tgt.ElemName(n), true), typeConvert("*"+srcField, srcAtt.Type, tgtAtt.Type, a.proto))
 					return
 				}
 				deref = "*"
 			case !srcPtr && tgtPtr:
 				deref = "&"
-				if sVar := typeCast(srcField, srcAtt.Type, tgtAtt.Type, a.proto); sVar != srcField {
+				if sVar := typeConvert(srcField, srcAtt.Type, tgtAtt.Type, a.proto); sVar != srcField {
 					// type cast is required
 					tgtName := codegen.Goify(tgt.ElemName(n), false)
 					postInitCode += fmt.Sprintf("%sptr := %s\n%s.%s = %s%sptr\n", tgtName, sVar, a.targetVar, codegen.Goify(tgt.ElemName(n), true), deref, tgtName)
 					return
 				}
 			}
-			initCode += fmt.Sprintf("\n%s: %s%s,", codegen.Goify(tgt.ElemName(n), true), deref, typeCast(srcField, srcAtt.Type, tgtAtt.Type, a.proto))
+			initCode += fmt.Sprintf("\n%s: %s%s,", codegen.Goify(tgt.ElemName(n), true), deref, typeConvert(srcField, srcAtt.Type, tgtAtt.Type, a.proto))
 		})
 	}
 	if initCode != "" {
@@ -552,12 +552,12 @@ func walkMatches(source, target *design.AttributeExpr, walker func(src, tgt *des
 	}
 }
 
-// typeCast type casts the source attribute type based on the target type.
+// typeConvert converts the source attribute type based on the target type.
 // NOTE: For Int and UInt kinds, protocol buffer Go compiler generates
 // int32 and uint32 respectively whereas goa v2 generates int and uint.
 //
 // proto if true indicates that the target attribute is a protocol buffer type.
-func typeCast(sourceVar string, source, target design.DataType, proto bool) string {
+func typeConvert(sourceVar string, source, target design.DataType, proto bool) string {
 	if source.Kind() != design.IntKind && source.Kind() != design.UIntKind {
 		return sourceVar
 	}
