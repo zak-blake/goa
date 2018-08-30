@@ -70,6 +70,6 @@ service {{ .Name }} {
 
 	// input: TypeData
 	messageT = `{{ comment .Description }}
-message {{ .VarName }} {{ .Def }}
+message {{ .VarName }}{{ .Def }}
 `
 )

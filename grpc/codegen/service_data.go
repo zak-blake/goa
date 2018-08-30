@@ -92,7 +92,17 @@ type (
 	}
 
 	// MessageData contains the data used to render the code related to a
-	// message for a gRPC service.
+	// message for a gRPC service. It is used in generating the .proto file.
+	// A gRPC request message is computed from the method Payload expression
+	// (unless specified explicitly by Message DSL in the gRPC endpoint
+	// expression). A gRPC response message is computed from the method Result
+	// expression (unless specified explicitly by Message DSL in the gRPC
+	// response expression). If the method Payload/Result is empty (not defined)
+	// a corresponding message type with empty fields is still generated in the
+	// .proto file. NOTE: Codegen could use `google.protobuf.Empty` message type
+	// in such cases, but generating an empty message type for the request or
+	// response makes it easier (and safer) if the request/response message needs
+	// to be changed in the future.
 	MessageData struct {
 		// Name is the message name.
 		Name string
@@ -288,11 +298,26 @@ func (d ServicesData) analyze(gs *grpcdesign.ServiceExpr) *ServiceData {
 				AttributeExpr: wrapAttr(e.Request),
 				TypeName:      fmt.Sprintf("%sRequest", ProtoBufify(e.Name(), true)),
 			}
+		} else if e.Request.Type == design.Empty {
+			// empty type should still generate a message. Rename the type to have
+			// the endpoint name suffixed with Request.
+			e.Request.Type = &design.UserTypeExpr{
+				AttributeExpr: &design.AttributeExpr{Type: &design.Object{}},
+				TypeName:      fmt.Sprintf("%sRequest", ProtoBufify(e.Name(), true)),
+			}
 		}
+
 		// Make response message to a user type
 		if _, ok := e.Response.Message.Type.(design.UserType); !ok {
 			e.Response.Message.Type = &design.UserTypeExpr{
 				AttributeExpr: wrapAttr(e.Response.Message),
+				TypeName:      fmt.Sprintf("%sResponse", ProtoBufify(e.Name(), true)),
+			}
+		} else if e.Response.Message.Type == design.Empty {
+			// empty type should still generate a message. Rename the type to have
+			// the endpoint name suffixed with Response.
+			e.Response.Message.Type = &design.UserTypeExpr{
+				AttributeExpr: &design.AttributeExpr{Type: &design.Object{}},
 				TypeName:      fmt.Sprintf("%sResponse", ProtoBufify(e.Name(), true)),
 			}
 		}
@@ -314,24 +339,24 @@ func (d ServicesData) analyze(gs *grpcdesign.ServiceExpr) *ServiceData {
 			md = svc.Method(e.Name())
 		)
 		{
-			if e.Request.Type != design.Empty {
-				payloadRef = svc.Scope.GoFullTypeRef(e.MethodExpr.Payload, svc.PkgName)
-				request = &RequestData{
-					Message:     collect(e.Request),
-					Description: e.Request.Description,
-					ServerType:  buildRequestTypeData(e, sd, true),
-					ClientType:  buildRequestTypeData(e, sd, false),
-				}
+			request = &RequestData{
+				Message:     collect(e.Request),
+				Description: e.Request.Description,
+				ServerType:  buildRequestTypeData(e, sd, true),
+				ClientType:  buildRequestTypeData(e, sd, false),
 			}
-			if e.Response.Message.Type != design.Empty {
+			if e.MethodExpr.Payload.Type != design.Empty {
+				payloadRef = svc.Scope.GoFullTypeRef(e.MethodExpr.Payload, svc.PkgName)
+			}
+			response = &ResponseData{
+				Message:     collect(e.Response.Message),
+				StatusCode:  statusCodeToGRPCConst(e.Response.StatusCode),
+				Description: e.Response.Description,
+				ServerType:  buildResponseTypeData(e, sd, true),
+				ClientType:  buildResponseTypeData(e, sd, false),
+			}
+			if e.MethodExpr.Result.Type != design.Empty {
 				resultRef = svc.Scope.GoFullTypeRef(e.MethodExpr.Result, svc.PkgName)
-				response = &ResponseData{
-					StatusCode:  statusCodeToGRPCConst(e.Response.StatusCode),
-					Description: e.Response.Description,
-					Message:     collect(e.Response.Message),
-					ServerType:  buildResponseTypeData(e, sd, true),
-					ClientType:  buildResponseTypeData(e, sd, false),
-				}
 			}
 			errors = buildErrorsData(e, sd)
 		}
@@ -381,7 +406,7 @@ func wrapAttr(att *design.AttributeExpr) *design.AttributeExpr {
 
 // collectMessages recurses through the attribute to gather all the messages.
 func collectMessages(at *design.AttributeExpr, seen map[string]struct{}, scope *codegen.NameScope) (data []*MessageData) {
-	if at == nil || at.Type == design.Empty {
+	if at == nil {
 		return
 	}
 	collect := func(at *design.AttributeExpr) []*MessageData { return collectMessages(at, seen, scope) }
@@ -423,7 +448,8 @@ func collectMessages(at *design.AttributeExpr, seen map[string]struct{}, scope *
 // svr param indicates that the type data is generated for server side.
 func buildRequestTypeData(e *grpcdesign.EndpointExpr, sd *ServiceData, svr bool) *TypeData {
 	buildInitFn := func(e *grpcdesign.EndpointExpr, sd *ServiceData, svr bool) *InitData {
-		if svr && !needInit(e.MethodExpr.Payload.Type) {
+		msgObj := design.AsObject(e.Request.Type)
+		if len(*msgObj) == 0 || (svr && !needInit(e.MethodExpr.Payload.Type)) {
 			return nil
 		}
 		var (
@@ -508,7 +534,8 @@ func buildRequestTypeData(e *grpcdesign.EndpointExpr, sd *ServiceData, svr bool)
 // svr param indicates that the type data is generated for server side.
 func buildResponseTypeData(e *grpcdesign.EndpointExpr, sd *ServiceData, svr bool) *TypeData {
 	buildInitFn := func(e *grpcdesign.EndpointExpr, sd *ServiceData, svr bool) *InitData {
-		if !svr && !needInit(e.MethodExpr.Result.Type) {
+		msgObj := design.AsObject(e.Response.Message.Type)
+		if len(*msgObj) == 0 || (!svr && !needInit(e.MethodExpr.Result.Type)) {
 			return nil
 		}
 		var (

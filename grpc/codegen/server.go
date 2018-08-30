@@ -63,7 +63,12 @@ func typeConvertField(srcVar string, ed *EndpointData, payload bool) string {
 		src = ep.Request.Type
 		tgt = ep.MethodExpr.Payload.Type
 	}
-	src = design.AsObject(src).Attribute("field").Type
+	srcObj := design.AsObject(src)
+	if len(*srcObj) == 0 {
+		// empty message type
+		return ""
+	}
+	src = srcObj.Attribute("field").Type
 	return typeConvert(srcVar, src, tgt, false)
 }
 
@@ -90,12 +95,14 @@ func {{ .ServerInit }}(e *{{ .Service.PkgName }}.Endpoints) *{{ .ServerStruct }}
 // input: EndpointData
 const serverGRPCInterfaceT = `{{ printf "%s implements the %q method in %s.%s interface." .Method.VarName .Method.VarName .PkgName .ServerInterface | comment }}
 func (s *{{ .ServerStruct }}) {{ .Method.VarName }}(ctx context.Context, p {{ .Request.ServerType.Ref }}) ({{ .Response.ServerType.Ref }}, error) {
+{{- if .PayloadRef }}
 	{{- if .Request.ServerType.Init }}
 		payload := {{ .Request.ServerType.Init.Name }}({{ range .Request.ServerType.Init.Args }}{{ .Name }}{{ end }})
 	{{- else }}
 		payload := {{ convertType "p.Field" . true }}
 	{{- end }}
-	v, err := s.endpoints.{{ .Method.VarName }}(ctx, payload)
+{{- end }}
+	{{ if .ResultRef }}v{{ else }}_{{ end }}, err := s.endpoints.{{ .Method.VarName }}(ctx, {{ if .PayloadRef }}payload{{ else }}nil{{ end }})
 	if err != nil {
 	{{- if .Errors }}
 		en, ok := err.(ErrorNamer)
@@ -112,8 +119,12 @@ func (s *{{ .ServerStruct }}) {{ .Method.VarName }}(ctx context.Context, p {{ .R
 		return nil, err
 	{{- end }}
 	}
-	res := v.({{ .ResultRef }})
-	resp := {{ .Response.ServerType.Init.Name }}({{ range .Response.ServerType.Init.Args }}{{ .Name }}{{ end }})
-	return resp, nil
+	{{- if .ResultRef }}
+		res := v.({{ .ResultRef }})
+		resp := {{ .Response.ServerType.Init.Name }}({{ range .Response.ServerType.Init.Args }}{{ .Name }}{{ end }})
+		return resp, nil
+	{{- else }}
+		return nil, nil
+	{{- end }}
 }
 `

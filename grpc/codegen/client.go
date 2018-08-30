@@ -25,7 +25,7 @@ func client(genpkg string, svc *grpcdesign.ServiceExpr) *codegen.File {
 	sections := []*codegen.SectionTemplate{
 		codegen.Header(title, "client", []*codegen.ImportSpec{
 			{Path: "context"},
-			{Path: "google.golang.org/grpc", Name: "grpc"},
+			{Path: "google.golang.org/grpc"},
 			{Path: "goa.design/goa", Name: "goa"},
 			{Path: "goa.design/goa/grpc", Name: "goagrpc"},
 			{Path: genpkg + "/" + codegen.SnakeCase(svc.Name()), Name: data.Service.PkgName},
@@ -77,21 +77,27 @@ func New{{ .ClientStruct }}(cc *grpc.ClientConn, opts ...grpc.CallOption) *{{ .C
 const clientGRPCInterfaceT = `{{ printf "%s calls the %q function in %s.%s interface." .Method.VarName .Method.VarName .PkgName .ClientInterface | comment }}
 func (c *{{ .ClientStruct }}) {{ .Method.VarName }}() goa.Endpoint {
 	return func(ctx context.Context, v interface{}) (interface{}, error) {
+	{{- if .PayloadRef }}
 		p, ok := v.({{ .PayloadRef }})
 		if !ok {
 			return nil, goagrpc.ErrInvalidType("{{ .ServiceName }}", "{{ .Method.Name }}", "{{ .PayloadRef }}", v)
     }
 		req := {{ .Request.ClientType.Init.Name }}({{ range .Request.ClientType.Init.Args }}{{ .Name }}, {{ end }})
-		resp, err := c.grpccli.{{ .Method.VarName }}(ctx, req, c.opts...)
+	{{- end }}
+		{{ if .ResultRef }}resp{{ else }}_{{ end }}, err := c.grpccli.{{ .Method.VarName }}(ctx, {{ if .PayloadRef }}req{{ else }}nil{{ end }}, c.opts...)
 		if err != nil {
 			return nil, err
 		}
+	{{- if .ResultRef }}
 		{{- if .Response.ClientType.Init }}
 			res := {{ .Response.ClientType.Init.Name }}({{ range .Response.ClientType.Init.Args }}{{ .Name }}, {{ end }})
 		{{- else }}
 			res := {{ convertType "resp.Field" . false }}
 		{{- end }}
 		return res, nil
+	{{- else }}
+		return nil, nil
+	{{- end }}
 	}
 }
 `
