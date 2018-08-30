@@ -21,9 +21,9 @@ type (
 		GRPCServices []*ServiceExpr
 		// GRPCErrors lists the error gRPC responses.
 		GRPCErrors []*ErrorExpr
-		// Metadata is a set of key/value pairs with semantic that is
+		// Meta is a set of key/value pairs with semantic that is
 		// specific to each generator.
-		Metadata design.MetadataExpr
+		Meta design.MetaExpr
 	}
 )
 

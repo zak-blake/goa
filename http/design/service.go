@@ -40,9 +40,9 @@ type (
 		HTTPErrors []*ErrorExpr
 		// FileServers is the list of static asset serving endpoints
 		FileServers []*FileServerExpr
-		// Metadata is a set of key/value pairs with semantic that is
+		// Meta is a set of key/value pairs with semantic that is
 		// specific to each generator.
-		Metadata design.MetadataExpr
+		Meta design.MetaExpr
 	}
 )
 

@@ -85,8 +85,8 @@ func objectRPC(params ...interface{}) *design.AttributeExpr {
 		obj = append(obj, &design.NamedAttributeExpr{
 			Name: name,
 			Attribute: &design.AttributeExpr{
-				Type:     typ,
-				Metadata: design.MetadataExpr{"rpc:tag": []string{strconv.Itoa(int(i/2) + 1)}},
+				Type: typ,
+				Meta: design.MetaExpr{"rpc:tag": []string{strconv.Itoa(int(i/2) + 1)}},
 			},
 		})
 	}

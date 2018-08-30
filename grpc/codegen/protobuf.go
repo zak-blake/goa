@@ -200,7 +200,7 @@ func fieldName(str string, upper bool) string {
 // rpcTag returns the unique numbered RPC tag from the given attribute.
 func rpcTag(a *design.AttributeExpr) uint64 {
 	var tag uint64
-	if t, ok := a.Metadata["rpc:tag"]; ok {
+	if t, ok := a.Meta["rpc:tag"]; ok {
 		tn, err := strconv.ParseUint(t[0], 10, 64)
 		if err != nil {
 			panic(err) // bug (should catch invalid field numbers in validation)

@@ -25,7 +25,7 @@ var _ = Service("calc", func() {
 		Payload(func() {
 			// Attribute describes an object field
 			Attribute("a", Int, "Left operand", func() {
-				Metadata("rpc:tag", "1")
+				Meta("rpc:tag", "1")
 			})
 			Field(2, "b", Int, "Right operand")
 			Required("a", "b")

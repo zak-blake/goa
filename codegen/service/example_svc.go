@@ -134,8 +134,8 @@ func dummyServiceFile(genpkg string, root *design.RootExpr, svc *design.ServiceE
 			ed.ResultIsStruct = design.IsObject(m.Result.Type)
 			if md.ViewedResult != nil {
 				view := "default"
-				if m.Result.Metadata != nil {
-					if v, ok := m.Result.Metadata["view"]; ok {
+				if m.Result.Meta != nil {
+					if v, ok := m.Result.Meta["view"]; ok {
 						view = v[0]
 					}
 				}

@@ -31,7 +31,7 @@ var (
 	DefaultPointerObj = pointer(defaulta(object("Int64", design.Int64, "Uint32", design.UInt32, "Float64", design.Float64, "String", design.String, "Bytes", design.Bytes), "Int64", 100, "Uint32", 1, "Float64", 1.0, "String", "foo", "Bytes", []byte{0, 1, 2}))
 	NonRequiredObj    = object("Int64", design.Int64, "Uint32", design.UInt32, "Float64", design.Float64, "String", design.String, "Bytes", design.Bytes)
 
-	ObjWithMetadata = withMetadata(object("a", SimpleMap.Type, "b", design.Int), "a", metadata("struct:field:name", "Apple"))
+	ObjWithMeta = withMeta(object("a", SimpleMap.Type, "b", design.Int), "a", metadata("struct:field:name", "Apple"))
 
 	recursiveObjMap = mapa(design.String, objRecursive(&design.UserTypeExpr{TypeName: "Recursive", AttributeExpr: object("a", design.String, "b", design.Int)}).Type)
 )
@@ -105,7 +105,7 @@ func TestGoTypeTransform(t *testing.T) {
 		{"target-package-unmarshal", ArrayUserType, ArrayUserType, true, "tpkg", objTargetPkgUnmarshalCode},
 		{"target-package-marshal", ArrayUserType, ArrayUserType, false, "tpkg", objTargetPkgCode},
 
-		{"with-metadata", ObjWithMetadata, ObjWithMetadata, true, "", objWithMetadataCode},
+		{"with-metadata", ObjWithMeta, ObjWithMeta, true, "", objWithMetaCode},
 	}
 	for _, c := range cases {
 		t.Run(c.Name, func(t *testing.T) {
@@ -167,7 +167,7 @@ func objRecursive(ut *design.UserTypeExpr) *design.UserTypeExpr {
 	return ut
 }
 
-func withMetadata(att *design.AttributeExpr, vals ...interface{}) *design.AttributeExpr {
+func withMeta(att *design.AttributeExpr, vals ...interface{}) *design.AttributeExpr {
 	obj := design.AsObject(att.Type)
 	if obj == nil {
 		return nil
@@ -178,7 +178,7 @@ func withMetadata(att *design.AttributeExpr, vals ...interface{}) *design.Attrib
 		if a == nil {
 			continue
 		}
-		a.Metadata = vals[i+1].(map[string][]string)
+		a.Meta = vals[i+1].(map[string][]string)
 	}
 	return att
 }
@@ -705,7 +705,7 @@ const objTargetPkgCode = `func transform() {
 }
 `
 
-const objWithMetadataCode = `func transform() {
+const objWithMetaCode = `func transform() {
 	target := &TargetType{
 		B: source.B,
 	}

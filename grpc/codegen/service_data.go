@@ -392,8 +392,8 @@ func wrapAttr(att *design.AttributeExpr) *design.AttributeExpr {
 				&design.NamedAttributeExpr{
 					Name: "field",
 					Attribute: &design.AttributeExpr{
-						Type:     actual,
-						Metadata: design.MetadataExpr{"rpc:tag": []string{"1"}},
+						Type: actual,
+						Meta: design.MetaExpr{"rpc:tag": []string{"1"}},
 					},
 				},
 			},

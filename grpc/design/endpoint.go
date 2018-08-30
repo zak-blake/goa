@@ -22,9 +22,9 @@ type (
 		Response *GRPCResponseExpr
 		// GRPCErrors is the list of all the possible error gRPC responses.
 		GRPCErrors []*ErrorExpr
-		// Metadata is a set of key/value pairs with semantic that is
-		// specific to each generator, see dsl.Metadata.
-		Metadata design.MetadataExpr
+		// Meta is a set of key/value pairs with semantic that is
+		// specific to each generator, see dsl.Meta.
+		Meta design.MetaExpr
 	}
 )
 
@@ -79,7 +79,7 @@ func (e *EndpointExpr) Prepare() {
 }
 
 // Validate validates the endpoint expression by checking if the request
-// and responses contains the "rpc:tag" in the metadata. It also makes sure
+// and responses contains the "rpc:tag" in the meta. It also makes sure
 // that there is only one response per status code.
 func (e *EndpointExpr) Validate() error {
 	verr := new(eval.ValidationErrors)
@@ -125,8 +125,8 @@ func validateMessage(msgAtt, serviceAtt *design.AttributeExpr, e *EndpointExpr, 
 	validateRPCTag := func(att *design.AttributeExpr) {
 		foundRPC := make(map[string]string)
 		for _, nat := range *design.AsObject(att.Type) {
-			if tag, ok := nat.Attribute.Metadata["rpc:tag"]; !ok {
-				verr.Add(e, "attribute %q does not have \"rpc:tag\" defined in the metadata in type %q", nat.Name, att.Type.Name())
+			if tag, ok := nat.Attribute.Meta["rpc:tag"]; !ok {
+				verr.Add(e, "attribute %q does not have \"rpc:tag\" defined in the meta in type %q", nat.Name, att.Type.Name())
 			} else if a, ok := foundRPC[tag[0]]; ok {
 				verr.Add(e, "field number %d in attribute %q already exists for attribute %q", tag[0], nat.Name, a)
 			} else {
@@ -199,7 +199,7 @@ func initMessage(msg *design.AttributeExpr, src *design.AttributeExpr) {
 
 // initAttrFromDesign overrides the type of att with the one of patt and
 // initializes other non-initialized fields of att with the one of patt except
-// Metadata.
+// Meta.
 func initAttrFromDesign(att, patt *design.AttributeExpr) {
 	if patt == nil || patt.Type == design.Empty {
 		return

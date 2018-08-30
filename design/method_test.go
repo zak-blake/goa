@@ -22,10 +22,10 @@ func TestMethodExprValidate(t *testing.T) {
 				Type: nil,
 			}
 		}
-		metadata = MetadataExpr{
+		meta = MetaExpr{
 			"struct:error:name": []string{"error1"},
 		}
-		errorDuplicatedMetadata = func() *AttributeExpr {
+		errorDuplicatedMeta = func() *AttributeExpr {
 			return &AttributeExpr{
 				Type: &ResultTypeExpr{
 					UserTypeExpr: &UserTypeExpr{
@@ -34,13 +34,13 @@ func TestMethodExprValidate(t *testing.T) {
 								&NamedAttributeExpr{
 									Name: "foo",
 									Attribute: &AttributeExpr{
-										Metadata: metadata,
+										Meta: meta,
 									},
 								},
 								&NamedAttributeExpr{
 									Name: "bar",
 									Attribute: &AttributeExpr{
-										Metadata: metadata,
+										Meta: meta,
 									},
 								},
 							},
@@ -50,7 +50,7 @@ func TestMethodExprValidate(t *testing.T) {
 				},
 			}
 		}
-		errorMissingMetadata = func() *AttributeExpr {
+		errorMissingMeta = func() *AttributeExpr {
 			return &AttributeExpr{
 				Type: &ResultTypeExpr{
 					UserTypeExpr: &UserTypeExpr{
@@ -59,7 +59,7 @@ func TestMethodExprValidate(t *testing.T) {
 								&NamedAttributeExpr{
 									Name: "foo",
 									Attribute: &AttributeExpr{
-										Metadata: MetadataExpr{},
+										Meta: MetaExpr{},
 									},
 								},
 							},
@@ -69,9 +69,9 @@ func TestMethodExprValidate(t *testing.T) {
 				},
 			}
 		}
-		errAttributeTypeNil   = fmt.Errorf("attribute type is nil")
-		errDuplicatedMetadata = fmt.Errorf("metadata 'struct:error:name' already set for attribute %q of result type %q", "foo", identifier)
-		errMissingMetadata    = fmt.Errorf("metadata 'struct:error:name' is missing in result type %q", identifier)
+		errAttributeTypeNil = fmt.Errorf("attribute type is nil")
+		errDuplicatedMeta   = fmt.Errorf("meta 'struct:error:name' already set for attribute %q of result type %q", "foo", identifier)
+		errMissingMeta      = fmt.Errorf("meta 'struct:error:name' is missing in result type %q", identifier)
 	)
 
 	cases := map[string]struct {
@@ -100,17 +100,17 @@ func TestMethodExprValidate(t *testing.T) {
 			result:  attributeTypeEmpty(),
 			errors: []*ErrorExpr{
 				{
-					AttributeExpr: errorDuplicatedMetadata(),
+					AttributeExpr: errorDuplicatedMeta(),
 					Name:          "foo",
 				},
 				{
-					AttributeExpr: errorMissingMetadata(),
+					AttributeExpr: errorMissingMeta(),
 					Name:          "bar",
 				},
 			},
 			expected: &eval.ValidationErrors{Errors: []error{
-				errDuplicatedMetadata,
-				errMissingMetadata,
+				errDuplicatedMeta,
+				errMissingMeta,
 			}},
 		},
 		"errors in all": {
@@ -118,19 +118,19 @@ func TestMethodExprValidate(t *testing.T) {
 			result:  attributeTypeNil(),
 			errors: []*ErrorExpr{
 				{
-					AttributeExpr: errorDuplicatedMetadata(),
+					AttributeExpr: errorDuplicatedMeta(),
 					Name:          "foo",
 				},
 				{
-					AttributeExpr: errorMissingMetadata(),
+					AttributeExpr: errorMissingMeta(),
 					Name:          "bar",
 				},
 			},
 			expected: &eval.ValidationErrors{Errors: []error{
 				errAttributeTypeNil,
 				errAttributeTypeNil,
-				errDuplicatedMetadata,
-				errMissingMetadata,
+				errDuplicatedMeta,
+				errMissingMeta,
 			}},
 		},
 	}

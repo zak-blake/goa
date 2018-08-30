@@ -20,8 +20,8 @@ type (
 		// Parent expression, one of EndpointExpr, ServiceExpr or
 		// RootExpr.
 		Parent eval.Expression
-		// Metadata is a list of key/value pairs
-		Metadata design.MetadataExpr
+		// Meta is a list of key/value pairs
+		Meta design.MetaExpr
 	}
 
 	// Code is the error code as defined in the gRPC.
@@ -84,7 +84,7 @@ func (r *GRPCResponseExpr) Validate(e *EndpointExpr) *eval.ValidationErrors {
 		if !isrt {
 			return e.MethodExpr.Result.Find(name) != nil
 		}
-		if v, ok := e.MethodExpr.Result.Metadata["view"]; ok {
+		if v, ok := e.MethodExpr.Result.Meta["view"]; ok {
 			return rt.ViewHasAttribute(v[0], name)
 		}
 		for _, v := range rt.Views {
@@ -96,7 +96,7 @@ func (r *GRPCResponseExpr) Validate(e *EndpointExpr) *eval.ValidationErrors {
 	}
 	if r.Message != nil {
 		verr.Merge(r.Message.Validate("gRPC response message", r))
-		if att, ok := r.Message.Metadata["origin:attribute"]; ok {
+		if att, ok := r.Message.Meta["origin:attribute"]; ok {
 			if !hasAttribute(att[0]) {
 				verr.Add(r, "message %q has no equivalent attribute in%s result type", att[0], inview)
 			}
@@ -160,7 +160,7 @@ func (r *GRPCResponseExpr) Dup() *GRPCResponseExpr {
 		StatusCode:  r.StatusCode,
 		Description: r.Description,
 		Parent:      r.Parent,
-		Metadata:    r.Metadata,
+		Meta:        r.Meta,
 		Message:     design.DupAtt(r.Message),
 	}
 }

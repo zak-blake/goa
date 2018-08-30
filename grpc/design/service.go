@@ -19,9 +19,9 @@ type (
 		GRPCEndpoints []*EndpointExpr
 		// GRPCErrors lists gRPC errors that apply to all endpoints.
 		GRPCErrors []*ErrorExpr
-		// Metadata is a set of key/value pairs with semantic that is
+		// Meta is a set of key/value pairs with semantic that is
 		// specific to each generator.
-		Metadata design.MetadataExpr
+		Meta design.MetaExpr
 	}
 )
 

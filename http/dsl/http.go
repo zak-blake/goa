@@ -669,10 +669,10 @@ func Body(args ...interface{}) {
 			return
 		}
 		attr = design.DupAtt(attr)
-		if attr.Metadata == nil {
-			attr.Metadata = design.MetadataExpr{"origin:attribute": []string{a}}
+		if attr.Meta == nil {
+			attr.Meta = design.MetaExpr{"origin:attribute": []string{a}}
 		} else {
-			attr.Metadata["origin:attribute"] = []string{a}
+			attr.Meta["origin:attribute"] = []string{a}
 		}
 	case design.UserType:
 		attr = &design.AttributeExpr{Type: a}
@@ -699,10 +699,10 @@ func Body(args ...interface{}) {
 	if fn != nil {
 		eval.Execute(fn, attr)
 	}
-	if attr.Metadata == nil {
-		attr.Metadata = design.MetadataExpr{}
+	if attr.Meta == nil {
+		attr.Meta = design.MetaExpr{}
 	}
-	attr.Metadata["http:body"] = []string{}
+	attr.Meta["http:body"] = []string{}
 	setter(attr)
 }
 
