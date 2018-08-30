@@ -5,7 +5,6 @@ import (
 
 	"goa.design/goa/design"
 	"goa.design/goa/eval"
-	grpccodes "google.golang.org/grpc/codes"
 )
 
 type (
@@ -61,7 +60,7 @@ func (e *EndpointExpr) Prepare() {
 
 	// Make sure there's a default response if none define explicitly
 	if e.Response == nil {
-		e.Response = &GRPCResponseExpr{StatusCode: grpccodes.OK}
+		e.Response = &GRPCResponseExpr{StatusCode: StatusOK}
 	}
 
 	// Inherit gRPC errors from service and root

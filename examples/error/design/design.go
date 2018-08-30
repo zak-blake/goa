@@ -3,11 +3,10 @@ package design
 import (
 	. "goa.design/goa/design"
 	. "goa.design/goa/dsl"
+	grpcdesign "goa.design/goa/grpc/design"
 	grpcdsl "goa.design/goa/grpc/dsl"
 	httpdesign "goa.design/goa/http/design"
 	httpdsl "goa.design/goa/http/dsl"
-	"google.golang.org/grpc/codes"
-	grpccodes "google.golang.org/grpc/codes"
 )
 
 var _ = API("divider", func() {
@@ -42,11 +41,11 @@ var _ = Service("divider", func() {
 	grpcdsl.GRPC(func() {
 		// Use gRPC status code "InvalidArgument" for "div_by_zero"
 		// errors.
-		grpcdsl.Response("div_by_zero", codes.InvalidArgument)
+		grpcdsl.Response("div_by_zero", grpcdesign.StatusInvalidArgument)
 
 		// Use gRPC status code "DeadlineExceeded" for "timeout"
 		// errors.
-		grpcdsl.Response("timeout", codes.DeadlineExceeded)
+		grpcdsl.Response("timeout", grpcdesign.StatusDeadlineExceeded)
 	})
 
 	Method("integer_divide", func() {
@@ -64,8 +63,8 @@ var _ = Service("divider", func() {
 		})
 
 		grpcdsl.GRPC(func() {
-			grpcdsl.Response(grpccodes.OK)
-			grpcdsl.Response("has_remainder", grpccodes.Unknown)
+			grpcdsl.Response(grpcdesign.StatusOK)
+			grpcdsl.Response("has_remainder", grpcdesign.StatusUnknown)
 		})
 	})
 
@@ -79,7 +78,7 @@ var _ = Service("divider", func() {
 		})
 
 		grpcdsl.GRPC(func() {
-			grpcdsl.Response(grpccodes.OK)
+			grpcdsl.Response(grpcdesign.StatusOK)
 		})
 	})
 })

@@ -2,10 +2,10 @@ package design
 
 import (
 	. "goa.design/goa/design"
+	grpcdesign "goa.design/goa/grpc/design"
 	grpcdsl "goa.design/goa/grpc/dsl"
 	httpdesign "goa.design/goa/http/design"
 	. "goa.design/goa/http/dsl"
-	grpccodes "google.golang.org/grpc/codes"
 )
 
 // API describes the global properties of the API server.
@@ -45,7 +45,7 @@ var _ = Service("calc", func() {
 
 		// GRPC describes the gRPC transport mapping
 		grpcdsl.GRPC(func() {
-			grpcdsl.Response(grpccodes.OK)
+			grpcdsl.Response(grpcdesign.StatusOK)
 		})
 	})
 })

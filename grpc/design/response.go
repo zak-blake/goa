@@ -5,7 +5,6 @@ import (
 
 	"goa.design/goa/design"
 	"goa.design/goa/eval"
-	"google.golang.org/grpc/codes"
 )
 
 type (
@@ -13,7 +12,7 @@ type (
 	// and result type.
 	GRPCResponseExpr struct {
 		// gRPC status code
-		StatusCode codes.Code
+		StatusCode Code
 		// Response description
 		Description string
 		// Response Message if any
@@ -24,6 +23,31 @@ type (
 		// Metadata is a list of key/value pairs
 		Metadata design.MetadataExpr
 	}
+
+	// Code is the error code as defined in the gRPC.
+	// See https://github.com/grpc/grpc-go/blob/master/codes/codes.go for more
+	// information about supported gRPC error codes.
+	Code int
+)
+
+const (
+	StatusOK Code = iota + 1
+	StatusCanceled
+	StatusUnknown
+	StatusInvalidArgument
+	StatusDeadlineExceeded
+	StatusNotFound
+	StatusAlreadyExists
+	StatusPermissionDenied
+	StatusResourceExhausted
+	StatusFailedPrecondition
+	StatusAborted
+	StatusOutOfRange
+	StatusUnimplemented
+	StatusInternal
+	StatusUnavailable
+	StatusDataLoss
+	StatusUnauthenticated
 )
 
 // EvalName returns the generic definition name used in error messages.

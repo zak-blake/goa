@@ -32,7 +32,7 @@ func NewClient(cc *grpc.ClientConn, opts ...grpc.CallOption) *Client {
 	}
 }
 
-// Add calls the "add" function in calcpb.CalcClient interface.
+// Add calls the "Add" function in calcpb.CalcClient interface.
 func (c *Client) Add() goa.Endpoint {
 	return func(ctx context.Context, v interface{}) (interface{}, error) {
 		p, ok := v.(*calcsvc.AddPayload)

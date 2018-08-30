@@ -4,7 +4,6 @@ import (
 	"goa.design/goa/design"
 	"goa.design/goa/eval"
 	grpcdesign "goa.design/goa/grpc/design"
-	"google.golang.org/grpc/codes"
 )
 
 // GRPC defines gRPC transport specific properties on an API, a service, or a
@@ -243,8 +242,6 @@ func Message(args ...interface{}) {
 //
 // Example:
 //
-//    import "google.golang.org/grpc/codes"
-//
 //		// Response (success and error) message definition
 //
 //		Method("create", func() {
@@ -253,8 +250,8 @@ func Message(args ...interface{}) {
 //				Error("an_error", String)
 //
 //				GRPC(func() {
-//						Response(codes.OK)
-//						Response("an_error", codes.Internal)
+//						Response(OK)
+//						Response("an_error", StatusInternal)
 //				})
 //		})
 //
@@ -268,11 +265,11 @@ func Message(args ...interface{}) {
 //        GRPC(func() {
 //            Response(func() {
 //                Description("Response used when item already exists")
-//                Code(codes.OK)				// gRPC status code set using Code
+//                Code(StatusOK)				// gRPC status code set using Code
 //                Message(CreateResult) // gRPC response set using Message
 //            })
 //
-//						Response("an_error", codes.Unknown)	// error response
+//						Response("an_error", StatusUnknown)	// error response
 //        })
 //    })
 //
@@ -319,7 +316,7 @@ func Response(val interface{}, args ...interface{}) {
 
 // Code sets the Response status code. It must appear in a gRPC response
 // expression.
-func Code(code codes.Code) {
+func Code(code grpcdesign.Code) {
 	res, ok := eval.Current().(*grpcdesign.GRPCResponseExpr)
 	if !ok {
 		eval.IncompatibleDSL()
@@ -334,7 +331,7 @@ func grpcError(n string, p eval.Expression, args ...interface{}) *grpcdesign.Err
 		return nil
 	}
 	var (
-		code codes.Code
+		code grpcdesign.Code
 		fn   func()
 		val  interface{}
 	)
@@ -342,7 +339,7 @@ func grpcError(n string, p eval.Expression, args ...interface{}) *grpcdesign.Err
 	args = args[1:]
 	code, fn = parseResponseArgs(val, args...)
 	if code == 0 {
-		code = codes.Unknown
+		code = grpcdesign.StatusUnknown
 	}
 	resp := &grpcdesign.GRPCResponseExpr{
 		StatusCode: code,
@@ -357,9 +354,9 @@ func grpcError(n string, p eval.Expression, args ...interface{}) *grpcdesign.Err
 	}
 }
 
-func parseResponseArgs(val interface{}, args ...interface{}) (code codes.Code, fn func()) {
+func parseResponseArgs(val interface{}, args ...interface{}) (code grpcdesign.Code, fn func()) {
 	switch t := val.(type) {
-	case codes.Code:
+	case grpcdesign.Code:
 		code = t
 		if len(args) > 1 {
 			eval.ReportError("too many arguments given to Response (%d)", len(args)+1)
@@ -375,12 +372,12 @@ func parseResponseArgs(val interface{}, args ...interface{}) (code codes.Code, f
 		}
 	case func():
 		if len(args) > 0 {
-			eval.InvalidArgError("google.golang.org/grpc/codes.Code (gRPC status code)", val)
+			eval.InvalidArgError("int (gRPC status code)", val)
 			return
 		}
 		fn = t
 	default:
-		eval.InvalidArgError("google.golang.org/grpc/codes.Code (gRPC status code) or function", val)
+		eval.InvalidArgError("int (gRPC status code) or function", val)
 		return
 	}
 	return
