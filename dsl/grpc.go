@@ -249,15 +249,3 @@ func Message(args ...interface{}) {
 		setter(attr)
 	}
 }
-
-// Code sets the status code for a gRPC response message.
-//
-// Code must appear in a gRPC response expression.
-func Code(code int) {
-	res, ok := eval.Current().(*expr.GRPCResponseExpr)
-	if !ok {
-		eval.IncompatibleDSL()
-		return
-	}
-	res.StatusCode = code
-}

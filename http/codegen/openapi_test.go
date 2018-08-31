@@ -21,15 +21,15 @@ var update = flag.Bool("update", false, "update .golden files")
 
 func newDesign(httpSvcs ...*expr.HTTPServiceExpr) *expr.RootExpr {
 	openapi.Definitions = make(map[string]*openapi.Schema)
-	a := &expr.APIExpr{
-		Name:    "test",
-		Servers: []*expr.ServerExpr{{URL: "https://goa.design"}},
-	}
+	a := expr.NewAPIExpr("test", func() {})
+	a.Servers = []*expr.ServerExpr{{URL: "https://goa.design"}}
+	a.HTTP.Services = httpSvcs
+
 	services := make([]*expr.ServiceExpr, len(httpSvcs))
 	for i, r := range httpSvcs {
 		services[i] = r.ServiceExpr
 	}
-	return &expr.RootExpr{API: a, Services: services, HTTPServices: httpSvcs}
+	return &expr.RootExpr{API: a, Services: services}
 }
 
 func newService(endpoints ...*expr.HTTPEndpointExpr) *expr.HTTPServiceExpr {
