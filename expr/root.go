@@ -35,7 +35,7 @@ type (
 		// Schemes list the registered security schemes.
 		Schemes []*SchemeExpr
 
-		// Metadata is a set of key/value pairs with semantic that is
+		// Meta is a set of key/value pairs with semantic that is
 		// specific to each generator.
 		Meta MetaExpr
 	}
