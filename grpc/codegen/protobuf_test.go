@@ -5,34 +5,34 @@ import (
 	"testing"
 
 	"goa.design/goa/codegen"
-	"goa.design/goa/design"
+	"goa.design/goa/expr"
 )
 
 func TestProtoBufMessageDef(t *testing.T) {
 	var (
-		simpleArray = codegen.NewArray(design.Boolean)
-		simpleMap   = codegen.NewMap(design.Int, design.String)
-		ut          = &design.UserTypeExpr{AttributeExpr: &design.AttributeExpr{Type: design.Boolean}, TypeName: "UserType"}
-		obj         = objectRPC("IntField", design.Int, "ArrayField", simpleArray.Type, "MapField", simpleMap.Type, "UserTypeField", ut)
-		rt          = &design.ResultTypeExpr{UserTypeExpr: &design.UserTypeExpr{AttributeExpr: &design.AttributeExpr{Type: design.Boolean}, TypeName: "ResultType"}, Identifier: "application/vnd.goa.example", Views: nil}
-		userType    = &design.AttributeExpr{Type: ut}
-		resultType  = &design.AttributeExpr{Type: rt}
+		simpleArray = codegen.NewArray(expr.Boolean)
+		simpleMap   = codegen.NewMap(expr.Int, expr.String)
+		ut          = &expr.UserTypeExpr{AttributeExpr: &expr.AttributeExpr{Type: expr.Boolean}, TypeName: "UserType"}
+		obj         = objectRPC("IntField", expr.Int, "ArrayField", simpleArray.Type, "MapField", simpleMap.Type, "UserTypeField", ut)
+		rt          = &expr.ResultTypeExpr{UserTypeExpr: &expr.UserTypeExpr{AttributeExpr: &expr.AttributeExpr{Type: expr.Boolean}, TypeName: "ResultType"}, Identifier: "application/vnd.goa.example", Views: nil}
+		userType    = &expr.AttributeExpr{Type: ut}
+		resultType  = &expr.AttributeExpr{Type: rt}
 	)
 	cases := map[string]struct {
-		att      *design.AttributeExpr
+		att      *expr.AttributeExpr
 		expected string
 	}{
-		"BooleanKind": {&design.AttributeExpr{Type: design.Boolean}, "bool"},
-		"IntKind":     {&design.AttributeExpr{Type: design.Int}, "sint32"},
-		"Int32Kind":   {&design.AttributeExpr{Type: design.Int32}, "sint32"},
-		"Int64Kind":   {&design.AttributeExpr{Type: design.Int64}, "sint64"},
-		"UIntKind":    {&design.AttributeExpr{Type: design.UInt}, "uint32"},
-		"UInt32Kind":  {&design.AttributeExpr{Type: design.UInt32}, "uint32"},
-		"UInt64Kind":  {&design.AttributeExpr{Type: design.UInt64}, "uint64"},
-		"Float32Kind": {&design.AttributeExpr{Type: design.Float32}, "float"},
-		"Float64Kind": {&design.AttributeExpr{Type: design.Float64}, "double"},
-		"StringKind":  {&design.AttributeExpr{Type: design.String}, "string"},
-		"BytesKind":   {&design.AttributeExpr{Type: design.Bytes}, "bytes"},
+		"BooleanKind": {&expr.AttributeExpr{Type: expr.Boolean}, "bool"},
+		"IntKind":     {&expr.AttributeExpr{Type: expr.Int}, "sint32"},
+		"Int32Kind":   {&expr.AttributeExpr{Type: expr.Int32}, "sint32"},
+		"Int64Kind":   {&expr.AttributeExpr{Type: expr.Int64}, "sint64"},
+		"UIntKind":    {&expr.AttributeExpr{Type: expr.UInt}, "uint32"},
+		"UInt32Kind":  {&expr.AttributeExpr{Type: expr.UInt32}, "uint32"},
+		"UInt64Kind":  {&expr.AttributeExpr{Type: expr.UInt64}, "uint64"},
+		"Float32Kind": {&expr.AttributeExpr{Type: expr.Float32}, "float"},
+		"Float64Kind": {&expr.AttributeExpr{Type: expr.Float64}, "double"},
+		"StringKind":  {&expr.AttributeExpr{Type: expr.String}, "string"},
+		"BytesKind":   {&expr.AttributeExpr{Type: expr.Bytes}, "bytes"},
 
 		"Array":          {simpleArray, "repeated bool"},
 		"Map":            {simpleMap, "map<sint32, string>"},
@@ -53,20 +53,20 @@ func TestProtoBufMessageDef(t *testing.T) {
 
 func TestProtoBufNativeMessageTypeName(t *testing.T) {
 	cases := map[string]struct {
-		dataType design.DataType
+		dataType expr.DataType
 		expected string
 	}{
-		"BooleanKind": {design.Boolean, "bool"},
-		"IntKind":     {design.Int, "sint32"},
-		"Int32Kind":   {design.Int32, "sint32"},
-		"Int64Kind":   {design.Int64, "sint64"},
-		"UIntKind":    {design.UInt, "uint32"},
-		"UInt32Kind":  {design.UInt32, "uint32"},
-		"UInt64Kind":  {design.UInt64, "uint64"},
-		"Float32Kind": {design.Float32, "float"},
-		"Float64Kind": {design.Float64, "double"},
-		"StringKind":  {design.String, "string"},
-		"BytesKind":   {design.Bytes, "bytes"},
+		"BooleanKind": {expr.Boolean, "bool"},
+		"IntKind":     {expr.Int, "sint32"},
+		"Int32Kind":   {expr.Int32, "sint32"},
+		"Int64Kind":   {expr.Int64, "sint64"},
+		"UIntKind":    {expr.UInt, "uint32"},
+		"UInt32Kind":  {expr.UInt32, "uint32"},
+		"UInt64Kind":  {expr.UInt64, "uint64"},
+		"Float32Kind": {expr.Float32, "float"},
+		"Float64Kind": {expr.Float64, "double"},
+		"StringKind":  {expr.String, "string"},
+		"BytesKind":   {expr.Bytes, "bytes"},
 	}
 
 	for k, tc := range cases {
@@ -77,18 +77,18 @@ func TestProtoBufNativeMessageTypeName(t *testing.T) {
 	}
 }
 
-func objectRPC(params ...interface{}) *design.AttributeExpr {
-	obj := design.Object{}
+func objectRPC(params ...interface{}) *expr.AttributeExpr {
+	obj := expr.Object{}
 	for i := 0; i < len(params); i += 2 {
 		name := params[i].(string)
-		typ := params[i+1].(design.DataType)
-		obj = append(obj, &design.NamedAttributeExpr{
+		typ := params[i+1].(expr.DataType)
+		obj = append(obj, &expr.NamedAttributeExpr{
 			Name: name,
-			Attribute: &design.AttributeExpr{
+			Attribute: &expr.AttributeExpr{
 				Type: typ,
-				Meta: design.MetaExpr{"rpc:tag": []string{strconv.Itoa(int(i/2) + 1)}},
+				Meta: expr.MetaExpr{"rpc:tag": []string{strconv.Itoa(int(i/2) + 1)}},
 			},
 		})
 	}
-	return &design.AttributeExpr{Type: &obj}
+	return &expr.AttributeExpr{Type: &obj}
 }

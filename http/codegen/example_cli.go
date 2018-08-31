@@ -6,12 +6,12 @@ import (
 	"strings"
 
 	"goa.design/goa/codegen"
-	httpdesign "goa.design/goa/http/design"
+	"goa.design/goa/expr"
 )
 
 // ExampleCLI returns an example client tool implementation.
-func ExampleCLI(genpkg string, root *httpdesign.RootExpr) *codegen.File {
-	path := filepath.Join("cmd", codegen.SnakeCase(codegen.Goify(root.Design.API.Name, true))+"_cli", "http.go")
+func ExampleCLI(genpkg string, root *expr.RootExpr) *codegen.File {
+	path := filepath.Join("cmd", codegen.SnakeCase(codegen.Goify(root.API.Name, true))+"_cli", "http.go")
 	if _, err := os.Stat(path); !os.IsNotExist(err) {
 		return nil // file already exists, skip it.
 	}
@@ -20,7 +20,7 @@ func ExampleCLI(genpkg string, root *httpdesign.RootExpr) *codegen.File {
 	if idx > 0 {
 		rootPath = genpkg[:idx]
 	}
-	apiPkg := strings.ToLower(codegen.Goify(root.Design.API.Name, false))
+	apiPkg := strings.ToLower(codegen.Goify(root.API.Name, false))
 	specs := []*codegen.ImportSpec{
 		{Path: "context"},
 		{Path: "encoding/json"},
@@ -42,7 +42,7 @@ func ExampleCLI(genpkg string, root *httpdesign.RootExpr) *codegen.File {
 	data := map[string]interface{}{
 		"Services": svcdata,
 		"APIPkg":   apiPkg,
-		"APIName":  root.Design.API.Name,
+		"APIName":  root.API.Name,
 	}
 	sections := []*codegen.SectionTemplate{
 		codegen.Header("", "main", specs),

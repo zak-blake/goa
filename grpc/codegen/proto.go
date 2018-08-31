@@ -6,11 +6,11 @@ import (
 	"path/filepath"
 
 	"goa.design/goa/codegen"
-	grpcdesign "goa.design/goa/grpc/design"
+	"goa.design/goa/expr"
 )
 
 // ProtoFiles returns a *.proto file for each gRPC service.
-func ProtoFiles(genpkg string, root *grpcdesign.RootExpr) {
+func ProtoFiles(genpkg string, root *expr.RootExpr) {
 	for _, svc := range root.GRPCServices {
 		f := protoFile(genpkg, svc)
 		// Render the .proto file to the disk
@@ -21,7 +21,7 @@ func ProtoFiles(genpkg string, root *grpcdesign.RootExpr) {
 	}
 }
 
-func protoFile(genpkg string, svc *grpcdesign.ServiceExpr) *codegen.File {
+func protoFile(genpkg string, svc *expr.GRPCServiceExpr) *codegen.File {
 	svcName := codegen.SnakeCase(svc.Name())
 	path := filepath.Join(codegen.Gendir, "grpc", svcName, svcName+".proto")
 	data := GRPCServices.Get(svc.Name())

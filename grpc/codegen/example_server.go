@@ -6,23 +6,23 @@ import (
 	"strings"
 
 	"goa.design/goa/codegen"
-	grpcdesign "goa.design/goa/grpc/design"
+	"goa.design/goa/expr"
 )
 
 // ExampleServerFiles returns and example main and dummy service
 // implementations.
-func ExampleServerFiles(genpkg string, root *grpcdesign.RootExpr) *codegen.File {
+func ExampleServerFiles(genpkg string, root *expr.RootExpr) *codegen.File {
 	return exampleServer(genpkg, root)
 }
 
-func exampleServer(genpkg string, root *grpcdesign.RootExpr) *codegen.File {
+func exampleServer(genpkg string, root *expr.RootExpr) *codegen.File {
 	var (
 		mainPath string
 		apiPkg   string
 	)
 	{
-		apiPkg = strings.ToLower(codegen.Goify(root.Design.API.Name, false))
-		mainPath = filepath.Join("cmd", codegen.SnakeCase(codegen.Goify(root.Design.API.Name, true))+"_svc", "grpc.go")
+		apiPkg = strings.ToLower(codegen.Goify(root.API.Name, false))
+		mainPath = filepath.Join("cmd", codegen.SnakeCase(codegen.Goify(root.API.Name, true))+"_svc", "grpc.go")
 		if _, err := os.Stat(mainPath); !os.IsNotExist(err) {
 			return nil // file already exists, skip it.
 		}

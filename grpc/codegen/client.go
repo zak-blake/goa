@@ -5,11 +5,11 @@ import (
 	"path/filepath"
 
 	"goa.design/goa/codegen"
-	grpcdesign "goa.design/goa/grpc/design"
+	"goa.design/goa/expr"
 )
 
 // ClientFiles returns all the client gRPC transport files.
-func ClientFiles(genpkg string, root *grpcdesign.RootExpr) []*codegen.File {
+func ClientFiles(genpkg string, root *expr.RootExpr) []*codegen.File {
 	fw := make([]*codegen.File, len(root.GRPCServices))
 	for i, svc := range root.GRPCServices {
 		fw[i] = client(genpkg, svc)
@@ -18,7 +18,7 @@ func ClientFiles(genpkg string, root *grpcdesign.RootExpr) []*codegen.File {
 }
 
 // client returns the files defining the gRPC client.
-func client(genpkg string, svc *grpcdesign.ServiceExpr) *codegen.File {
+func client(genpkg string, svc *expr.GRPCServiceExpr) *codegen.File {
 	path := filepath.Join(codegen.Gendir, "grpc", codegen.SnakeCase(svc.Name()), "client", "client.go")
 	data := GRPCServices.Get(svc.Name())
 	title := fmt.Sprintf("%s GRPC client", svc.Name())

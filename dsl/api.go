@@ -1,10 +1,10 @@
 package dsl
 
 import (
-	"goa.design/goa/design"
+	"goa.design/goa/expr"
 	"goa.design/goa/eval"
 )
-
+ 
 // API defines a network service API. It provides the API name, description and other global
 // properties. There may only be one API declaration in a given design package.
 //
@@ -33,7 +33,7 @@ import (
 //        })
 //    }
 //
-func API(name string, fn func()) *design.APIExpr {
+func API(name string, fn func()) *expr.APIExpr {
 	if name == "" {
 		eval.ReportError("API first argument cannot be empty")
 		return nil
@@ -42,13 +42,13 @@ func API(name string, fn func()) *design.APIExpr {
 		eval.IncompatibleDSL()
 		return nil
 	}
-	design.Root.API = &design.APIExpr{Name: name, DSLFunc: fn}
-	return design.Root.API
+	expr.Root.API = &expr.APIExpr{Name: name, DSLFunc: fn}
+	return expr.Root.API
 }
 
 // Title sets the API title used by the generated documentation and code comments.
 func Title(val string) {
-	if s, ok := eval.Current().(*design.APIExpr); ok {
+	if s, ok := eval.Current().(*expr.APIExpr); ok {
 		s.Title = val
 		return
 	}
@@ -57,7 +57,7 @@ func Title(val string) {
 
 // Version specifies the API version. One design describes one version.
 func Version(ver string) {
-	if s, ok := eval.Current().(*design.APIExpr); ok {
+	if s, ok := eval.Current().(*expr.APIExpr); ok {
 		s.Version = ver
 		return
 	}
@@ -66,11 +66,11 @@ func Version(ver string) {
 
 // Contact sets the API contact information.
 func Contact(fn func()) {
-	contact := new(design.ContactExpr)
+	contact := new(expr.ContactExpr)
 	if !eval.Execute(fn, contact) {
 		return
 	}
-	if a, ok := eval.Current().(*design.APIExpr); ok {
+	if a, ok := eval.Current().(*expr.APIExpr); ok {
 		a.Contact = contact
 		return
 	}
@@ -79,11 +79,11 @@ func Contact(fn func()) {
 
 // License sets the API license information.
 func License(fn func()) {
-	license := new(design.LicenseExpr)
+	license := new(expr.LicenseExpr)
 	if !eval.Execute(fn, license) {
 		return
 	}
-	if a, ok := eval.Current().(*design.APIExpr); ok {
+	if a, ok := eval.Current().(*expr.APIExpr); ok {
 		a.License = license
 		return
 	}
@@ -92,7 +92,7 @@ func License(fn func()) {
 
 // Docs provides external documentation URLs.
 //
-// Docs must appear in an API, Service, Method or Attribute expressions.
+// Docs must appear in an API, Service, Method or Attribute expr.
 //
 // Docs takes a single argument which is the defining DSL.
 //
@@ -106,18 +106,18 @@ func License(fn func()) {
 //    })
 //
 func Docs(fn func()) {
-	docs := new(design.DocsExpr)
+	docs := new(expr.DocsExpr)
 	if !eval.Execute(fn, docs) {
 		return
 	}
 	switch e := eval.Current().(type) {
-	case *design.APIExpr:
+	case *expr.APIExpr:
 		e.Docs = docs
-	case *design.ServiceExpr:
+	case *expr.ServiceExpr:
 		e.Docs = docs
-	case *design.MethodExpr:
+	case *expr.MethodExpr:
 		e.Docs = docs
-	case *design.AttributeExpr:
+	case *expr.AttributeExpr:
 		e.Docs = docs
 	default:
 		eval.IncompatibleDSL()
@@ -126,7 +126,7 @@ func Docs(fn func()) {
 
 // TermsOfService describes the API terms of services or links to them.
 func TermsOfService(terms string) {
-	if s, ok := eval.Current().(*design.APIExpr); ok {
+	if s, ok := eval.Current().(*expr.APIExpr); ok {
 		s.TermsOfService = terms
 		return
 	}
@@ -138,8 +138,8 @@ func Server(url string, fn ...func()) {
 	if len(fn) > 1 {
 		eval.ReportError("too many arguments given to Server")
 	}
-	server := &design.ServerExpr{
-		Params: new(design.AttributeExpr),
+	server := &expr.ServerExpr{
+		Params: new(expr.AttributeExpr),
 		URL:    url,
 	}
 	if len(fn) > 0 {
@@ -149,9 +149,9 @@ func Server(url string, fn ...func()) {
 		eval.ReportError("Server URL cannot be empty")
 	}
 	switch e := eval.Current().(type) {
-	case *design.APIExpr:
+	case *expr.APIExpr:
 		e.Servers = append(e.Servers, server)
-	case *design.ServiceExpr:
+	case *expr.ServiceExpr:
 		e.Servers = append(e.Servers, server)
 	default:
 		eval.IncompatibleDSL()
@@ -160,7 +160,7 @@ func Server(url string, fn ...func()) {
 
 // Param defines a server URL parameter.
 func Param(name string, args ...interface{}) {
-	if _, ok := eval.Current().(*design.ServerExpr); !ok {
+	if _, ok := eval.Current().(*expr.ServerExpr); !ok {
 		eval.IncompatibleDSL()
 		return
 	}
@@ -170,9 +170,9 @@ func Param(name string, args ...interface{}) {
 // Name sets the contact or license name.
 func Name(name string) {
 	switch def := eval.Current().(type) {
-	case *design.ContactExpr:
+	case *expr.ContactExpr:
 		def.Name = name
-	case *design.LicenseExpr:
+	case *expr.LicenseExpr:
 		def.Name = name
 	default:
 		eval.IncompatibleDSL()
@@ -181,7 +181,7 @@ func Name(name string) {
 
 // Email sets the contact email.
 func Email(email string) {
-	if c, ok := eval.Current().(*design.ContactExpr); ok {
+	if c, ok := eval.Current().(*expr.ContactExpr); ok {
 		c.Email = email
 	}
 }
@@ -201,11 +201,11 @@ func Email(email string) {
 //
 func URL(url string) {
 	switch def := eval.Current().(type) {
-	case *design.ContactExpr:
+	case *expr.ContactExpr:
 		def.URL = url
-	case *design.LicenseExpr:
+	case *expr.LicenseExpr:
 		def.URL = url
-	case *design.DocsExpr:
+	case *expr.DocsExpr:
 		def.URL = url
 	default:
 		eval.IncompatibleDSL()

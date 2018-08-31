@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"goa.design/goa/codegen"
-	"goa.design/goa/design"
+	"goa.design/goa/expr"
 )
 
 type (
@@ -87,7 +87,7 @@ func (t *TransportData) URL() string {
 
 // ExampleServiceFiles returns a dummy service implementation and
 // example service main.go.
-func ExampleServiceFiles(genpkg string, root *design.RootExpr, transports []*TransportData) []*codegen.File {
+func ExampleServiceFiles(genpkg string, root *expr.RootExpr, transports []*TransportData) []*codegen.File {
 	var fw []*codegen.File
 	for _, svc := range root.Services {
 		if f := dummyServiceFile(genpkg, root, svc); f != nil {
@@ -101,7 +101,7 @@ func ExampleServiceFiles(genpkg string, root *design.RootExpr, transports []*Tra
 }
 
 // dummyServiceFile returns a dummy implementation of the given service.
-func dummyServiceFile(genpkg string, root *design.RootExpr, svc *design.ServiceExpr) *codegen.File {
+func dummyServiceFile(genpkg string, root *expr.RootExpr, svc *expr.ServiceExpr) *codegen.File {
 	path := codegen.SnakeCase(svc.Name) + ".go"
 	if _, err := os.Stat(path); !os.IsNotExist(err) {
 		return nil // file already exists, skip it.
@@ -126,12 +126,12 @@ func dummyServiceFile(genpkg string, root *design.RootExpr, svc *design.ServiceE
 			MethodData:     md,
 			ServiceVarName: data.VarName,
 		}
-		if m.Payload.Type != design.Empty {
+		if m.Payload.Type != expr.Empty {
 			ed.PayloadFullRef = data.Scope.GoFullTypeRef(m.Payload, data.PkgName)
 		}
-		if m.Result.Type != design.Empty {
+		if m.Result.Type != expr.Empty {
 			ed.ResultFullRef = data.Scope.GoFullTypeRef(m.Result, data.PkgName)
-			ed.ResultIsStruct = design.IsObject(m.Result.Type)
+			ed.ResultIsStruct = expr.IsObject(m.Result.Type)
 			if md.ViewedResult != nil {
 				view := "default"
 				if m.Result.Meta != nil {
@@ -155,7 +155,7 @@ func dummyServiceFile(genpkg string, root *design.RootExpr, svc *design.ServiceE
 	}
 }
 
-func exampleMain(genpkg string, root *design.RootExpr, transports []*TransportData) *codegen.File {
+func exampleMain(genpkg string, root *expr.RootExpr, transports []*TransportData) *codegen.File {
 	mainPath := filepath.Join("cmd", codegen.SnakeCase(codegen.Goify(root.API.Name, true))+"_svc", "main.go")
 	if _, err := os.Stat(mainPath); !os.IsNotExist(err) {
 		return nil // file already exists, skip it.

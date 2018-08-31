@@ -4,11 +4,11 @@ import (
 	"path/filepath"
 
 	"goa.design/goa/codegen"
-	grpcdesign "goa.design/goa/grpc/design"
+	"goa.design/goa/expr"
 )
 
 // ServerTypeFiles returns the gRPC transport type files.
-func ServerTypeFiles(genpkg string, root *grpcdesign.RootExpr) []*codegen.File {
+func ServerTypeFiles(genpkg string, root *expr.RootExpr) []*codegen.File {
 	fw := make([]*codegen.File, len(root.GRPCServices))
 	seen := make(map[string]struct{})
 	for i, r := range root.GRPCServices {
@@ -23,7 +23,7 @@ func ServerTypeFiles(genpkg string, root *grpcdesign.RootExpr) []*codegen.File {
 //
 // seen keeps track of the constructor names that have already been generated
 // to prevent duplicate code generation.
-func serverType(genpkg string, svc *grpcdesign.ServiceExpr, seen map[string]struct{}) *codegen.File {
+func serverType(genpkg string, svc *expr.GRPCServiceExpr, seen map[string]struct{}) *codegen.File {
 	var (
 		path     string
 		initData []*InitData

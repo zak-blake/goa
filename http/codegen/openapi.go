@@ -8,8 +8,8 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"goa.design/goa/codegen"
+	"goa.design/goa/expr"
 	"goa.design/goa/http/codegen/openapi"
-	httpdesign "goa.design/goa/http/design"
 )
 
 type (
@@ -20,7 +20,7 @@ type (
 )
 
 // OpenAPIFiles returns the files for the OpenAPIFile spec of the given HTTP API.
-func OpenAPIFiles(root *httpdesign.RootExpr) ([]*codegen.File, error) {
+func OpenAPIFiles(root *expr.RootExpr) ([]*codegen.File, error) {
 	jsonPath := filepath.Join(codegen.Gendir, "http", "openapi.json")
 	yamlPath := filepath.Join(codegen.Gendir, "http", "openapi.yaml")
 	var (

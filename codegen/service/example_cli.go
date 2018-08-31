@@ -6,11 +6,11 @@ import (
 	"strings"
 
 	"goa.design/goa/codegen"
-	"goa.design/goa/design"
+	"goa.design/goa/expr"
 )
 
 // ExampleCLI returns an example client tool main implementation.
-func ExampleCLI(genpkg string, root *design.RootExpr, transports []*TransportData) *codegen.File {
+func ExampleCLI(genpkg string, root *expr.RootExpr, transports []*TransportData) *codegen.File {
 	path := filepath.Join("cmd", codegen.SnakeCase(codegen.Goify(root.API.Name, true))+"_cli", "main.go")
 	if _, err := os.Stat(path); !os.IsNotExist(err) {
 		return nil // file already exists, skip it.
@@ -94,7 +94,7 @@ const clientMainT = `func main() {
 		{{ $t.Name }}Do(*addrF, timeout, debug)
 	{{- end }}
 	default:
-		fmt.Fprintf(os.Stderr, "invalid transport %#v: %s", transport)
+		fmt.Fprintf(os.Stderr, "unknown transport %q", transport)
 		os.Exit(1)
 	}
 {{- else }}

@@ -9,22 +9,22 @@ import (
 	"strings"
 	"testing"
 
-	"goa.design/goa/design"
+	"goa.design/goa/expr"
 	"goa.design/goa/eval"
 
 	"github.com/sergi/go-diff/diffmatchpatch"
 )
 
 // RunDSL returns the DSL root resulting from running the given DSL.
-func RunDSL(t *testing.T, dsl func()) *design.RootExpr {
+func RunDSL(t *testing.T, dsl func()) *expr.RootExpr {
 	eval.Reset()
-	design.Root = new(design.RootExpr)
-	design.Root.GeneratedTypes = &design.GeneratedRoot{}
-	eval.Register(design.Root)
-	eval.Register(design.Root.GeneratedTypes)
-	design.Root.API = &design.APIExpr{
+	expr.Root = new(expr.RootExpr)
+	expr.Root.GeneratedTypes = &expr.GeneratedRoot{}
+	eval.Register(expr.Root)
+	eval.Register(expr.Root.GeneratedTypes)
+	expr.Root.API = &expr.APIExpr{
 		Name:    "test api",
-		Servers: []*design.ServerExpr{{URL: "http://localhost"}},
+		Servers: []*expr.ServerExpr{{URL: "http://localhost"}},
 	}
 	if !eval.Execute(dsl, nil) {
 		t.Fatal(eval.Context.Error())
@@ -32,21 +32,21 @@ func RunDSL(t *testing.T, dsl func()) *design.RootExpr {
 	if err := eval.RunDSL(); err != nil {
 		t.Fatal(err)
 	}
-	return design.Root
+	return expr.Root
 }
 
 // RunDSLWithFunc returns the DSL root resulting from running the given DSL.
 // It executes a function to add any top-level types to the design Root before
 // running the DSL.
-func RunDSLWithFunc(t *testing.T, dsl func(), fn func()) *design.RootExpr {
+func RunDSLWithFunc(t *testing.T, dsl func(), fn func()) *expr.RootExpr {
 	eval.Reset()
-	design.Root = new(design.RootExpr)
-	design.Root.GeneratedTypes = &design.GeneratedRoot{}
-	eval.Register(design.Root)
-	eval.Register(design.Root.GeneratedTypes)
-	design.Root.API = &design.APIExpr{
+	expr.Root = new(expr.RootExpr)
+	expr.Root.GeneratedTypes = &expr.GeneratedRoot{}
+	eval.Register(expr.Root)
+	eval.Register(expr.Root.GeneratedTypes)
+	expr.Root.API = &expr.APIExpr{
 		Name:    "test api",
-		Servers: []*design.ServerExpr{{URL: "http://localhost"}},
+		Servers: []*expr.ServerExpr{{URL: "http://localhost"}},
 	}
 	fn()
 	if !eval.Execute(dsl, nil) {
@@ -55,7 +55,7 @@ func RunDSLWithFunc(t *testing.T, dsl func(), fn func()) *design.RootExpr {
 	if err := eval.RunDSL(); err != nil {
 		t.Fatal(err)
 	}
-	return design.Root
+	return expr.Root
 }
 
 // SectionCode generates and formats the code for the given section.
@@ -125,20 +125,20 @@ func Diff(t *testing.T, s1, s2 string) string {
 // NewObject returns an attribute expression of type object. The params must
 // contain alternating attribute name and type pair.
 // e.g. NewObject("a", String, "b", Int)
-func NewObject(params ...interface{}) *design.AttributeExpr {
-	obj := design.Object{}
+func NewObject(params ...interface{}) *expr.AttributeExpr {
+	obj := expr.Object{}
 	for i := 0; i < len(params); i += 2 {
 		name := params[i].(string)
-		typ := params[i+1].(design.DataType)
-		obj = append(obj, &design.NamedAttributeExpr{Name: name, Attribute: &design.AttributeExpr{Type: typ}})
+		typ := params[i+1].(expr.DataType)
+		obj = append(obj, &expr.NamedAttributeExpr{Name: name, Attribute: &expr.AttributeExpr{Type: typ}})
 	}
-	return &design.AttributeExpr{Type: &obj}
+	return &expr.AttributeExpr{Type: &obj}
 }
 
 // SetRequired sets the given attribute names as required in an attribute
 // expression. It overwrites the existing validations in the attribute.
-func SetRequired(att *design.AttributeExpr, names ...string) *design.AttributeExpr {
-	att.Validation = &design.ValidationExpr{Required: names}
+func SetRequired(att *expr.AttributeExpr, names ...string) *expr.AttributeExpr {
+	att.Validation = &expr.ValidationExpr{Required: names}
 	return att
 }
 
@@ -148,8 +148,8 @@ func SetRequired(att *design.AttributeExpr, names ...string) *design.AttributeEx
 // default value (as a string) pair. It ignores any attribute not found in
 // the attribute expression.
 // e.g. SetDefault(att, "a", "1", "b", "zzz")
-func SetDefault(att *design.AttributeExpr, vals ...interface{}) *design.AttributeExpr {
-	obj, ok := att.Type.(*design.Object)
+func SetDefault(att *expr.AttributeExpr, vals ...interface{}) *expr.AttributeExpr {
+	obj, ok := att.Type.(*expr.Object)
 	if !ok {
 		return att
 	}
@@ -163,16 +163,16 @@ func SetDefault(att *design.AttributeExpr, vals ...interface{}) *design.Attribut
 }
 
 // NewArray returns an attribute expression of type array.
-func NewArray(dt design.DataType) *design.AttributeExpr {
-	elem := &design.AttributeExpr{Type: dt}
-	return &design.AttributeExpr{Type: &design.Array{ElemType: elem}}
+func NewArray(dt expr.DataType) *expr.AttributeExpr {
+	elem := &expr.AttributeExpr{Type: dt}
+	return &expr.AttributeExpr{Type: &expr.Array{ElemType: elem}}
 }
 
 // NewMap returns an attribute expression of type map.
-func NewMap(keyt, elemt design.DataType) *design.AttributeExpr {
-	key := &design.AttributeExpr{Type: keyt}
-	elem := &design.AttributeExpr{Type: elemt}
-	return &design.AttributeExpr{Type: &design.Map{KeyType: key, ElemType: elem}}
+func NewMap(keyt, elemt expr.DataType) *expr.AttributeExpr {
+	key := &expr.AttributeExpr{Type: keyt}
+	elem := &expr.AttributeExpr{Type: elemt}
+	return &expr.AttributeExpr{Type: &expr.Map{KeyType: key, ElemType: elem}}
 }
 
 func createTempFile(t *testing.T, content string) string {

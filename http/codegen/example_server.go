@@ -7,12 +7,12 @@ import (
 	"strings"
 
 	"goa.design/goa/codegen"
-	httpdesign "goa.design/goa/http/design"
+	"goa.design/goa/expr"
 )
 
 // ExampleServerFiles returns and example main and dummy service
 // implementations.
-func ExampleServerFiles(genpkg string, root *httpdesign.RootExpr) []*codegen.File {
+func ExampleServerFiles(genpkg string, root *expr.RootExpr) []*codegen.File {
 	var fw []*codegen.File
 	if m := exampleServer(genpkg, root); m != nil {
 		fw = append(fw, m)
@@ -23,8 +23,8 @@ func ExampleServerFiles(genpkg string, root *httpdesign.RootExpr) []*codegen.Fil
 	return fw
 }
 
-func exampleServer(genpkg string, root *httpdesign.RootExpr) *codegen.File {
-	mainPath := filepath.Join("cmd", codegen.SnakeCase(codegen.Goify(root.Design.API.Name, true))+"_svc", "http.go")
+func exampleServer(genpkg string, root *expr.RootExpr) *codegen.File {
+	mainPath := filepath.Join("cmd", codegen.SnakeCase(codegen.Goify(root.API.Name, true))+"_svc", "http.go")
 	if _, err := os.Stat(mainPath); !os.IsNotExist(err) {
 		return nil // file already exists, skip it.
 	}
@@ -33,7 +33,7 @@ func exampleServer(genpkg string, root *httpdesign.RootExpr) *codegen.File {
 	if idx > 0 {
 		rootPath = genpkg[:idx]
 	}
-	apiPkg := strings.ToLower(codegen.Goify(root.Design.API.Name, false))
+	apiPkg := strings.ToLower(codegen.Goify(root.API.Name, false))
 	specs := []*codegen.ImportSpec{
 		{Path: "context"},
 		{Path: "log"},
@@ -82,7 +82,7 @@ func exampleServer(genpkg string, root *httpdesign.RootExpr) *codegen.File {
 
 // dummyMultipart returns a dummy implementation of the multipart decoders
 // and encoders.
-func dummyMultipart(genpkg string, root *httpdesign.RootExpr) *codegen.File {
+func dummyMultipart(genpkg string, root *expr.RootExpr) *codegen.File {
 	mpath := "multipart.go"
 	if _, err := os.Stat(mpath); !os.IsNotExist(err) {
 		return nil // file already exists, skip it.
@@ -91,7 +91,7 @@ func dummyMultipart(genpkg string, root *httpdesign.RootExpr) *codegen.File {
 		sections []*codegen.SectionTemplate
 		mustGen  bool
 
-		apiPkg = strings.ToLower(codegen.Goify(root.Design.API.Name, false))
+		apiPkg = strings.ToLower(codegen.Goify(root.API.Name, false))
 	)
 	{
 		specs := []*codegen.ImportSpec{

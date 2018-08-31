@@ -9,8 +9,7 @@ import (
 	"strings"
 
 	"goa.design/goa/codegen"
-	"goa.design/goa/design"
-	httpdesign "goa.design/goa/http/design"
+	"goa.design/goa/expr"
 )
 
 var cmds = map[string]*subcommandData{}
@@ -121,10 +120,10 @@ type (
 )
 
 // ClientCLIFiles returns the client HTTP CLI support file.
-func ClientCLIFiles(genpkg string, root *httpdesign.RootExpr) []*codegen.File {
+func ClientCLIFiles(genpkg string, root *expr.RootExpr) []*codegen.File {
 	var (
 		data []*commandData
-		svcs []*httpdesign.ServiceExpr
+		svcs []*expr.HTTPServiceExpr
 	)
 	for _, svc := range root.HTTPServices {
 		sd := HTTPServices.Get(svc.Name())
@@ -143,9 +142,9 @@ func ClientCLIFiles(genpkg string, root *httpdesign.RootExpr) []*codegen.File {
 
 // endpointParser returns the file that implements the command line parser that
 // builds the client endpoint and payload necessary to perform a request.
-func endpointParser(genpkg string, root *httpdesign.RootExpr, data []*commandData) *codegen.File {
+func endpointParser(genpkg string, root *expr.RootExpr, data []*commandData) *codegen.File {
 	path := filepath.Join(codegen.Gendir, "http", "cli", "cli.go")
-	title := fmt.Sprintf("%s HTTP client CLI support package", root.Design.API.Name)
+	title := fmt.Sprintf("%s HTTP client CLI support package", root.API.Name)
 	specs := []*codegen.ImportSpec{
 		{Path: "encoding/json"},
 		{Path: "flag"},
@@ -215,7 +214,7 @@ func printDescription(desc string) string {
 
 // payloadBuilders returns the file that contains the payload constructors that
 // use flag values as arguments.
-func payloadBuilders(genpkg string, svc *httpdesign.ServiceExpr, data *commandData) *codegen.File {
+func payloadBuilders(genpkg string, svc *expr.HTTPServiceExpr, data *commandData) *codegen.File {
 	path := filepath.Join(codegen.Gendir, "http", codegen.SnakeCase(svc.Name()), "client", "cli.go")
 	title := fmt.Sprintf("%s HTTP client CLI support package", svc.Name())
 	sd := HTTPServices.Get(svc.Name())
@@ -513,17 +512,17 @@ func fieldLoadCode(actual, fType string, arg *InitArgData) (string, bool) {
 }
 
 var (
-	boolN    = codegen.GoNativeTypeName(design.Boolean)
-	intN     = codegen.GoNativeTypeName(design.Int)
-	int32N   = codegen.GoNativeTypeName(design.Int32)
-	int64N   = codegen.GoNativeTypeName(design.Int64)
-	uintN    = codegen.GoNativeTypeName(design.UInt)
-	uint32N  = codegen.GoNativeTypeName(design.UInt32)
-	uint64N  = codegen.GoNativeTypeName(design.UInt64)
-	float32N = codegen.GoNativeTypeName(design.Float32)
-	float64N = codegen.GoNativeTypeName(design.Float64)
-	stringN  = codegen.GoNativeTypeName(design.String)
-	bytesN   = codegen.GoNativeTypeName(design.Bytes)
+	boolN    = codegen.GoNativeTypeName(expr.Boolean)
+	intN     = codegen.GoNativeTypeName(expr.Int)
+	int32N   = codegen.GoNativeTypeName(expr.Int32)
+	int64N   = codegen.GoNativeTypeName(expr.Int64)
+	uintN    = codegen.GoNativeTypeName(expr.UInt)
+	uint32N  = codegen.GoNativeTypeName(expr.UInt32)
+	uint64N  = codegen.GoNativeTypeName(expr.UInt64)
+	float32N = codegen.GoNativeTypeName(expr.Float32)
+	float64N = codegen.GoNativeTypeName(expr.Float64)
+	stringN  = codegen.GoNativeTypeName(expr.String)
+	bytesN   = codegen.GoNativeTypeName(expr.Bytes)
 )
 
 // conversionCode produces the code that converts the string stored in the

@@ -4,24 +4,24 @@ import (
 	"testing"
 
 	"goa.design/goa/codegen"
-	"goa.design/goa/design"
+	"goa.design/goa/expr"
 )
 
 var (
-	arrayUInt = codegen.NewArray(design.UInt)
+	arrayUInt = codegen.NewArray(expr.UInt)
 	arrayUT   = codegen.NewArray(userType)
 
-	mapUIntInt  = codegen.NewMap(design.UInt, design.Int)
-	mapStringUT = codegen.NewMap(design.String, userType)
+	mapUIntInt  = codegen.NewMap(expr.UInt, expr.Int)
+	mapStringUT = codegen.NewMap(expr.String, userType)
 
-	objNoRequiredNoDefault = codegen.NewObject("a", design.String, "b", design.Int)
-	objRequired            = codegen.SetRequired(design.DupAtt(objNoRequiredNoDefault), "a", "b")
-	objDefault             = codegen.SetDefault(design.DupAtt(objNoRequiredNoDefault), "a", "foo", "b", "1")
-	objMixed               = codegen.SetRequired(codegen.NewObject("String", design.String, "Int", design.Int, "Array", arrayUInt.Type, "Map", mapUIntInt.Type, "UT", userType), "String", "Array", "UT")
+	objNoRequiredNoDefault = codegen.NewObject("a", expr.String, "b", expr.Int)
+	objRequired            = codegen.SetRequired(expr.DupAtt(objNoRequiredNoDefault), "a", "b")
+	objDefault             = codegen.SetDefault(expr.DupAtt(objNoRequiredNoDefault), "a", "foo", "b", "1")
+	objMixed               = codegen.SetRequired(codegen.NewObject("String", expr.String, "Int", expr.Int, "Array", arrayUInt.Type, "Map", mapUIntInt.Type, "UT", userType), "String", "Array", "UT")
 	objWithArrayMap        = codegen.NewObject("a", arrayUT.Type, "b", mapStringUT.Type)
 
-	userType = &design.UserTypeExpr{TypeName: "UserType", AttributeExpr: objRequired}
-	mixedUT  = &design.UserTypeExpr{TypeName: "mixedUserType", AttributeExpr: objMixed}
+	userType = &expr.UserTypeExpr{TypeName: "UserType", AttributeExpr: objRequired}
+	mixedUT  = &expr.UserTypeExpr{TypeName: "mixedUserType", AttributeExpr: objMixed}
 )
 
 func TestProtoBufTypeTransform(t *testing.T) {
@@ -31,7 +31,7 @@ func TestProtoBufTypeTransform(t *testing.T) {
 	)
 	cases := []struct {
 		Name           string
-		Source, Target *design.AttributeExpr
+		Source, Target *expr.AttributeExpr
 		ToProto        bool
 		TargetPkg      string
 
@@ -57,8 +57,8 @@ func TestProtoBufTypeTransform(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.Name, func(t *testing.T) {
-			src := &design.UserTypeExpr{TypeName: "SourceType", AttributeExpr: c.Source}
-			tgt := &design.UserTypeExpr{TypeName: "TargetType", AttributeExpr: c.Target}
+			src := &expr.UserTypeExpr{TypeName: "SourceType", AttributeExpr: c.Source}
+			tgt := &expr.UserTypeExpr{TypeName: "TargetType", AttributeExpr: c.Target}
 			code, _, err := ProtoBufTypeTransform(src, tgt, sourceVar, targetVar, "", c.TargetPkg, c.ToProto, codegen.NewNameScope())
 			if err != nil {
 				t.Fatal(err)

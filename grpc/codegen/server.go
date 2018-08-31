@@ -5,12 +5,11 @@ import (
 	"path/filepath"
 
 	"goa.design/goa/codegen"
-	"goa.design/goa/design"
-	grpcdesign "goa.design/goa/grpc/design"
+	"goa.design/goa/expr"
 )
 
 // ServerFiles returns all the server gRPC transport files.
-func ServerFiles(genpkg string, root *grpcdesign.RootExpr) []*codegen.File {
+func ServerFiles(genpkg string, root *expr.RootExpr) []*codegen.File {
 	fw := make([]*codegen.File, len(root.GRPCServices))
 	for i, svc := range root.GRPCServices {
 		fw[i] = server(genpkg, svc)
@@ -19,7 +18,7 @@ func ServerFiles(genpkg string, root *grpcdesign.RootExpr) []*codegen.File {
 }
 
 // server returns the files defining the gRPC server.
-func server(genpkg string, svc *grpcdesign.ServiceExpr) *codegen.File {
+func server(genpkg string, svc *expr.GRPCServiceExpr) *codegen.File {
 	path := filepath.Join(codegen.Gendir, "grpc", codegen.SnakeCase(svc.Name()), "server", "server.go")
 	data := GRPCServices.Get(svc.Name())
 	title := fmt.Sprintf("%s GRPC server", svc.Name())
@@ -55,7 +54,7 @@ func server(genpkg string, svc *grpcdesign.ServiceExpr) *codegen.File {
 // NOTE: If the method payload/result type is not an  object it is wrapped
 // into a "field" attribute in the gRPC request/response message type.
 func typeConvertField(srcVar string, ed *EndpointData, payload bool) string {
-	se := grpcdesign.Root.Service(ed.ServiceName)
+	se := expr.Root.GRPCService(ed.ServiceName)
 	ep := se.Endpoint(ed.Method.Name)
 	src := ep.Response.Message.Type
 	tgt := ep.MethodExpr.Result.Type
@@ -63,7 +62,7 @@ func typeConvertField(srcVar string, ed *EndpointData, payload bool) string {
 		src = ep.Request.Type
 		tgt = ep.MethodExpr.Payload.Type
 	}
-	srcObj := design.AsObject(src)
+	srcObj := expr.AsObject(src)
 	if len(*srcObj) == 0 {
 		// empty message type
 		return ""
@@ -79,7 +78,7 @@ type {{ .ServerStruct }} struct {
 }
 
 // ErrorNamer is an interface implemented by generated error structs that
-// exposes the name of the error as defined in the design.
+// exposes the name of the error as defined in the expr.
 type ErrorNamer interface {
   ErrorName() string
 }

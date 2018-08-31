@@ -3,7 +3,7 @@ package codegen
 import (
 	"strings"
 
-	"goa.design/goa/design"
+	"goa.design/goa/expr"
 )
 
 // Goify makes a valid Go identifier out of any string. It does that by removing
@@ -37,7 +37,7 @@ func Goify(str string, firstUpper bool) string {
 
 // GoifyAtt honors any struct:field:name meta set on the attribute and calls
 // Goify with the tag value if present or the given name otherwise.
-func GoifyAtt(att *design.AttributeExpr, name string, upper bool) string {
+func GoifyAtt(att *expr.AttributeExpr, name string, upper bool) string {
 	if tname, ok := att.Meta["struct:field:name"]; ok {
 		if len(tname) > 0 {
 			name = tname[0]

@@ -5,8 +5,7 @@ import (
 
 	"goa.design/goa/codegen"
 	"goa.design/goa/codegen/service"
-	"goa.design/goa/design"
-	grpcdesign "goa.design/goa/grpc/design"
+	"goa.design/goa/expr"
 )
 
 // GRPCServices holds the data computed from the design needed to generate the
@@ -113,7 +112,7 @@ type (
 		// Def is the message definition.
 		Def string
 		// Type is the underlying type.
-		Type design.UserType
+		Type expr.UserType
 	}
 
 	// ErrorData contains the error information required to generate the
@@ -244,7 +243,7 @@ func (d ServicesData) Get(name string) *ServiceData {
 	if data, ok := d[name]; ok {
 		return data
 	}
-	service := grpcdesign.Root.Service(name)
+	service := expr.Root.GRPCService(name)
 	if service == nil {
 		return nil
 	}
@@ -264,7 +263,7 @@ func (sd *ServiceData) Endpoint(name string) *EndpointData {
 }
 
 // analyze creates the data necessary to render the code of the given service.
-func (d ServicesData) analyze(gs *grpcdesign.ServiceExpr) *ServiceData {
+func (d ServicesData) analyze(gs *expr.GRPCServiceExpr) *ServiceData {
 	var (
 		sd      *ServiceData
 		seen    map[string]struct{}
@@ -293,8 +292,8 @@ func (d ServicesData) analyze(gs *grpcdesign.ServiceExpr) *ServiceData {
 	}
 	for _, e := range gs.GRPCEndpoints {
 		// Make request message to a user type
-		if _, ok := e.Request.Type.(design.UserType); !ok {
-			e.Request.Type = &design.UserTypeExpr{
+		if _, ok := e.Request.Type.(expr.UserType); !ok {
+			e.Request.Type = &expr.UserTypeExpr{
 				AttributeExpr: wrapAttr(e.Request),
 				TypeName:      fmt.Sprintf("%sRequest", ProtoBufify(e.Name(), true)),
 			}
@@ -308,8 +307,8 @@ func (d ServicesData) analyze(gs *grpcdesign.ServiceExpr) *ServiceData {
 		}
 
 		// Make response message to a user type
-		if _, ok := e.Response.Message.Type.(design.UserType); !ok {
-			e.Response.Message.Type = &design.UserTypeExpr{
+		if _, ok := e.Response.Message.Type.(expr.UserType); !ok {
+			e.Response.Message.Type = &expr.UserTypeExpr{
 				AttributeExpr: wrapAttr(e.Response.Message),
 				TypeName:      fmt.Sprintf("%sResponse", ProtoBufify(e.Name(), true)),
 			}
@@ -323,7 +322,7 @@ func (d ServicesData) analyze(gs *grpcdesign.ServiceExpr) *ServiceData {
 		}
 
 		// collect all the nested messages and return the top-level message
-		collect := func(att *design.AttributeExpr) *MessageData {
+		collect := func(att *expr.AttributeExpr) *MessageData {
 			msgs := collectMessages(att, seen, svc.Scope)
 			sd.Messages = append(sd.Messages, msgs...)
 			return msgs[0]
@@ -345,7 +344,7 @@ func (d ServicesData) analyze(gs *grpcdesign.ServiceExpr) *ServiceData {
 				ServerType:  buildRequestTypeData(e, sd, true),
 				ClientType:  buildRequestTypeData(e, sd, false),
 			}
-			if e.MethodExpr.Payload.Type != design.Empty {
+			if e.MethodExpr.Payload.Type != expr.Empty {
 				payloadRef = svc.Scope.GoFullTypeRef(e.MethodExpr.Payload, svc.PkgName)
 			}
 			response = &ResponseData{
@@ -355,7 +354,7 @@ func (d ServicesData) analyze(gs *grpcdesign.ServiceExpr) *ServiceData {
 				ServerType:  buildResponseTypeData(e, sd, true),
 				ClientType:  buildResponseTypeData(e, sd, false),
 			}
-			if e.MethodExpr.Result.Type != design.Empty {
+			if e.MethodExpr.Result.Type != expr.Empty {
 				resultRef = svc.Scope.GoFullTypeRef(e.MethodExpr.Result, svc.PkgName)
 			}
 			errors = buildErrorsData(e, sd)
@@ -381,37 +380,37 @@ func (d ServicesData) analyze(gs *grpcdesign.ServiceExpr) *ServiceData {
 // wrapAttr wraps the given attribute into an attribute named "field" if
 // the given attribute is a non-object type. For a raw object type it simply
 // returns a dupped attribute.
-func wrapAttr(att *design.AttributeExpr) *design.AttributeExpr {
-	var attr *design.AttributeExpr
+func wrapAttr(att *expr.AttributeExpr) *expr.AttributeExpr {
+	var attr *expr.AttributeExpr
 	switch actual := att.Type.(type) {
-	case *design.Array:
-	case *design.Map:
-	case design.Primitive:
-		attr = &design.AttributeExpr{
-			Type: &design.Object{
-				&design.NamedAttributeExpr{
+	case *expr.Array:
+	case *expr.Map:
+	case expr.Primitive:
+		attr = &expr.AttributeExpr{
+			Type: &expr.Object{
+				&expr.NamedAttributeExpr{
 					Name: "field",
-					Attribute: &design.AttributeExpr{
+					Attribute: &expr.AttributeExpr{
 						Type: actual,
-						Meta: design.MetaExpr{"rpc:tag": []string{"1"}},
+						Meta: expr.MetaExpr{"rpc:tag": []string{"1"}},
 					},
 				},
 			},
 		}
-	case *design.Object:
-		attr = design.DupAtt(att)
+	case *expr.Object:
+		attr = expr.DupAtt(att)
 	}
 	return attr
 }
 
 // collectMessages recurses through the attribute to gather all the messages.
-func collectMessages(at *design.AttributeExpr, seen map[string]struct{}, scope *codegen.NameScope) (data []*MessageData) {
+func collectMessages(at *expr.AttributeExpr, seen map[string]struct{}, scope *codegen.NameScope) (data []*MessageData) {
 	if at == nil {
 		return
 	}
-	collect := func(at *design.AttributeExpr) []*MessageData { return collectMessages(at, seen, scope) }
+	collect := func(at *expr.AttributeExpr) []*MessageData { return collectMessages(at, seen, scope) }
 	switch dt := at.Type.(type) {
-	case design.UserType:
+	case expr.UserType:
 		if _, ok := seen[dt.Name()]; ok {
 			return nil
 		}
@@ -424,13 +423,13 @@ func collectMessages(at *design.AttributeExpr, seen map[string]struct{}, scope *
 		})
 		seen[dt.Name()] = struct{}{}
 		data = append(data, collect(dt.Attribute())...)
-	case *design.Object:
+	case *expr.Object:
 		for _, nat := range *dt {
 			data = append(data, collect(nat.Attribute)...)
 		}
-	case *design.Array:
+	case *expr.Array:
 		data = append(data, collect(dt.ElemType)...)
-	case *design.Map:
+	case *expr.Map:
 		data = append(data, collect(dt.KeyType)...)
 		data = append(data, collect(dt.ElemType)...)
 	}
@@ -446,9 +445,9 @@ func collectMessages(at *design.AttributeExpr, seen map[string]struct{}, scope *
 //									the method payload.
 //
 // svr param indicates that the type data is generated for server side.
-func buildRequestTypeData(e *grpcdesign.EndpointExpr, sd *ServiceData, svr bool) *TypeData {
-	buildInitFn := func(e *grpcdesign.EndpointExpr, sd *ServiceData, svr bool) *InitData {
-		msgObj := design.AsObject(e.Request.Type)
+func buildRequestTypeData(e *expr.GRPCEndpointExpr, sd *ServiceData, svr bool) *TypeData {
+	buildInitFn := func(e *expr.GRPCEndpointExpr, sd *ServiceData, svr bool) *InitData {
+		msgObj := expr.AsObject(e.Request.Type)
 		if len(*msgObj) == 0 || (svr && !needInit(e.MethodExpr.Payload.Type)) {
 			return nil
 		}
@@ -460,8 +459,8 @@ func buildRequestTypeData(e *grpcdesign.EndpointExpr, sd *ServiceData, svr bool)
 			arg     *InitArgData
 			srcPkg  string
 			tgtPkg  string
-			srcAtt  *design.AttributeExpr
-			tgtAtt  *design.AttributeExpr
+			srcAtt  *expr.AttributeExpr
+			tgtAtt  *expr.AttributeExpr
 			cliArgs []*InitArgData
 
 			svc    = sd.Service
@@ -492,7 +491,7 @@ func buildRequestTypeData(e *grpcdesign.EndpointExpr, sd *ServiceData, svr bool)
 				Ref:      srcVar,
 				TypeName: svc.Scope.GoFullTypeName(srcAtt, srcPkg),
 				TypeRef:  svc.Scope.GoFullTypeRef(srcAtt, srcPkg),
-				Example:  srcAtt.Example(design.Root.API.Random()),
+				Example:  srcAtt.Example(expr.Root.API.Random()),
 			}
 		}
 		return &InitData{
@@ -532,9 +531,9 @@ func buildRequestTypeData(e *grpcdesign.EndpointExpr, sd *ServiceData, svr bool)
 //									response type in *.pb.go from
 //
 // svr param indicates that the type data is generated for server side.
-func buildResponseTypeData(e *grpcdesign.EndpointExpr, sd *ServiceData, svr bool) *TypeData {
-	buildInitFn := func(e *grpcdesign.EndpointExpr, sd *ServiceData, svr bool) *InitData {
-		msgObj := design.AsObject(e.Response.Message.Type)
+func buildResponseTypeData(e *expr.GRPCEndpointExpr, sd *ServiceData, svr bool) *TypeData {
+	buildInitFn := func(e *expr.GRPCEndpointExpr, sd *ServiceData, svr bool) *InitData {
+		msgObj := expr.AsObject(e.Response.Message.Type)
 		if len(*msgObj) == 0 || (!svr && !needInit(e.MethodExpr.Result.Type)) {
 			return nil
 		}
@@ -547,8 +546,8 @@ func buildResponseTypeData(e *grpcdesign.EndpointExpr, sd *ServiceData, svr bool
 			srcVar string
 			srcPkg string
 			tgtPkg string
-			srcAtt *design.AttributeExpr
-			tgtAtt *design.AttributeExpr
+			srcAtt *expr.AttributeExpr
+			tgtAtt *expr.AttributeExpr
 
 			svc    = sd.Service
 			tgtVar = "v"
@@ -579,7 +578,7 @@ func buildResponseTypeData(e *grpcdesign.EndpointExpr, sd *ServiceData, svr bool
 				Ref:      srcVar,
 				TypeName: svc.Scope.GoTypeName(srcAtt),
 				TypeRef:  svc.Scope.GoFullTypeRef(srcAtt, srcPkg),
-				Example:  srcAtt.Example(design.Root.API.Random()),
+				Example:  srcAtt.Example(expr.Root.API.Random()),
 			}
 		}
 		return &InitData{
@@ -615,7 +614,7 @@ func buildResponseTypeData(e *grpcdesign.EndpointExpr, sd *ServiceData, svr bool
 // buildErrorsData builds the error data for all the error responses in the
 // endpoint expression. The response message for each error response are
 // inferred from the method's error expression if not specified explicitly.
-func buildErrorsData(e *grpcdesign.EndpointExpr, sd *ServiceData) []*ErrorData {
+func buildErrorsData(e *expr.GRPCEndpointExpr, sd *ServiceData) []*ErrorData {
 	var (
 		errors []*ErrorData
 
@@ -646,7 +645,7 @@ func buildErrorsData(e *grpcdesign.EndpointExpr, sd *ServiceData) []*ErrorData {
 // code for initializing the types appropriately by making use of the wrapped
 // "field" attribute. Use this function in places where
 // codegen.ProtoBufTypeTransform needs to be called.
-func protoBufTypeTransformHelper(src, tgt *design.AttributeExpr, srcVar, tgtVar, srcPkg, tgtPkg string, proto bool, sd *ServiceData) string {
+func protoBufTypeTransformHelper(src, tgt *expr.AttributeExpr, srcVar, tgtVar, srcPkg, tgtPkg string, proto bool, sd *ServiceData) string {
 	var (
 		code string
 		err  error
@@ -677,26 +676,26 @@ func protoBufTypeTransformHelper(src, tgt *design.AttributeExpr, srcVar, tgtVar,
 
 // needInit returns true if and only if the given type is or makes use of user
 // types.
-func needInit(dt design.DataType) bool {
-	if dt == design.Empty {
+func needInit(dt expr.DataType) bool {
+	if dt == expr.Empty {
 		return false
 	}
 	switch actual := dt.(type) {
-	case design.Primitive:
+	case expr.Primitive:
 		return false
-	case *design.Array:
+	case *expr.Array:
 		return needInit(actual.ElemType.Type)
-	case *design.Map:
+	case *expr.Map:
 		return needInit(actual.KeyType.Type) ||
 			needInit(actual.ElemType.Type)
-	case *design.Object:
+	case *expr.Object:
 		for _, nat := range *actual {
 			if needInit(nat.Attribute.Type) {
 				return true
 			}
 		}
 		return false
-	case design.UserType:
+	case expr.UserType:
 		return true
 	default:
 		panic(fmt.Sprintf("unknown data type %T", actual)) // bug
