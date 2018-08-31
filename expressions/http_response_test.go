@@ -1,4 +1,4 @@
-package expr_test
+package expressions_test
 
 import (
 	"testing"

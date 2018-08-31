@@ -125,7 +125,7 @@ func ClientCLIFiles(genpkg string, root *expr.RootExpr) []*codegen.File {
 		data []*commandData
 		svcs []*expr.HTTPServiceExpr
 	)
-	for _, svc := range root.HTTPServices {
+	for _, svc := range root.API.HTTP.Services {
 		sd := HTTPServices.Get(svc.Name())
 		if len(sd.Endpoints) > 0 {
 			data = append(data, buildCommandData(sd))
@@ -156,7 +156,7 @@ func endpointParser(genpkg string, root *expr.RootExpr, data []*commandData) *co
 		{Path: "goa.design/goa", Name: "goa"},
 		{Path: "goa.design/goa/http", Name: "goahttp"},
 	}
-	for _, svc := range root.HTTPServices {
+	for _, svc := range root.API.HTTP.Services {
 		sd := HTTPServices.Get(svc.Name())
 		specs = append(specs, &codegen.ImportSpec{
 			Path: genpkg + "/http/" + codegen.SnakeCase(sd.Service.Name) + "/client",

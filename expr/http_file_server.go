@@ -21,7 +21,7 @@ type (
 		// RequestPaths is the list of HTTP paths that serve the assets.
 		RequestPaths []string
 		// Meta is a list of key/value pairs
-		Meta design.MetaExpr
+		Meta MetaExpr
 	}
 )
 
@@ -44,7 +44,7 @@ func (f *HTTPFileServerExpr) Finalize() {
 	}
 	f.RequestPaths = make([]string, len(paths))
 	for i, sp := range paths {
-		p := path.Join(Root.HTTPPath, sp, current)
+		p := path.Join(Root.API.HTTP.Path, sp, current)
 		// Make sure request path starts with a "/" so codegen can rely on it.
 		if !strings.HasPrefix(p, "/") {
 			p = "/" + p

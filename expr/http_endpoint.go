@@ -54,7 +54,7 @@ type (
 		MultipartRequest bool
 		// Meta is a set of key/value pairs with semantic that is
 		// specific to each generator, see dsl.Meta.
-		Meta design.MetaExpr
+		Meta MetaExpr
 	}
 
 	// RouteExpr represents an endpoint route (HTTP endpoint).
@@ -65,9 +65,8 @@ type (
 		Path string
 		// Endpoint is the endpoint this route applies to.
 		Endpoint *HTTPEndpointExpr
-		// Metadata is an arbitrary set of key/value pairs, see
-		// dsl.Metadata
-		Metadata MetaExpr
+		// Meta is an arbitrary set of key/value pairs, see dsl.Meta
+		Meta MetaExpr
 	}
 )
 
@@ -170,11 +169,11 @@ func (e *HTTPEndpointExpr) QueryParams() *MappedAttributeExpr {
 func (e *HTTPEndpointExpr) Prepare() {
 	// Inherit headers and params from parent service and API
 	headers := NewEmptyMappedAttributeExpr()
-	headers.Merge(Root.HTTPHeaders)
+	headers.Merge(Root.API.HTTP.Headers)
 	headers.Merge(e.Service.Headers)
 
 	params := NewEmptyMappedAttributeExpr()
-	params.Merge(Root.HTTPParams)
+	params.Merge(Root.API.HTTP.Params)
 	params.Merge(e.Service.Params)
 
 	if p := e.Service.Parent(); p != nil {
@@ -220,7 +219,7 @@ func (e *HTTPEndpointExpr) Prepare() {
 	for _, r := range e.Service.HTTPErrors {
 		e.HTTPErrors = append(e.HTTPErrors, r.Dup())
 	}
-	for _, r := range Root.HTTPErrors {
+	for _, r := range Root.API.HTTP.Errors {
 		e.HTTPErrors = append(e.HTTPErrors, r.Dup())
 	}
 

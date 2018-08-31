@@ -95,7 +95,7 @@ type (
 		// RootExpr.
 		Parent eval.Expression
 		// Meta is a list of key/value pairs
-		Meta design.MetaExpr
+		Meta MetaExpr
 	}
 )
 

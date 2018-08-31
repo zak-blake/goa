@@ -10,8 +10,8 @@ import (
 
 // ServerFiles returns all the server gRPC transport files.
 func ServerFiles(genpkg string, root *expr.RootExpr) []*codegen.File {
-	fw := make([]*codegen.File, len(root.GRPCServices))
-	for i, svc := range root.GRPCServices {
+	fw := make([]*codegen.File, len(root.API.GRPC.Services))
+	for i, svc := range root.API.GRPC.Services {
 		fw[i] = server(genpkg, svc)
 	}
 	return fw
@@ -54,7 +54,7 @@ func server(genpkg string, svc *expr.GRPCServiceExpr) *codegen.File {
 // NOTE: If the method payload/result type is not an  object it is wrapped
 // into a "field" attribute in the gRPC request/response message type.
 func typeConvertField(srcVar string, ed *EndpointData, payload bool) string {
-	se := expr.Root.GRPCService(ed.ServiceName)
+	se := expr.Root.API.GRPC.Service(ed.ServiceName)
 	ep := se.Endpoint(ed.Method.Name)
 	src := ep.Response.Message.Type
 	tgt := ep.MethodExpr.Result.Type

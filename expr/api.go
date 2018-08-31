@@ -38,7 +38,10 @@ type (
 		// potentially multiple schemes. Incoming requests must validate
 		// at least one requirement to be authorized.
 		Requirements []*SecurityExpr
-
+		// HTTP contains the HTTP specific API level expressions.
+		HTTP *HTTPExpr
+		// GRPC contains the gRPC specific API level expressions.
+		GRPC *GRPCExpr
 		// random generator used to build examples for the API types.
 		random *Random
 	}
@@ -51,7 +54,7 @@ type (
 		// "{param}" syntax.
 		URL string
 		// Params defines the URL parameters if any.
-		Params *AttributeExpr
+		Params *MappedAttributeExpr
 	}
 
 	// ServerParamExpr defines a single server URL parameter.
@@ -87,6 +90,16 @@ type (
 		URL string `json:"url,omitempty"`
 	}
 )
+
+// NewAPIExpr initializes an API expression.
+func NewAPIExpr(name string, dsl func()) *APIExpr {
+	return &APIExpr{
+		Name:    name,
+		HTTP:    new(HTTPExpr),
+		GRPC:    new(GRPCExpr),
+		DSLFunc: dsl,
+	}
+}
 
 // Schemes returns the list of HTTP methods used by all the API servers.
 func (a *APIExpr) Schemes() []string {
@@ -136,11 +149,6 @@ func (a *APIExpr) Finalize() {
 
 // EvalName is the qualified name of the expression.
 func (s *ServerExpr) EvalName() string { return "Server " + s.URL }
-
-// Attribute returns the embedded attribute.
-func (s *ServerExpr) Attribute() *AttributeExpr {
-	return s.Params
-}
 
 // Validate makes sure the server expression defines all the parameters and that
 // for each parameter there is a default value.

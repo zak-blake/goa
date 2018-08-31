@@ -120,7 +120,7 @@ func ClientCLIFiles(genpkg string, root *expr.RootExpr) []*codegen.File {
 		data []*commandData
 		svcs []*expr.GRPCServiceExpr
 	)
-	for _, svc := range root.GRPCServices {
+	for _, svc := range root.API.GRPC.Services {
 		sd := GRPCServices.Get(svc.Name())
 		if len(sd.Endpoints) > 0 {
 			data = append(data, buildCommandData(sd))
@@ -147,7 +147,7 @@ func endpointParser(genpkg string, root *expr.RootExpr, data []*commandData) *co
 		{Path: "goa.design/goa", Name: "goa"},
 		{Path: "google.golang.org/grpc", Name: "grpc"},
 	}
-	for _, svc := range root.GRPCServices {
+	for _, svc := range root.API.GRPC.Services {
 		sd := GRPCServices.Get(svc.Name())
 		specs = append(specs, &codegen.ImportSpec{
 			Path: genpkg + "/grpc/" + codegen.SnakeCase(sd.Service.Name) + "/client",

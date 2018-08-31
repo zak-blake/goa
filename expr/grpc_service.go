@@ -20,7 +20,7 @@ type (
 		GRPCErrors []*GRPCErrorExpr
 		// Meta is a set of key/value pairs with semantic that is
 		// specific to each generator.
-		Meta design.MetaExpr
+		Meta MetaExpr
 	}
 )
 
@@ -100,7 +100,7 @@ func (svc *GRPCServiceExpr) Validate() error {
 	for _, er := range svc.GRPCErrors {
 		verr.Merge(er.Validate())
 	}
-	for _, er := range Root.GRPCErrors {
+	for _, er := range Root.API.GRPC.Errors {
 		// This may result in the same error being validated multiple
 		// times however service is the top level expression being
 		// walked and errors cannot be walked until all expressions have

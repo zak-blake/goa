@@ -35,8 +35,8 @@ func ExampleCLI(genpkg string, root *expr.RootExpr) *codegen.File {
 		{Path: rootPath, Name: apiPkg},
 		{Path: genpkg + "/http/cli"},
 	}
-	svcdata := make([]*ServiceData, 0, len(root.HTTPServices))
-	for _, svc := range root.HTTPServices {
+	svcdata := make([]*ServiceData, 0, len(root.API.HTTP.Services))
+	for _, svc := range root.API.HTTP.Services {
 		svcdata = append(svcdata, HTTPServices.Get(svc.Name()))
 	}
 	data := map[string]interface{}{

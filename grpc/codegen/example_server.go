@@ -46,7 +46,7 @@ func exampleServer(genpkg string, root *expr.RootExpr) *codegen.File {
 			{Path: "goa.design/goa/grpc", Name: "goagrpc"},
 			{Path: rootPath, Name: apiPkg},
 		}
-		for _, svc := range root.GRPCServices {
+		for _, svc := range root.API.GRPC.Services {
 			pkgName := GRPCServices.Get(svc.Name()).Service.PkgName
 			specs = append(specs, &codegen.ImportSpec{
 				Path: filepath.Join(genpkg, "grpc", codegen.SnakeCase(svc.Name()), "server"),
@@ -67,8 +67,8 @@ func exampleServer(genpkg string, root *expr.RootExpr) *codegen.File {
 	)
 	{
 		sections = []*codegen.SectionTemplate{codegen.Header("", "main", specs)}
-		svcdata := make([]*ServiceData, 0, len(root.GRPCServices))
-		for _, svc := range root.GRPCServices {
+		svcdata := make([]*ServiceData, 0, len(root.API.GRPC.Services))
+		for _, svc := range root.API.GRPC.Services {
 			svcdata = append(svcdata, GRPCServices.Get(svc.Name()))
 		}
 		data := map[string]interface{}{

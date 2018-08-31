@@ -13,7 +13,7 @@ import (
 var GRPCServices = make(ServicesData)
 
 type (
-	// ServicesData encapsulates the data computed from the design.
+	// ServicesData encapsulates the data computed from the expr.
 	ServicesData map[string]*ServiceData
 
 	// ServiceData contains the data used to render the code related to a
@@ -243,7 +243,7 @@ func (d ServicesData) Get(name string) *ServiceData {
 	if data, ok := d[name]; ok {
 		return data
 	}
-	service := expr.Root.GRPCService(name)
+	service := expr.Root.API.GRPC.Service(name)
 	if service == nil {
 		return nil
 	}
@@ -297,11 +297,11 @@ func (d ServicesData) analyze(gs *expr.GRPCServiceExpr) *ServiceData {
 				AttributeExpr: wrapAttr(e.Request),
 				TypeName:      fmt.Sprintf("%sRequest", ProtoBufify(e.Name(), true)),
 			}
-		} else if e.Request.Type == design.Empty {
+		} else if e.Request.Type == expr.Empty {
 			// empty type should still generate a message. Rename the type to have
 			// the endpoint name suffixed with Request.
-			e.Request.Type = &design.UserTypeExpr{
-				AttributeExpr: &design.AttributeExpr{Type: &design.Object{}},
+			e.Request.Type = &expr.UserTypeExpr{
+				AttributeExpr: &expr.AttributeExpr{Type: &expr.Object{}},
 				TypeName:      fmt.Sprintf("%sRequest", ProtoBufify(e.Name(), true)),
 			}
 		}
@@ -312,11 +312,11 @@ func (d ServicesData) analyze(gs *expr.GRPCServiceExpr) *ServiceData {
 				AttributeExpr: wrapAttr(e.Response.Message),
 				TypeName:      fmt.Sprintf("%sResponse", ProtoBufify(e.Name(), true)),
 			}
-		} else if e.Response.Message.Type == design.Empty {
+		} else if e.Response.Message.Type == expr.Empty {
 			// empty type should still generate a message. Rename the type to have
 			// the endpoint name suffixed with Response.
-			e.Response.Message.Type = &design.UserTypeExpr{
-				AttributeExpr: &design.AttributeExpr{Type: &design.Object{}},
+			e.Response.Message.Type = &expr.UserTypeExpr{
+				AttributeExpr: &expr.AttributeExpr{Type: &expr.Object{}},
 				TypeName:      fmt.Sprintf("%sResponse", ProtoBufify(e.Name(), true)),
 			}
 		}

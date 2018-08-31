@@ -10,8 +10,8 @@ import (
 
 // ClientFiles returns all the client gRPC transport files.
 func ClientFiles(genpkg string, root *expr.RootExpr) []*codegen.File {
-	fw := make([]*codegen.File, len(root.GRPCServices))
-	for i, svc := range root.GRPCServices {
+	fw := make([]*codegen.File, len(root.API.GRPC.Services))
+	for i, svc := range root.API.GRPC.Services {
 		fw[i] = client(genpkg, svc)
 	}
 	return fw

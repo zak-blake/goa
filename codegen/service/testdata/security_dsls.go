@@ -1,8 +1,8 @@
 package testdata
 
 import (
+	. "goa.design/goa/dsl"
 	. "goa.design/goa/expr"
-	. "goa.design/goa/http/dsl"
 )
 
 var BasicAuth = BasicAuthSecurity("basic")

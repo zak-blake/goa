@@ -1,10 +1,10 @@
 package dsl
 
 import (
-	"goa.design/goa/expr"
 	"goa.design/goa/eval"
+	"goa.design/goa/expr"
 )
- 
+
 // API defines a network service API. It provides the API name, description and other global
 // properties. There may only be one API declaration in a given design package.
 //
@@ -42,7 +42,7 @@ func API(name string, fn func()) *expr.APIExpr {
 		eval.IncompatibleDSL()
 		return nil
 	}
-	expr.Root.API = &expr.APIExpr{Name: name, DSLFunc: fn}
+	expr.Root.API = expr.NewAPIExpr(name, fn)
 	return expr.Root.API
 }
 
@@ -119,6 +119,8 @@ func Docs(fn func()) {
 		e.Docs = docs
 	case *expr.AttributeExpr:
 		e.Docs = docs
+	case *expr.HTTPFileServerExpr:
+		e.Docs = docs
 	default:
 		eval.IncompatibleDSL()
 	}
@@ -138,10 +140,7 @@ func Server(url string, fn ...func()) {
 	if len(fn) > 1 {
 		eval.ReportError("too many arguments given to Server")
 	}
-	server := &expr.ServerExpr{
-		Params: new(expr.AttributeExpr),
-		URL:    url,
-	}
+	server := &expr.ServerExpr{URL: url}
 	if len(fn) > 0 {
 		eval.Execute(fn[0], server)
 	}
@@ -156,15 +155,6 @@ func Server(url string, fn ...func()) {
 	default:
 		eval.IncompatibleDSL()
 	}
-}
-
-// Param defines a server URL parameter.
-func Param(name string, args ...interface{}) {
-	if _, ok := eval.Current().(*expr.ServerExpr); !ok {
-		eval.IncompatibleDSL()
-		return
-	}
-	Attribute(name, args...)
 }
 
 // Name sets the contact or license name.

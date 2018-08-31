@@ -9,9 +9,9 @@ import (
 
 // ClientTypeFiles returns the gRPC transport type files.
 func ClientTypeFiles(genpkg string, root *expr.RootExpr) []*codegen.File {
-	fw := make([]*codegen.File, len(root.GRPCServices))
+	fw := make([]*codegen.File, len(root.API.GRPC.Services))
 	seen := make(map[string]struct{})
-	for i, r := range root.GRPCServices {
+	for i, r := range root.API.GRPC.Services {
 		fw[i] = clientType(genpkg, r, seen)
 	}
 	return fw

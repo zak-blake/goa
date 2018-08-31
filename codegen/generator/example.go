@@ -29,9 +29,9 @@ func Example(genpkg string, roots []eval.Root) ([]*codegen.File, error) {
 		}
 
 		// HTTP
-		if len(r.HTTPServices) > 0 {
-			svcs := make([]string, 0, len(r.HTTPServices))
-			for _, s := range r.HTTPServices {
+		if len(r.API.HTTP.Services) > 0 {
+			svcs := make([]string, 0, len(r.API.HTTP.Services))
+			for _, s := range r.API.HTTP.Services {
 				svcs = append(svcs, s.Name())
 			}
 			transports = append(transports, &service.TransportData{
@@ -47,9 +47,9 @@ func Example(genpkg string, roots []eval.Root) ([]*codegen.File, error) {
 		}
 
 		// GRPC
-		if len(r.GRPCServices) > 0 {
-			svcs := make([]string, 0, len(r.GRPCServices))
-			for _, s := range r.GRPCServices {
+		if len(r.API.GRPC.Services) > 0 {
+			svcs := make([]string, 0, len(r.API.GRPC.Services))
+			for _, s := range r.API.GRPC.Services {
 				svcs = append(svcs, s.Name())
 			}
 			transports = append(transports, &service.TransportData{

@@ -45,7 +45,7 @@ func exampleServer(genpkg string, root *expr.RootExpr) *codegen.File {
 		{Path: "github.com/gorilla/websocket"},
 		{Path: rootPath, Name: apiPkg},
 	}
-	for _, svc := range root.HTTPServices {
+	for _, svc := range root.API.HTTP.Services {
 		pkgName := HTTPServices.Get(svc.Name()).Service.PkgName
 		specs = append(specs, &codegen.ImportSpec{
 			Path: path.Join(genpkg, "http", codegen.SnakeCase(svc.Name()), "server"),
@@ -57,8 +57,8 @@ func exampleServer(genpkg string, root *expr.RootExpr) *codegen.File {
 		})
 	}
 	sections := []*codegen.SectionTemplate{codegen.Header("", "main", specs)}
-	svcdata := make([]*ServiceData, 0, len(root.HTTPServices))
-	for _, svc := range root.HTTPServices {
+	svcdata := make([]*ServiceData, 0, len(root.API.HTTP.Services))
+	for _, svc := range root.API.HTTP.Services {
 		svcdata = append(svcdata, HTTPServices.Get(svc.Name()))
 	}
 	if needStream(svcdata) {
@@ -97,7 +97,7 @@ func dummyMultipart(genpkg string, root *expr.RootExpr) *codegen.File {
 		specs := []*codegen.ImportSpec{
 			{Path: "mime/multipart"},
 		}
-		for _, svc := range root.HTTPServices {
+		for _, svc := range root.API.HTTP.Services {
 			pkgName := HTTPServices.Get(svc.Name()).Service.PkgName
 			specs = append(specs, &codegen.ImportSpec{
 				Path: path.Join(genpkg, codegen.SnakeCase(svc.Name())),
@@ -106,7 +106,7 @@ func dummyMultipart(genpkg string, root *expr.RootExpr) *codegen.File {
 		}
 		header := codegen.Header("", apiPkg, specs)
 		sections = []*codegen.SectionTemplate{header}
-		for _, svc := range root.HTTPServices {
+		for _, svc := range root.API.HTTP.Services {
 			data := HTTPServices.Get(svc.Name())
 			for _, e := range data.Endpoints {
 				if e.MultipartRequestDecoder != nil {

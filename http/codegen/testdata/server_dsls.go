@@ -2,7 +2,7 @@ package testdata
 
 import (
 	. "goa.design/goa/expr"
-	. "goa.design/goa/http/dsl"
+	. "goa.design/goa/dsl"
 )
 
 var ServerNoPayloadNoResultDSL = func() {

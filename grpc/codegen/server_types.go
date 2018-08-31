@@ -9,9 +9,9 @@ import (
 
 // ServerTypeFiles returns the gRPC transport type files.
 func ServerTypeFiles(genpkg string, root *expr.RootExpr) []*codegen.File {
-	fw := make([]*codegen.File, len(root.GRPCServices))
+	fw := make([]*codegen.File, len(root.API.GRPC.Services))
 	seen := make(map[string]struct{})
-	for i, r := range root.GRPCServices {
+	for i, r := range root.API.GRPC.Services {
 		fw[i] = serverType(genpkg, r, seen)
 	}
 	return fw

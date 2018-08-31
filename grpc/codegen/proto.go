@@ -11,7 +11,7 @@ import (
 
 // ProtoFiles returns a *.proto file for each gRPC service.
 func ProtoFiles(genpkg string, root *expr.RootExpr) {
-	for _, svc := range root.GRPCServices {
+	for _, svc := range root.API.GRPC.Services {
 		f := protoFile(genpkg, svc)
 		// Render the .proto file to the disk
 		if _, err := f.Render("."); err != nil {

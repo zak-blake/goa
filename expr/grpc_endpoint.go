@@ -20,10 +20,10 @@ type (
 		// Responses is the success gRPC response from the method.
 		Response *GRPCResponseExpr
 		// GRPCErrors is the list of all the possible error gRPC responses.
-		GRPCErrors []*ErrorExpr
+		GRPCErrors []*GRPCErrorExpr
 		// Meta is a set of key/value pairs with semantic that is
 		// specific to each generator, see dsl.Meta.
-		Meta design.MetaExpr
+		Meta MetaExpr
 	}
 )
 
@@ -59,14 +59,14 @@ func (e *GRPCEndpointExpr) Prepare() {
 
 	// Make sure there's a default response if none define explicitly
 	if e.Response == nil {
-		e.Response = &GRPCResponseExpr{StatusCode: CodeOK}
+		e.Response = &GRPCResponseExpr{StatusCode: 0}
 	}
 
 	// Inherit gRPC errors from service and root
 	for _, r := range e.Service.GRPCErrors {
 		e.GRPCErrors = append(e.GRPCErrors, r.Dup())
 	}
-	for _, r := range Root.GRPCErrors {
+	for _, r := range Root.API.GRPC.Errors {
 		e.GRPCErrors = append(e.GRPCErrors, r.Dup())
 	}
 

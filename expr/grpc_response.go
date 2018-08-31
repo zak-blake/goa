@@ -11,7 +11,7 @@ type (
 	// and result type.
 	GRPCResponseExpr struct {
 		// gRPC status code
-		StatusCode Code
+		StatusCode int
 		// Response description
 		Description string
 		// Response Message if any
@@ -20,13 +20,8 @@ type (
 		// RootExpr.
 		Parent eval.Expression
 		// Meta is a list of key/value pairs
-		Meta design.MetaExpr
+		Meta MetaExpr
 	}
-
-	// Code is the error code as defined in the gRPC.
-	// See https://github.com/grpc/grpc-go/blob/master/codes/codes.go for more
-	// information about supported gRPC error codes.
-	Code int
 )
 
 // EvalName returns the generic definition name used in error messages.
@@ -139,7 +134,6 @@ func (r *GRPCResponseExpr) Dup() *GRPCResponseExpr {
 		StatusCode:  r.StatusCode,
 		Description: r.Description,
 		Parent:      r.Parent,
-		Metadata:    r.Metadata,
 		Meta:        r.Meta,
 		Message:     DupAtt(r.Message),
 	}

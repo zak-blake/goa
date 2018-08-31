@@ -126,7 +126,7 @@ func (s *Schema) JSON() ([]byte, error) {
 
 // APISchema produces the API JSON hyper schema.
 func APISchema(api *expr.APIExpr, r *expr.RootExpr) *Schema {
-	for _, res := range r.HTTPServices {
+	for _, res := range r.API.HTTP.Services {
 		GenerateServiceDefinition(api, res)
 	}
 	href := api.Servers[0].URL

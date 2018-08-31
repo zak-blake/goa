@@ -557,7 +557,7 @@ func walkMatches(source, target *expr.AttributeExpr, walker func(src, tgt *expr.
 // int32 and uint32 respectively whereas goa v2 generates int and uint.
 //
 // proto if true indicates that the target attribute is a protocol buffer type.
-func typeConvert(sourceVar string, source, target design.DataType, proto bool) string {
+func typeConvert(sourceVar string, source, target expr.DataType, proto bool) string {
 	if source.Kind() != expr.IntKind && source.Kind() != expr.UIntKind {
 		return sourceVar
 	}

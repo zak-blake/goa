@@ -115,7 +115,7 @@ func TestServerExprValidate(t *testing.T) {
 	for k, tc := range cases {
 		server := ServerExpr{
 			URL:    tc.url,
-			Params: tc.params,
+			Params: NewMappedAttributeExpr(tc.params),
 		}
 		if actual := server.Validate().(*eval.ValidationErrors); len(tc.expected.Errors) != len(actual.Errors) {
 			t.Errorf("%s: expected the number of error values to match %d got %d ", k, len(tc.expected.Errors), len(actual.Errors))
