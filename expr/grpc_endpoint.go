@@ -125,7 +125,7 @@ func validateMessage(msgAtt, serviceAtt *AttributeExpr, e *GRPCEndpointExpr, req
 		foundRPC := make(map[string]string)
 		for _, nat := range *AsObject(att.Type) {
 			if tag, ok := nat.Attribute.Meta["rpc:tag"]; !ok {
-				verr.Add(e, "attribute %q does not have \"rpc:tag\" defined in the metadata in type %q", nat.Name, att.Type.Name())
+				verr.Add(e, "attribute %q does not have \"rpc:tag\" defined in the metadata in type %q - use \"Field\" to define type attributes.", nat.Name, att.Type.Name())
 			} else if a, ok := foundRPC[tag[0]]; ok {
 				verr.Add(e, "field number %d in attribute %q already exists for attribute %q", tag[0], nat.Name, a)
 			} else {

@@ -91,16 +91,20 @@ func (r *RootExpr) WalkSets(walk eval.SetWalker) {
 	}
 	walk(mtypes)
 
-	// Services and methods
+	// Services
 	services := make(eval.ExpressionSet, len(r.Services))
 	var methods eval.ExpressionSet
 	for i, s := range r.Services {
 		services[i] = s
-		for _, e := range s.Methods {
-			methods = append(methods, e)
-		}
 	}
 	walk(services)
+
+	// Methods (must be done after services)
+	for _, s := range r.Services {
+		for _, m := range s.Methods {
+			methods = append(methods, m)
+		}
+	}
 	walk(methods)
 
 	// HTTP services and endpoints
@@ -111,20 +115,20 @@ func (r *RootExpr) WalkSets(walk eval.SetWalker) {
 		}
 		return false
 	})
-	var endpoints eval.ExpressionSet
-	var servers eval.ExpressionSet
+	var httpepts eval.ExpressionSet
+	var httpsvrs eval.ExpressionSet
 	for i, svc := range r.API.HTTP.Services {
 		httpsvcs[i] = svc
 		for _, e := range svc.HTTPEndpoints {
-			endpoints = append(endpoints, e)
+			httpepts = append(httpepts, e)
 		}
 		for _, s := range svc.FileServers {
-			servers = append(servers, s)
+			httpsvrs = append(httpsvrs, s)
 		}
 	}
 	walk(httpsvcs)
-	walk(endpoints)
-	walk(servers)
+	walk(httpepts)
+	walk(httpsvrs)
 
 	// GRPC services and endpoints
 	grpcsvcs := make(eval.ExpressionSet, len(r.API.GRPC.Services))
@@ -134,15 +138,15 @@ func (r *RootExpr) WalkSets(walk eval.SetWalker) {
 		}
 		return false
 	})
-	var grpcms eval.ExpressionSet
+	var grpcepts eval.ExpressionSet
 	for i, svc := range r.API.GRPC.Services {
 		grpcsvcs[i] = svc
 		for _, e := range svc.GRPCEndpoints {
-			grpcms = append(endpoints, e)
+			grpcepts = append(grpcepts, e)
 		}
 	}
 	walk(grpcsvcs)
-	walk(grpcms)
+	walk(grpcepts)
 }
 
 // DependsOn returns nil, the core DSL has no dependency.

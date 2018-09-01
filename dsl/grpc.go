@@ -58,7 +58,7 @@ const (
 //
 // GRPC must appear in API, a Service or a Method expression.
 //
-// GRPC accepts a single argument which is the defining DSL function.
+// GRPC accepts an optional argument which is the defining DSL function.
 //
 // Example:
 //

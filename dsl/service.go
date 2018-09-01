@@ -1,8 +1,8 @@
 package dsl
 
 import (
-	"goa.design/goa/expr"
 	"goa.design/goa/eval"
+	"goa.design/goa/expr"
 )
 
 // Service defines a group of related methods. Refer to the transport specific

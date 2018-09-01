@@ -132,6 +132,9 @@ func ClientCLIFiles(genpkg string, root *expr.RootExpr) []*codegen.File {
 			svcs = append(svcs, svc)
 		}
 	}
+	if len(svcs) == 0 {
+		return nil
+	}
 
 	files := []*codegen.File{endpointParser(genpkg, root, data)}
 	for i, svc := range svcs {

@@ -52,8 +52,6 @@ func setupHTTPDSLRun() {
 	eval.Register(Root)
 	eval.Register(Root.GeneratedTypes)
 	eval.Register(Root)
-	Root.API = &APIExpr{
-		Name:    "test api",
-		Servers: []*ServerExpr{{URL: "http://localhost"}},
-	}
+	Root.API = NewAPIExpr("test api", func() {})
+	Root.API.Servers = []*ServerExpr{{URL: "http://localhost"}}
 }
