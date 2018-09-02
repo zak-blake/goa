@@ -30,7 +30,7 @@ func Transport(genpkg string, roots []eval.Root) ([]*codegen.File, error) {
 		files = append(files, httpcodegen.ClientCLIFiles(genpkg, r)...)
 
 		// GRPC
-		grpccodegen.ProtoFiles(genpkg, r)
+		files = append(files, grpccodegen.ProtoFiles(genpkg, r)...)
 		files = append(files, grpccodegen.ServerFiles(genpkg, r)...)
 		files = append(files, grpccodegen.ClientFiles(genpkg, r)...)
 		files = append(files, grpccodegen.ServerTypeFiles(genpkg, r)...)

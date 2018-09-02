@@ -87,13 +87,13 @@ func TestServerExprValidate(t *testing.T) {
 	}{
 		"no error": {
 			url:      "http://example.com/cellar/accounts/{accountID}",
-			params:   &AttributeExpr{Type: &Object{&NamedAttributeExpr{Name: "accountID", Attribute: &AttributeExpr{DefaultValue: "foo"}}}},
+			params:   &AttributeExpr{Type: &Object{&NamedAttributeExpr{Name: "accountID", Attribute: &AttributeExpr{Type: String, DefaultValue: "foo"}}}},
 			expected: &eval.ValidationErrors{},
 		},
 		"missing param expression": {
 			url:      "http://example.com/cellar/accounts/{accountID}",
 			params:   nil,
-			expected: &eval.ValidationErrors{Errors: []error{fmt.Errorf("missing Param expressions")}},
+			expected: &eval.ValidationErrors{Errors: []error{fmt.Errorf("invalid parameter count, expected %d, got %d", 1, 0)}},
 		},
 		"invalid parameter count": {
 			url:      "http://example.com/cellar/accounts/{accountID}",
@@ -102,12 +102,12 @@ func TestServerExprValidate(t *testing.T) {
 		},
 		"parameter not defined": {
 			url:      "http://example.com/cellar/accounts/{accountID}",
-			params:   &AttributeExpr{Type: &Object{&NamedAttributeExpr{Name: "bottleID", Attribute: &AttributeExpr{DefaultValue: "foo"}}}},
+			params:   &AttributeExpr{Type: &Object{&NamedAttributeExpr{Name: "bottleID", Attribute: &AttributeExpr{Type: String, DefaultValue: "foo"}}}},
 			expected: &eval.ValidationErrors{Errors: []error{fmt.Errorf("parameter %s is not defined", "accountID")}},
 		},
 		"parameter has no default value": {
 			url:      "http://example.com/cellar/accounts/{accountID}",
-			params:   &AttributeExpr{Type: &Object{&NamedAttributeExpr{Name: "accountID", Attribute: &AttributeExpr{DefaultValue: nil}}}},
+			params:   &AttributeExpr{Type: &Object{&NamedAttributeExpr{Name: "accountID", Attribute: &AttributeExpr{Type: String, DefaultValue: nil}}}},
 			expected: &eval.ValidationErrors{Errors: []error{fmt.Errorf("parameter %s has no default value", "accountID")}},
 		},
 	}

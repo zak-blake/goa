@@ -2,6 +2,7 @@ package codegen
 
 import (
 	"fmt"
+	"os"
 	"os/exec"
 	"path/filepath"
 
@@ -10,15 +11,12 @@ import (
 )
 
 // ProtoFiles returns a *.proto file for each gRPC service.
-func ProtoFiles(genpkg string, root *expr.RootExpr) {
-	for _, svc := range root.API.GRPC.Services {
-		f := protoFile(genpkg, svc)
-		// Render the .proto file to the disk
-		if _, err := f.Render("."); err != nil {
-			panic(err)
-		}
-		protoc(f.Path)
+func ProtoFiles(genpkg string, root *expr.RootExpr) []*codegen.File {
+	fw := make([]*codegen.File, len(root.API.GRPC.Services))
+	for i, svc := range root.API.GRPC.Services {
+		fw[i] = protoFile(genpkg, svc)
 	}
+	return fw
 }
 
 func protoFile(genpkg string, svc *expr.GRPCServiceExpr) *codegen.File {
@@ -44,17 +42,26 @@ func protoFile(genpkg string, svc *expr.GRPCServiceExpr) *codegen.File {
 		})
 	}
 
-	return &codegen.File{Path: path, SectionTemplates: sections}
+	return &codegen.File{
+		Path:             path,
+		SectionTemplates: sections,
+		FinalizeFunc:     protoc,
+	}
 }
 
-func protoc(path string) {
-	args := []string{"--go_out=plugins=grpc:.", path}
-	// Run protoc compiler with the protoc-gen-go plugin
+func protoc(path string) error {
+	dir := filepath.Dir(path)
+	os.MkdirAll(dir, 0777)
+
+	args := []string{"--go_out=plugins=grpc:.", path, "--proto_path", dir}
 	cmd := exec.Command("protoc", args...)
+	cmd.Dir = filepath.Dir(path)
+
 	if output, err := cmd.CombinedOutput(); err != nil {
-		fmt.Println(fmt.Sprintf("Error running protoc command:\n%s", string(output)))
-		panic(err)
+		return fmt.Errorf("failed to run protoc: %s: %s", err, output)
 	}
+
+	return nil
 }
 
 const (
