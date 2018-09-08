@@ -67,6 +67,13 @@ func serverType(genpkg string, svc *expr.GRPCServiceExpr, seen map[string]struct
 const typeInitT = `{{ comment .Description }}
 func {{ .Name }}({{ range .Args }}{{ .Name }} {{.TypeRef }}, {{ end }}) {{ .ReturnTypeRef }} {
   {{ .Code }}
+{{- if .ReturnIsStruct }}
+	{{- range .Args }}
+		{{- if .FieldName }}
+			{{ $.ReturnVarName }}.{{ .FieldName }} = {{ if .Pointer }}&{{ end }}{{ .Name }}
+		{{- end }}
+	{{- end }}
+{{- end }}
   return {{ .ReturnVarName }}
 }
 `

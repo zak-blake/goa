@@ -1,8 +1,6 @@
 package dsl
 
 import (
-	"fmt"
-
 	"goa.design/goa/eval"
 	"goa.design/goa/expr"
 )
@@ -44,56 +42,58 @@ const (
 	CodeUnauthenticated = 16
 )
 
-// GRPC defines the gRPC transport specific properties of an API, a service, or
-// a single method. In particular, the function defines the mapping between the
-// method payload and gRPC request message and metadata. It also defines the
-// mapping between the method result and errors and corresponding gRPC response
-// messages and metadata.
+// GRPC defines gRPC transport specific properties on an API, a service, or a
+// single method. The function maps the request and response types to gRPC
+// properties such as request and response messages.
 //
-// The functions that appear in GRPC such as Message or Metadata may take
-// advantage of the payload or result type attributes respectively. The
-// properties of the message attributes inherit the properties of the attributes
-// with the same names that appear in the method payload or result types (so
-// there's no need to repeat the attribute type, description, validations etc.).
+// As a special case GRPC may be used to define the response generated for
+// invalid requests and internal errors (errors returned by the service methods
+// that don't match any of the error responses defined in the design). This is
+// the only use of GRPC allowed in the API expression.
+//
+// The functions that appear in GRPC such as Message or Response may take
+// advantage of the request or response types (depending on whether they appear
+// when describing the gRPC request or response). The properties of the message
+// attributes inherit the properties of the attributes with the same names that
+// appear in the request or response types. The functions may also define new
+// attributes or override the existing request or response type attributes.
 //
 // GRPC must appear in API, a Service or a Method expression.
 //
-// GRPC accepts an optional argument which is the defining DSL function.
+// GRPC accepts a single argument which is the defining DSL function.
 //
 // Example:
 //
-//    var _ = Service("calculator", func() {
-//        Method("add", func() {
-//            Description("Add two operands")
-//            Payload(func() {
-//                 Attribute("left", Int, "Left operand")
-//                 Attribute("right", Int, "Right operand")
-//                 Attribute("request_id", String, "Unique request ID")
-//            })
-//            Result(Int)
+//     var CreatePayload = Type("CreatePayload", func() {
+//         Field(1, "name", String, "Name of account")
+//         TokenField(2, "token", String, "JWT token for authentication")
+//     })
 //
-//            GRPC(func() {
-//                Metadata("request_id") // Load "request_id" payload attribute
-//                                       // from the gRPC request metadata.
-//                                       // Other attributes are loaded from the
-//                                       // gRPC request message.
-//                Response(CodeOK)
-//            })
-//        })
-//    })
+//     var CreateResult = ResultType("application/vnd.create", func() {
+//         Attributes(func() {
+//             Field(1, "name", String, "Name of the created resource")
+//             Field(2, "href", String, "Href of the created resource")
+//         })
+//     })
 //
-func GRPC(fns ...func()) {
-	if len(fns) > 1 {
-		eval.InvalidArgError("zero or one function", fmt.Sprintf("%d functions", len(fns)))
-		return
-	}
-	fn := func() {}
-	if len(fns) == 1 {
-		fn = fns[0]
-	}
+//     Method("create", func() {
+//         Payload(CreatePayload)
+//         Result(CreateResult)
+//         Error("unauthenticated")
+//
+//         GRPC(func() {              // gRPC endpoint to define gRPC service
+//             Message(func() {       // gRPC request message
+//                 Attribute("token")
+//             })
+//             Response(CodeOK)     // gRPC success response
+//             Response("unauthenticated", CodeUnauthenticated) // grpc error
+//         })
+//     })
+//
+func GRPC(fn func()) {
 	switch actual := eval.Current().(type) {
 	case *expr.APIExpr:
-		eval.Execute(fn, actual.GRPC)
+		eval.Execute(fn, expr.Root)
 	case *expr.ServiceExpr:
 		res := expr.Root.API.GRPC.ServiceFor(actual)
 		res.DSLFunc = fn
@@ -108,144 +108,208 @@ func GRPC(fns ...func()) {
 
 // Message describes a gRPC request or response message.
 //
-// Message must appear in a Method GRPC expression to define the request message
-// or in an Error or Result GRPC expression to define the response message. If
-// Message is absent then the message is built using the method payload or
-// result type attributes.
+// Message must appear in a Method gRPC endpoint expression to define the
+// attributes that must appear in a request or in a gRPC response expression
+// to define the attributes that must appear in a response message.
+// If Message is absent then the request message is built using the method
+// Payload expression and the response message is build using the method
+// Result expression.
 //
-// Message accepts one argument which describes the shape of the message, it can
-// be:
+// Message accepts one argument of function type which lists the attributes
+// that must be present in the message. For example, the Message DSL can be
+// defined on the gRPC endpoint expression listing the security attributes
+// to appear in the request message instead of sending them in the gRPC
+// metadata by default. The attributes listed in the function inherit the
+// properties (description, type, meta, validations etc.) of the request or
+// response type attributes with identical names.
 //
-//  - The name of an attribute of the method payload or result type. In this
-//    case the attribute type describes the shape of the message.
-//
-//  - A function listing the message attributes. The attributes inherit the
-//    properties (description, type, validations etc.) of the payload or
-//    result type attributes with identical names.
-//
-// Assuming the type:
+// Example:
 //
 //     var CreatePayload = Type("CreatePayload", func() {
-//         Attribute("name", String, "Name of account")
+//         Field(1, "name", String, "Name of account")
+//         TokenField(2, "token", String, "JWT token for authentication")
 //     })
 //
-// The following:
+//     var CreateResult = ResultType("application/vnd.create", func() {
+//         Attributes(func() {
+//             Field(1, "name", String, "Name of the created resource")
+//             Field(2, "href", String, "Href of the created resource")
+//         })
+//     })
 //
 //     Method("create", func() {
 //         Payload(CreatePayload)
-//         GRPC()
-//     })
-//
-// is equivalent to:
-//
-//     Method("create", func() {
-//         Payload(CreatePayload)
+//         Result(CreateResult)
 //         GRPC(func() {
 //             Message(func() {
-//                 Attribute("name")
+//                 Attribute("token") // "token" sent in the request message
+//                                    // along with "name"
+//             })
+//             Response(func() {
+//                 Code(CodeOK)
+//                 Message(func() {
+//                     Attribute("name") // "name" sent in the response
+//                                       // message along with "href"
+//                     Required("name")  // "name" is set to required
+//                 })
 //             })
 //         })
 //     })
 //
-func Message(args ...interface{}) {
-	if len(args) == 0 {
-		eval.ReportError("not enough arguments, use Message(name), Message(type), Message(func()) or Message(type, func())")
-		return
+// If the method Payload/Result type is a primitive, array, or a map the
+// request/response message by default contains one attribute with name
+// "field", "rpc:tag" set to 1, and the type set to the type of the
+// method Payload/Result. The function argument can also be used to set
+// the message field name to something other than "field".
+//
+// Example:
+//
+//     Method("add", func() {
+//         Payload(Operands)
+//         Result(Int)      // method Result is a primitive
+//         GRPC(func() {
+//             Response(CodeOK, func()
+//                 Message(func() {
+//                     Attribute("sum") // Response message has one field with
+//                                      // name "sum" instead of "field"
+//                 })
+//             })
+//         })
+//     })
+//
+func Message(fn func()) {
+	var setter func(*expr.AttributeExpr)
+	{
+		switch e := eval.Current().(type) {
+		case *expr.GRPCEndpointExpr:
+			setter = func(att *expr.AttributeExpr) {
+				e.Request = att
+			}
+		case *expr.GRPCErrorExpr:
+			setter = func(att *expr.AttributeExpr) {
+				if e.Response == nil {
+					e.Response = &expr.GRPCResponseExpr{}
+				}
+				e.Response.Message = att
+			}
+		case *expr.GRPCResponseExpr:
+			setter = func(att *expr.AttributeExpr) {
+				e.Message = att
+			}
+		default:
+			eval.IncompatibleDSL()
+			return
+		}
 	}
+	attr := &expr.AttributeExpr{}
+	if eval.Execute(fn, attr) {
+		setter(attr)
+	}
+}
 
-	var (
-		ref       *expr.AttributeExpr
-		setter    func(*expr.AttributeExpr)
-		kind, tgt string
-	)
-
-	// Figure out reference type and setter function
+// Metadata defines a gRPC request metadata.
+//
+// Metadata must appear in a gRPC endpoint expression to describe gRPC request
+// metadata.
+//
+// Security attributes in the method Payload are automatically added to the
+// request metadata unless specified explicitly in request message using
+// Message DSL. All other attributes in method Payload are added to the
+// request message unless specified explicitly using Metadata (in which case
+// will be added to the metadata).
+//
+// Metadata takes one argument of function type which lists the attributes
+// that must be set in the request metadata instead of the message.
+// If Metadata is set in the gRPC endpoint expression, it inherits the
+// attribute properties (description, type, meta, validations etc.) from the
+// method Payload.
+//
+// Example:
+//
+//     var CreatePayload = Type("CreatePayload", func() {
+//         Field(1, "name", String, "Name of account")
+//         TokenField(2, "token", String, "JWT token for authentication")
+//     })
+//
+//     var CreateResult = ResultType("application/vnd.create", func() {
+//         Attributes(func() {
+//             Field(1, "name", String, "Name of the created resource")
+//             Field(2, "href", String, "Href of the created resource")
+//         })
+//     })
+//
+//     Method("create", func() {
+//         Payload(CreatePayload)
+//         Result(CreateResult)
+//         GRPC(func() {
+//             Metadata(func() {
+//                 Attribute("name") // "name" sent in the request metadata
+//                                   // along with "token"
+//             })
+//             Response(func() {
+//                 Code(CodeOK)
+//             })
+//         })
+//     })
+//
+func Metadata(fn func()) {
 	switch e := eval.Current().(type) {
 	case *expr.GRPCEndpointExpr:
-		ref = e.MethodExpr.Payload
-		setter = func(att *expr.AttributeExpr) {
-			e.Request = att
+		attr := &expr.AttributeExpr{}
+		if eval.Execute(fn, attr) {
+			e.Metadata = expr.NewMappedAttributeExpr(attr)
 		}
-		kind = "request"
-		tgt = "Payload"
-	case *expr.GRPCErrorExpr:
-		ref = e.ErrorExpr.AttributeExpr
-		setter = func(att *expr.AttributeExpr) {
-			if e.Response == nil {
-				e.Response = &expr.GRPCResponseExpr{}
-			}
-			e.Response.Message = att
-		}
-		kind = "error_" + e.Name
-		tgt = "Error " + e.Name
-	case *expr.GRPCResponseExpr:
-		ref = e.Parent.(*expr.GRPCEndpointExpr).MethodExpr.Result
-		setter = func(att *expr.AttributeExpr) {
-			e.Message = att
-		}
-		kind = "response"
-		tgt = "Result"
 	default:
 		eval.IncompatibleDSL()
-		return
 	}
+}
 
-	// Now initialize target attribute and DSL if any
-	var (
-		attr *expr.AttributeExpr
-		fn   func()
-	)
-	switch a := args[0].(type) {
-	case string:
-		if ref.Find(a) == nil {
-			eval.ReportError("%q is not found in %s", a, tgt)
-			return
+// Trailers defines gRPC trailers in response metadata.
+//
+// Trailers must appear in a gRPC response expression to describe gRPC trailers
+// in response metadata.
+//
+// Trailers takes one argument of function type which lists the attributes
+// that must be set in the trailer response metadata instead of the message.
+// If Trailers is set in the gRPC response expression, it inherits the
+// attribute properties (description, type, meta, validations etc.) from the
+// method Result.
+//
+// Example:
+//
+//     var CreatePayload = Type("CreatePayload", func() {
+//         Field(1, "name", String, "Name of account")
+//         TokenField(2, "token", String, "JWT token for authentication")
+//     })
+//
+//     var CreateResult = ResultType("application/vnd.create", func() {
+//         Attributes(func() {
+//             Field(1, "name", String, "Name of the created resource")
+//             Field(2, "href", String, "Href of the created resource")
+//         })
+//     })
+//
+//     Method("create", func() {
+//         Payload(CreatePayload)
+//         Result(CreateResult)
+//         GRPC(func() {
+//             Response(func() {
+//                 Code(CodeOK)
+//                 Trailers(func() {
+//                     Attribute("name") // "name" sent in the trailer metadata
+//                 })
+//             })
+//         })
+//     })
+//
+func Trailers(fn func()) {
+	switch e := eval.Current().(type) {
+	case *expr.GRPCResponseExpr:
+		attr := &expr.AttributeExpr{}
+		if eval.Execute(fn, attr) {
+			e.Trailers = expr.NewMappedAttributeExpr(attr)
 		}
-		obj := expr.AsObject(ref.Type)
-		if obj == nil {
-			eval.ReportError("%s must be an object with an attribute with name %#v, got %T", tgt, a, ref.Type)
-			return
-		}
-		attr = obj.Attribute(a)
-		if attr == nil {
-			eval.ReportError("%s does not have an attribute named %#v", tgt, a)
-			return
-		}
-		attr = expr.DupAtt(attr)
-		if attr.Meta == nil {
-			attr.Meta = expr.MetaExpr{"origin:attribute": []string{a}}
-		} else {
-			attr.Meta["origin:attribute"] = []string{a}
-		}
-	case expr.UserType:
-		attr = &expr.AttributeExpr{Type: a}
-		if len(args) > 1 {
-			var ok bool
-			fn, ok = args[1].(func())
-			if !ok {
-				eval.ReportError("second argument must be a function")
-			}
-		}
-	case func():
-		fn = a
-		if ref == nil {
-			eval.ReportError("Message is set but %s is not defined", tgt)
-			return
-		}
-		attr = ref
 	default:
-		eval.InvalidArgError("attribute name, user type or DSL", a)
-		return
-	}
-
-	if fn != nil {
-		eval.Execute(fn, attr)
-	}
-	if attr != nil {
-		if attr.Meta == nil {
-			attr.Meta = expr.MetaExpr{}
-		}
-		attr.Meta["grpc:"+kind] = []string{}
-		setter(attr)
+		eval.IncompatibleDSL()
 	}
 }

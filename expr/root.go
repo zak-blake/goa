@@ -250,3 +250,29 @@ func (m MetaExpr) Dup() MetaExpr {
 	}
 	return d
 }
+
+// Merge merges src meta expression with m. If meta has intersecting set of
+// keys on both m and src, then the values for those keys in src is appended
+// to the values of the keys in m if not already existing.
+func (m MetaExpr) Merge(src MetaExpr) {
+	for k, vals := range src {
+		if mvals, ok := m[k]; ok {
+			var found bool
+			for _, v := range vals {
+				found = false
+				for _, mv := range mvals {
+					if mv == v {
+						found = true
+						break
+					}
+				}
+				if !found {
+					mvals = append(mvals, v)
+				}
+			}
+			m[k] = mvals
+		} else {
+			m[k] = vals
+		}
+	}
+}

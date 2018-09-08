@@ -628,7 +628,7 @@ func buildPathFromExpr(s *V2, root *expr.RootExpr, route *expr.RouteExpr, basePa
 
 		description := endpoint.Description()
 
-		reqs := endpoint.MethodExpr.Requirements
+		reqs := endpoint.Requirements
 		requirements := make([]map[string][]string, len(reqs))
 		for i, req := range reqs {
 			requirement := make(map[string][]string)

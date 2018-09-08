@@ -21,6 +21,10 @@ type (
 		Response *GRPCResponseExpr
 		// GRPCErrors is the list of all the possible error gRPC responses.
 		GRPCErrors []*GRPCErrorExpr
+		// Metadata is the metadata to be sent in a gRPC request.
+		Metadata *MappedAttributeExpr
+		// Requirements is the list of security requirements for the gRPC endpoint.
+		Requirements []*SecurityExpr
 		// Meta is a set of key/value pairs with semantic that is
 		// specific to each generator, see dsl.Meta.
 		Meta MetaExpr
@@ -56,11 +60,21 @@ func (e *GRPCEndpointExpr) Prepare() {
 	if e.Request == nil {
 		e.Request = &AttributeExpr{Type: Empty}
 	}
+	if e.Request.Validation == nil {
+		e.Request.Validation = &ValidationExpr{}
+	}
+	if e.Metadata == nil {
+		e.Metadata = NewEmptyMappedAttributeExpr()
+	}
+	if e.Metadata.Validation == nil {
+		e.Metadata.Validation = &ValidationExpr{}
+	}
 
 	// Make sure there's a default response if none define explicitly
 	if e.Response == nil {
 		e.Response = &GRPCResponseExpr{StatusCode: 0}
 	}
+	e.Response.Prepare()
 
 	// Inherit gRPC errors from service and root
 	for _, r := range e.Service.GRPCErrors {
@@ -70,8 +84,7 @@ func (e *GRPCEndpointExpr) Prepare() {
 		e.GRPCErrors = append(e.GRPCErrors, r.Dup())
 	}
 
-	// Prepare response
-	e.Response.Prepare()
+	// Prepare error response
 	for _, er := range e.GRPCErrors {
 		er.Response.Prepare()
 	}
@@ -86,9 +99,67 @@ func (e *GRPCEndpointExpr) Validate() error {
 		verr.Add(e, "Endpoint name cannot be empty")
 	}
 
+	var hasMessage, hasMetadata bool
 	// Validate request
-	verr.Merge(e.Request.Validate("gRPC request message", e))
-	verr.Merge(validateMessage(e.Request, e.MethodExpr.Payload, e, true))
+	if e.Request.Type != Empty {
+		hasMessage = true
+		verr.Merge(e.Request.Validate("gRPC request message", e))
+		verr.Merge(validateMessage(e.Request, e.MethodExpr.Payload, e, true))
+	}
+	if !e.Metadata.IsEmpty() {
+		hasMetadata = true
+		verr.Merge(e.Metadata.Validate("gRPC request metadata", e))
+		verr.Merge(validateMetadata(e.Metadata, e.MethodExpr.Payload, e, true))
+	}
+
+	if pobj := AsObject(e.MethodExpr.Payload.Type); pobj != nil {
+		secAttrs := getSecurityAttributes(e.MethodExpr)
+		switch {
+		case hasMessage && hasMetadata:
+			// ensure the attributes defined in message are not defined in metadata.
+			msgObj := AsObject(e.Request.Type)
+			metObj := AsObject(e.Metadata.Type)
+			for _, msgnat := range *msgObj {
+				for _, metnat := range *metObj {
+					if metnat.Name == msgnat.Name {
+						verr.Add(e, "Attribute %q defined in both request message and metadata. Define the attribute in either message or metadata.", metnat.Name)
+						break
+					}
+				}
+			}
+		case !hasMessage && !hasMetadata:
+			// no request message or metadata is defined. Ensure that the method
+			// payload attributes have "rpc:tag" set (except for security attributes
+			// as they are added to request metadata by default)
+			msgFields := &Object{}
+			if len(secAttrs) > 0 {
+				// add attributes to msgFields from the payload that are not
+				// security attributes
+				var found bool
+				for _, nat := range *pobj {
+					found = false
+					for _, n := range secAttrs {
+						if n == nat.Name {
+							found = true
+							break
+						}
+					}
+					if !found {
+						msgFields.Set(nat.Name, nat.Attribute)
+					}
+				}
+			} else {
+				msgFields = pobj
+			}
+			if len(*msgFields) > 0 {
+				validateRPCTags(msgFields, e)
+			}
+		}
+	} else {
+		if hasMessage && hasMetadata {
+			verr.Add(e, "Both request message and metadata are defined, but payload is not an object. Define either metadata or message or make payload an object type.")
+		}
+	}
 
 	// Validate response
 	verr.Merge(e.Response.Validate(e))
@@ -102,96 +173,269 @@ func (e *GRPCEndpointExpr) Validate() error {
 
 // Finalize ensures the request and response attributes are initialized.
 func (e *GRPCEndpointExpr) Finalize() {
-	// Finalize request
-	initMessage(e.Request, e.MethodExpr.Payload)
+	if pobj := AsObject(e.MethodExpr.Payload.Type); pobj != nil {
+		// Initialize any security attributes in request metadata unless it is
+		// specified explicitly in the request message via the DSL.
+		if reqLen := len(e.MethodExpr.Requirements); reqLen > 0 {
+			// addToMetadata adds the given field to metadata. tName maps the attribute
+			// name to the given transport name.
+			addToMetadata := func(field string, tName string) {
+				attr := pobj.Attribute(field)
+				e.Metadata.Type.(*Object).Set(field, attr)
+				if tName != "" {
+					e.Metadata.Map(tName, field)
+				}
+				if e.MethodExpr.Payload.IsRequired(field) {
+					if e.Metadata.Validation == nil {
+						e.Metadata.Validation = &ValidationExpr{}
+					}
+					e.Metadata.Validation.AddRequired(field)
+				}
+			}
+
+			e.Requirements = make([]*SecurityExpr, 0, reqLen)
+			for _, req := range e.MethodExpr.Requirements {
+				dupReq := DupRequirement(req)
+				for _, sch := range dupReq.Schemes {
+					var field string
+					switch sch.Kind {
+					case NoKind:
+						continue
+					case BasicAuthKind:
+						field = TaggedAttribute(e.MethodExpr.Payload, "security:username")
+						sch.Name, sch.In = findKey(e, field)
+						if sch.Name == "" {
+							addToMetadata(field, "")
+						}
+						field = TaggedAttribute(e.MethodExpr.Payload, "security:password")
+						sch.Name, sch.In = findKey(e, field)
+						if sch.Name == "" {
+							addToMetadata(field, "")
+						}
+						continue
+					case APIKeyKind:
+						field = TaggedAttribute(e.MethodExpr.Payload, "security:apikey:"+sch.SchemeName)
+					case JWTKind:
+						field = TaggedAttribute(e.MethodExpr.Payload, "security:token")
+					case OAuth2Kind:
+						field = TaggedAttribute(e.MethodExpr.Payload, "security:accesstoken")
+					}
+					sch.Name, sch.In = findKey(e, field)
+					if sch.Name == "" {
+						sch.Name = "authorization"
+						addToMetadata(field, sch.Name)
+					}
+				}
+				e.Requirements = append(e.Requirements, dupReq)
+			}
+		}
+
+		// msgObj contains only the attributes in the method payload that must
+		// be added to the request message type after removing attributes
+		// specified in the request metadata.
+		msgObj := Dup(pobj).(*Object)
+		for _, nat := range *AsObject(e.Metadata.Type) {
+			// initialize metadata attribute from method payload
+			initAttrFromDesign(nat.Attribute, pobj.Attribute(nat.Name))
+			// remove metadata attributes from the message attributes
+			msgObj.Delete(nat.Name)
+		}
+		// add any message attributes to request message if not added already
+		if len(*msgObj) > 0 {
+			if e.Request.Type == Empty {
+				e.Request.Type = &Object{}
+			}
+			reqObj := AsObject(e.Request.Type)
+			for _, nat := range *msgObj {
+				if reqObj.Attribute(nat.Name) == nil {
+					reqObj.Set(nat.Name, nat.Attribute)
+				}
+				if e.MethodExpr.Payload.IsRequired(nat.Name) {
+					e.Request.Validation.AddRequired(nat.Name)
+				}
+			}
+		}
+		for _, nat := range *AsObject(e.Request.Type) {
+			// initialize message attribute
+			patt := pobj.Attribute(nat.Name)
+			initAttrFromDesign(nat.Attribute, patt)
+			if nat.Attribute.Meta == nil {
+				nat.Attribute.Meta = patt.Meta
+			} else {
+				nat.Attribute.Meta.Merge(patt.Meta)
+			}
+		}
+	} else {
+		// method payload is not an object type. Initialize request metadata if
+		// defined or else initialize request message.
+		if !e.Metadata.IsEmpty() {
+			initAttrFromDesign(e.Metadata.AttributeExpr, e.MethodExpr.Payload)
+		} else {
+			initAttrFromDesign(e.Request, e.MethodExpr.Payload)
+		}
+	}
+
 	// Finalize response
 	e.Response.Finalize(e, e.MethodExpr.Result)
+
 	// Finalize errors
 	for _, gerr := range e.GRPCErrors {
 		gerr.Finalize(e)
 	}
 }
 
-// validateMessage validates the gRPC message.
+// validateMessage validates the gRPC message. It compares the given message
+// with the service type (Payload or Result) and ensures all the attributes
+// defined in the message type are found in the service type and the attributes
+// are set with unique "rpc:tag" numbers.
 //
-// msgAtt is the Request/Response message.
+// msgAtt is the Request/Response message attribute. validateMessage assumes
+// that the msgAtt is not Empty.
 // serviceAtt is the Payload/Result attribute.
 // e is the endpoint expression.
-// req if true indicates the Request message is validated.
+// req if true indicates the Request message is being validated.
 func validateMessage(msgAtt, serviceAtt *AttributeExpr, e *GRPCEndpointExpr, req bool) *eval.ValidationErrors {
 	verr := new(eval.ValidationErrors)
-
-	validateRPCTag := func(att *AttributeExpr) {
-		foundRPC := make(map[string]string)
-		for _, nat := range *AsObject(att.Type) {
-			if tag, ok := nat.Attribute.Meta["rpc:tag"]; !ok {
-				verr.Add(e, "attribute %q does not have \"rpc:tag\" defined in the metadata in type %q - use \"Field\" to define type attributes.", nat.Name, att.Type.Name())
-			} else if a, ok := foundRPC[tag[0]]; ok {
-				verr.Add(e, "field number %d in attribute %q already exists for attribute %q", tag[0], nat.Name, a)
-			} else {
-				foundRPC[tag[0]] = nat.Name
-			}
-		}
-	}
-
 	msgKind := "Response"
 	serviceKind := "Result"
 	if req {
 		msgKind = "Request"
 		serviceKind = "Payload"
 	}
+	if serviceAtt.Type == Empty {
+		verr.Add(e, "%s message is defined but %s is not defined in method", msgKind, serviceKind)
+		return verr
+	}
 
-	switch msgType := msgAtt.Type.(type) {
-	case UserType:
-		if msgType == Empty {
-			if obj := AsObject(serviceAtt.Type); obj != nil && len(*obj) > 0 {
-				validateRPCTag(serviceAtt)
-			}
+	if srvcObj := AsObject(serviceAtt.Type); srvcObj == nil {
+		// service type (payload or result) is a primitive, array, or map
+		// The message type must have at most one field and that field must be
+		// of the same type as the service type.
+		msgObj := AsObject(msgAtt.Type)
+		if flen := len(*msgObj); flen != 1 {
+			verr.Add(e, "%s is not an object type. %s message should have at most 1 field. Got %d.", serviceKind, msgKind, flen)
 		} else {
-			matt := NewMappedAttributeExpr(msgAtt)
-			validateRPCTag(matt.AttributeExpr)
-		}
-	case *Object:
-		srvcObj := AsObject(serviceAtt.Type)
-		switch {
-		case srvcObj == nil:
-			verr.Add(e, "%s is an object type but %s is not an object type or user type", msgKind, serviceKind)
-		case len(*srvcObj) == 0:
-			verr.Add(e, "%s is defined but %s is not defined in Method", msgKind, serviceKind)
-		default:
-			matt := NewMappedAttributeExpr(msgAtt)
-			validateRPCTag(matt.AttributeExpr)
-			var found bool
-			for _, nat := range *AsObject(matt.Type) {
-				found = false
-				for _, snat := range *srvcObj {
-					if nat.Name == snat.Name {
-						found = true
-						break
-					}
-				}
-				if !found {
-					verr.Add(e, "%s %q is not found in %s", msgKind, nat.Name, serviceKind)
+			for _, f := range *msgObj {
+				if f.Attribute.Type != serviceAtt.Type {
+					verr.Add(e, "%s message field %q is %q type but the %s type is %q.", msgKind, f.Name, f.Attribute.Type.Name(), serviceKind, serviceAtt.Type.Name())
 				}
 			}
 		}
-	default:
-		verr.Add(e, "%s is not an object or a user type", msgKind)
+	} else {
+		// service type is an object. Verify the attributes defined in the
+		// message are found in the service type.
+		// msgFields will contain the attributes from the service type that has the
+		// same name as the message attributes so that we can validate the
+		// rpc:tag in the meta.
+		msgFields := &Object{}
+		var found bool
+		for _, nat := range *AsObject(msgAtt.Type) {
+			found = false
+			for _, snat := range *srvcObj {
+				if nat.Name == snat.Name {
+					msgFields.Set(snat.Name, snat.Attribute)
+					found = true
+					break
+				}
+			}
+			if !found {
+				verr.Add(e, "%s message attribute %q is not found in %s", msgKind, nat.Name, serviceKind)
+			}
+		}
+		// validate rpc:tag in meta for the message fields
+		verr.Merge(validateRPCTags(msgFields, e))
 	}
 	return verr
 }
 
-// initMessage initializes the message attribute from the src attribute.
-// src may be method Payload or Result expression.
-func initMessage(msg *AttributeExpr, src *AttributeExpr) {
-	if msg.Type == Empty {
-		initAttrFromDesign(msg, src)
-		return
+// validateRPCTags verifies whether every attribute in the object type has
+// "rpc:tag" set in the meta and the tag numbers are unique.
+func validateRPCTags(fields *Object, e *GRPCEndpointExpr) *eval.ValidationErrors {
+	verr := new(eval.ValidationErrors)
+	foundRPC := make(map[string]string)
+	for _, nat := range *fields {
+		if tag, ok := nat.Attribute.Meta["rpc:tag"]; !ok {
+			verr.Add(e, "attribute %q does not have \"rpc:tag\" defined in the meta", nat.Name)
+		} else if a, ok := foundRPC[tag[0]]; ok {
+			verr.Add(e, "field number %d in attribute %q already exists for attribute %q", tag[0], nat.Name, a)
+		} else {
+			foundRPC[tag[0]] = nat.Name
+		}
 	}
-	matt := NewMappedAttributeExpr(msg)
-	srcobj := AsObject(src.Type)
-	for _, nat := range *AsObject(matt.Type) {
-		initAttrFromDesign(nat.Attribute, srcobj.Attribute(nat.Name))
+	return verr
+}
+
+// validateMetadata validates the gRPC metadata. It compares the given metadata
+// with the service type (Payload or Result) and ensures all the attributes
+// defined in the metadata type are found in the service type.
+//
+// metAtt is the Request/Response metadata attribute. validateMetadata assumes
+// that the metAtt is not Empty.
+// serviceAtt is the Payload/Result attribute.
+// e is the endpoint expression.
+// req if true indicates the Request metadata is being validated.
+func validateMetadata(metAtt *MappedAttributeExpr, serviceAtt *AttributeExpr, e *GRPCEndpointExpr, req bool) *eval.ValidationErrors {
+	verr := new(eval.ValidationErrors)
+	metKind := "Response"
+	serviceKind := "Result"
+	if req {
+		metKind = "Request"
+		serviceKind = "Payload"
 	}
-	msg = matt.Attribute()
+	if serviceAtt.Type == Empty {
+		verr.Add(e, "%s metadata is defined but %s is not defined in method", metKind, serviceKind)
+		return verr
+	}
+	if svcObj := AsObject(serviceAtt.Type); svcObj != nil {
+		// service type is an object type. Ensure the attributes defined in
+		// the metadata are found in the service type.
+		var found bool
+		for _, nat := range *AsObject(metAtt.Type) {
+			found = false
+			for _, tnat := range *svcObj {
+				if nat.Name == tnat.Name {
+					found = true
+					break
+				}
+			}
+			if !found {
+				verr.Add(e, "%s metadata attribute %q is not found in %s", metKind, nat.Name, serviceKind)
+			}
+		}
+	} else {
+		verr.Add(e, "%s metadata is defined but method %s is not an object type", metKind, serviceKind)
+	}
+	return verr
+}
+
+// getSecurityAttributes returns the attributes that describes a security
+// scheme from a method expression.
+func getSecurityAttributes(m *MethodExpr) []string {
+	secAttrs := []string{}
+	for _, req := range m.Requirements {
+		for _, sch := range req.Schemes {
+			switch sch.Kind {
+			case BasicAuthKind:
+				if field := TaggedAttribute(m.Payload, "security:username"); field != "" {
+					secAttrs = append(secAttrs, field)
+				}
+				if field := TaggedAttribute(m.Payload, "security:password"); field != "" {
+					secAttrs = append(secAttrs, field)
+				}
+			case APIKeyKind:
+				if field := TaggedAttribute(m.Payload, "security:apikey:"+sch.SchemeName); field != "" {
+					secAttrs = append(secAttrs, field)
+				}
+			case JWTKind:
+				if field := TaggedAttribute(m.Payload, "security:token"); field != "" {
+					secAttrs = append(secAttrs, field)
+				}
+			case OAuth2Kind:
+				if field := TaggedAttribute(m.Payload, "security:accesstoken"); field != "" {
+					secAttrs = append(secAttrs, field)
+				}
+			}
+		}
+	}
+	return secAttrs
 }

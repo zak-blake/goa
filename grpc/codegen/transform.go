@@ -129,21 +129,30 @@ func transformObject(source, target *expr.AttributeExpr, newVar bool, a targs) (
 			if !expr.IsPrimitive(srcAtt.Type) {
 				return
 			}
-			var srcPtr, tgtPtr bool
+			var (
+				srcFldName, tgtFldName string
+				srcPtr, tgtPtr         bool
+			)
 			{
 				if a.proto {
 					srcPtr = source.IsPrimitivePointer(n, true)
+					srcFldName = codegen.Goify(src.ElemName(n), true)
+					// Protocol buffer does not care about common initialisms like
+					// api -> API.
+					tgtFldName = ProtoBufify(tgt.ElemName(n), true)
 				} else {
+					srcFldName = ProtoBufify(src.ElemName(n), true)
+					tgtFldName = codegen.Goify(tgt.ElemName(n), true)
 					tgtPtr = target.IsPrimitivePointer(n, true)
 				}
 			}
 			deref := ""
-			srcField := a.sourceVar + "." + codegen.Goify(src.ElemName(n), true)
+			srcField := a.sourceVar + "." + srcFldName
 			switch {
 			case srcPtr && !tgtPtr:
 				if !source.IsRequired(n) {
 					postInitCode += fmt.Sprintf("if %s != nil {\n\t%s.%s = %s\n}\n",
-						srcField, a.targetVar, codegen.Goify(tgt.ElemName(n), true), typeConvert("*"+srcField, srcAtt.Type, tgtAtt.Type, a.proto))
+						srcField, a.targetVar, tgtFldName, typeConvert("*"+srcField, srcAtt.Type, tgtAtt.Type, a.proto))
 					return
 				}
 				deref = "*"
@@ -152,11 +161,11 @@ func transformObject(source, target *expr.AttributeExpr, newVar bool, a targs) (
 				if sVar := typeConvert(srcField, srcAtt.Type, tgtAtt.Type, a.proto); sVar != srcField {
 					// type cast is required
 					tgtName := codegen.Goify(tgt.ElemName(n), false)
-					postInitCode += fmt.Sprintf("%sptr := %s\n%s.%s = %s%sptr\n", tgtName, sVar, a.targetVar, codegen.Goify(tgt.ElemName(n), true), deref, tgtName)
+					postInitCode += fmt.Sprintf("%sptr := %s\n%s.%s = %s%sptr\n", tgtName, sVar, a.targetVar, tgtFldName, deref, tgtName)
 					return
 				}
 			}
-			initCode += fmt.Sprintf("\n%s: %s%s,", codegen.Goify(tgt.ElemName(n), true), deref, typeConvert(srcField, srcAtt.Type, tgtAtt.Type, a.proto))
+			initCode += fmt.Sprintf("\n%s: %s%s,", tgtFldName, deref, typeConvert(srcField, srcAtt.Type, tgtAtt.Type, a.proto))
 		})
 	}
 	if initCode != "" {
@@ -178,9 +187,19 @@ func transformObject(source, target *expr.AttributeExpr, newVar bool, a targs) (
 	var err error
 	{
 		walkMatches(source, target, func(src, tgt *expr.MappedAttributeExpr, srcAtt, tgtAtt *expr.AttributeExpr, n string) {
+			var srcFldName, tgtFldName string
+			{
+				if a.proto {
+					srcFldName = codegen.GoifyAtt(srcAtt, src.ElemName(n), true)
+					tgtFldName = ProtoBufifyAtt(tgtAtt, tgt.ElemName(n), true)
+				} else {
+					srcFldName = codegen.GoifyAtt(srcAtt, src.ElemName(n), true)
+					tgtFldName = ProtoBufifyAtt(tgtAtt, tgt.ElemName(n), true)
+				}
+			}
 			b := a
-			b.sourceVar = a.sourceVar + "." + codegen.GoifyAtt(srcAtt, src.ElemName(n), true)
-			b.targetVar = a.targetVar + "." + codegen.GoifyAtt(tgtAtt, tgt.ElemName(n), true)
+			b.sourceVar = a.sourceVar + "." + srcFldName
+			b.targetVar = a.targetVar + "." + tgtFldName
 			err = isCompatible(srcAtt.Type, tgtAtt.Type, b.sourceVar, b.targetVar)
 			if err != nil {
 				return

@@ -56,7 +56,7 @@ func NewSigninEndpoint(s Service, authBasicFn security.AuthBasicFunc) goa.Endpoi
 		if err != nil {
 			return nil, err
 		}
-		return nil, s.Signin(ctx, p)
+		return s.Signin(ctx, p)
 	}
 }
 
@@ -71,11 +71,7 @@ func NewSecureEndpoint(s Service, authJWTFn security.AuthJWTFunc) goa.Endpoint {
 			Scopes:         []string{"api:read", "api:write"},
 			RequiredScopes: []string{"api:read"},
 		}
-		var token string
-		if p.Token != nil {
-			token = *p.Token
-		}
-		ctx, err = authJWTFn(ctx, token, &sc)
+		ctx, err = authJWTFn(ctx, p.Token, &sc)
 		if err != nil {
 			return nil, err
 		}
@@ -94,20 +90,12 @@ func NewDoublySecureEndpoint(s Service, authJWTFn security.AuthJWTFunc, authAPIK
 			Scopes:         []string{"api:read", "api:write"},
 			RequiredScopes: []string{"api:read", "api:write"},
 		}
-		var token string
-		if p.Token != nil {
-			token = *p.Token
-		}
-		ctx, err = authJWTFn(ctx, token, &sc)
+		ctx, err = authJWTFn(ctx, p.Token, &sc)
 		if err == nil {
 			sc := security.APIKeyScheme{
 				Name: "api_key",
 			}
-			var key string
-			if p.Key != nil {
-				key = *p.Key
-			}
-			ctx, err = authAPIKeyFn(ctx, key, &sc)
+			ctx, err = authAPIKeyFn(ctx, p.Key, &sc)
 		}
 		if err != nil {
 			return nil, err

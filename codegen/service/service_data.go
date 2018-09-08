@@ -394,6 +394,58 @@ func (s *Data) Method(name string) *MethodData {
 	return nil
 }
 
+// Scheme returns the scheme data with the given scheme name in the
+// security requirements.
+func Scheme(reqs []*RequirementData, name string) *SchemeData {
+	for _, req := range reqs {
+		for _, sch := range req.Schemes {
+			if sch.SchemeName == name {
+				return sch
+			}
+		}
+	}
+	return nil
+}
+
+// Dup creates a copy of the scheme data.
+func (s *SchemeData) Dup() *SchemeData {
+	return &SchemeData{
+		Type:             s.Type,
+		SchemeName:       s.SchemeName,
+		Name:             s.Name,
+		UsernameField:    s.UsernameField,
+		UsernamePointer:  s.UsernamePointer,
+		UsernameAttr:     s.UsernameAttr,
+		UsernameRequired: s.UsernameRequired,
+		PasswordField:    s.PasswordField,
+		PasswordPointer:  s.PasswordPointer,
+		PasswordAttr:     s.PasswordAttr,
+		PasswordRequired: s.PasswordRequired,
+		CredField:        s.CredField,
+		CredPointer:      s.CredPointer,
+		CredRequired:     s.CredRequired,
+		KeyAttr:          s.KeyAttr,
+		Scopes:           s.Scopes,
+		Flows:            s.Flows,
+		In:               s.In,
+	}
+}
+
+// AppendScheme appends a scheme data to schemes only if it doesn't exist.
+func AppendScheme(s []*SchemeData, d *SchemeData) []*SchemeData {
+	found := false
+	for _, se := range s {
+		if se.Name == d.Name {
+			found = true
+			break
+		}
+	}
+	if found {
+		return s
+	}
+	return append(s, d)
+}
+
 // analyze creates the data necessary to render the code of the given service.
 // It records the user types needed by the service definition in userTypes.
 func (d ServicesData) analyze(service *expr.ServiceExpr) *Data {

@@ -19,7 +19,11 @@ type (
 		// Parent expression, one of EndpointExpr, ServiceExpr or
 		// RootExpr.
 		Parent eval.Expression
-		// Meta is a list of key/value pairs
+		// Headers is the header metadata to be sent in the gRPC response.
+		Headers *MappedAttributeExpr
+		// Trailers is the trailer metadata to be sent in the gRPC response.
+		Trailers *MappedAttributeExpr
+		// Meta is a list of key/value pairs.
 		Meta MetaExpr
 	}
 )
@@ -39,6 +43,21 @@ func (r *GRPCResponseExpr) Prepare() {
 	if r.Message == nil {
 		r.Message = &AttributeExpr{Type: Empty}
 	}
+	if r.Message.Validation == nil {
+		r.Message.Validation = &ValidationExpr{}
+	}
+	if r.Headers == nil {
+		r.Headers = NewEmptyMappedAttributeExpr()
+	}
+	if r.Headers.Validation == nil {
+		r.Headers.Validation = &ValidationExpr{}
+	}
+	if r.Trailers == nil {
+		r.Trailers = NewEmptyMappedAttributeExpr()
+	}
+	if r.Trailers.Validation == nil {
+		r.Trailers.Validation = &ValidationExpr{}
+	}
 }
 
 // Validate checks that the response definition is consistent: its status is set
@@ -46,43 +65,68 @@ func (r *GRPCResponseExpr) Prepare() {
 func (r *GRPCResponseExpr) Validate(e *GRPCEndpointExpr) *eval.ValidationErrors {
 	verr := new(eval.ValidationErrors)
 
-	rt, isrt := e.MethodExpr.Result.Type.(*ResultTypeExpr)
-	var inview string
-	if isrt {
-		inview = " all views in"
-	}
-	hasAttribute := func(name string) bool {
-		if !IsObject(e.MethodExpr.Result.Type) {
-			return false
-		}
-		if !isrt {
-			return e.MethodExpr.Result.Find(name) != nil
-		}
-		if v, ok := e.MethodExpr.Result.Meta["view"]; ok {
-			return rt.ViewHasAttribute(v[0], name)
-		}
-		for _, v := range rt.Views {
-			if !rt.ViewHasAttribute(v.Name, name) {
-				return false
-			}
-		}
-		return true
-	}
-	if r.Message != nil {
+	var hasMessage, hasHeaders, hasTrailers bool
+	if r.Message.Type != Empty {
+		hasMessage = true
 		verr.Merge(r.Message.Validate("gRPC response message", r))
-		if att, ok := r.Message.Meta["origin:attribute"]; ok {
-			if !hasAttribute(att[0]) {
-				verr.Add(r, "message %q has no equivalent attribute in%s result type", att[0], inview)
-			}
-		} else if mobj := AsObject(r.Message.Type); mobj != nil {
-			for _, n := range *mobj {
-				if !hasAttribute(n.Name) {
-					verr.Add(r, "message %q has no equivalent attribute in%s result type", n.Name, inview)
-				}
-			}
-		}
 		verr.Merge(validateMessage(r.Message, e.MethodExpr.Result, e, false))
 	}
+	if !r.Headers.IsEmpty() {
+		hasHeaders = true
+		verr.Merge(r.Headers.Validate("gRPC response header metadata", r))
+		verr.Merge(validateMetadata(r.Headers, e.MethodExpr.Result, e, false))
+	}
+	if !r.Trailers.IsEmpty() {
+		hasTrailers = true
+		verr.Merge(r.Trailers.Validate("gRPC response trailer metadata", r))
+		verr.Merge(validateMetadata(r.Trailers, e.MethodExpr.Result, e, false))
+	}
+
+	if robj := AsObject(e.MethodExpr.Result.Type); robj != nil {
+		switch {
+		case hasMessage && hasHeaders:
+			// ensure the attributes defined in message are not defined in
+			// header metadata.
+			metObj := AsObject(r.Headers.Type)
+			for _, nat := range *AsObject(r.Message.Type) {
+				if metObj.Attribute(nat.Name) != nil {
+					verr.Add(e, "Attribute %q defined in both response message and header metadata. Define the attribute in either message or header metadata.", nat.Name)
+				}
+			}
+		case hasMessage && hasTrailers:
+			// ensure the attributes defined in message are not defined in
+			// trailer metadata.
+			metObj := AsObject(r.Trailers.Type)
+			for _, nat := range *AsObject(r.Message.Type) {
+				if metObj.Attribute(nat.Name) != nil {
+					verr.Add(e, "Attribute %q defined in both response message and trailer metadata. Define the attribute in either message or trailer metadata.", nat.Name)
+				}
+			}
+		case hasHeaders && hasTrailers:
+			// ensure the attributes defined in header metadata are not defined in
+			// trailer metadata
+			hdrObj := AsObject(r.Headers.Type)
+			for _, nat := range *AsObject(r.Trailers.Type) {
+				if hdrObj.Attribute(nat.Name) != nil {
+					verr.Add(e, "Attribute %q defined in both response header and trailer metadata. Define the attribute in either header or trailer metadata.", nat.Name)
+				}
+			}
+		case !hasMessage && !hasHeaders && !hasTrailers:
+			// no response message or metadata is defined. Ensure that the method
+			// result attributes have "rpc:tag" set
+			validateRPCTags(robj, e)
+		}
+	} else {
+		switch {
+		case hasMessage && hasHeaders:
+			verr.Add(e, "Both response message and header metadata are defined, but result is not an object. Define either header metadata or message or make result an object type.")
+		case hasMessage && hasTrailers:
+			verr.Add(e, "Both response message and trailer metadata are defined, but result is not an object. Define either trailer metadata or message or make result an object type.")
+		case hasHeaders && hasTrailers:
+			verr.Add(e, "Both response header and trailer metadata are defined, but result is not an object. Define either trailer or header metadata or make result an object type.")
+		}
+	}
+
 	return verr
 }
 
@@ -93,38 +137,57 @@ func (r *GRPCResponseExpr) Validate(e *GRPCEndpointExpr) *eval.ValidationErrors 
 func (r *GRPCResponseExpr) Finalize(a *GRPCEndpointExpr, svcAtt *AttributeExpr) {
 	r.Parent = a
 
-	// Initialize the message attributes (if an object) with the corresponding
-	// result attributes.
-	svcObj := AsObject(svcAtt.Type)
-	if r.Message.Type != Empty {
-		switch actual := r.Message.Type.(type) {
-		case UserType:
-			// overriding method result type with user type
-			actual.Finalize()
-		case *Object:
-			// Raw object type. The attributes in the object will be mapped to the
-			// attributes in the result type.
-			matt := NewMappedAttributeExpr(r.Message)
-			for _, nat := range *AsObject(matt.Type) {
-				var required bool
-				if svcObj != nil {
-					nat.Attribute = svcObj.Attribute(nat.Name)
-					required = svcAtt.IsRequired(nat.Name)
-				} else {
-					nat.Attribute = svcAtt
-					required = svcAtt.Type != Empty
-				}
-				if required {
-					if r.Message.Validation == nil {
-						r.Message.Validation = &ValidationExpr{}
-					}
-					r.Message.Validation.Required = append(r.Message.Validation.Required, nat.Name)
+	if svcObj := AsObject(svcAtt.Type); svcObj != nil {
+		// msgObj contains only the attributes in the method result that must
+		// be added to the response message type after removing attributes
+		// specified in the response metadata.
+		msgObj := Dup(svcObj).(*Object)
+		// Initialize response header metadata if present
+		for _, nat := range *AsObject(r.Headers.Type) {
+			// initialize metadata attribute from method result
+			initAttrFromDesign(nat.Attribute, svcObj.Attribute(nat.Name))
+			// remove metadata attributes from the message attributes
+			msgObj.Delete(nat.Name)
+		}
+		// Initialize response trailer metadata if present
+		for _, nat := range *AsObject(r.Trailers.Type) {
+			// initialize metadata attribute from method result
+			initAttrFromDesign(nat.Attribute, svcObj.Attribute(nat.Name))
+			// remove metadata attributes from the message attributes
+			msgObj.Delete(nat.Name)
+		}
+		// add any message attributes to response message if not added already
+		if len(*msgObj) > 0 {
+			if r.Message.Type == Empty {
+				r.Message.Type = &Object{}
+			}
+			resObj := AsObject(r.Message.Type)
+			for _, nat := range *msgObj {
+				if resObj.Attribute(nat.Name) == nil {
+					resObj.Set(nat.Name, nat.Attribute)
 				}
 			}
-			r.Message = matt.Attribute()
+		}
+		for _, nat := range *AsObject(r.Message.Type) {
+			// initialize message attribute from method result
+			svcAtt := svcObj.Attribute(nat.Name)
+			initAttrFromDesign(nat.Attribute, svcAtt)
+			if nat.Attribute.Meta == nil {
+				nat.Attribute.Meta = svcAtt.Meta
+			} else {
+				nat.Attribute.Meta.Merge(svcAtt.Meta)
+			}
 		}
 	} else {
-		initMessage(r.Message, svcAtt)
+		// method result is not an object type. Initialize response header or
+		// trailer metadata if defined or else initialize response message.
+		if !r.Headers.IsEmpty() {
+			initAttrFromDesign(r.Headers.AttributeExpr, svcAtt)
+		} else if !r.Trailers.IsEmpty() {
+			initAttrFromDesign(r.Trailers.AttributeExpr, svcAtt)
+		} else {
+			initAttrFromDesign(r.Message, svcAtt)
+		}
 	}
 }
 
@@ -136,5 +199,7 @@ func (r *GRPCResponseExpr) Dup() *GRPCResponseExpr {
 		Parent:      r.Parent,
 		Meta:        r.Meta,
 		Message:     DupAtt(r.Message),
+		Headers:     NewMappedAttributeExpr(r.Headers.Attribute()),
+		Trailers:    NewMappedAttributeExpr(r.Trailers.Attribute()),
 	}
 }

@@ -227,12 +227,12 @@ func parseResponseArgs(val interface{}, args ...interface{}) (code int, fn func(
 		}
 	case func():
 		if len(args) > 0 {
-			eval.InvalidArgError("google.golang.org/grpc/codes.Code (gRPC status code)", val)
+			eval.InvalidArgError("int (gRPC status code)", val)
 			return
 		}
 		fn = t
 	default:
-		eval.InvalidArgError("google.golang.org/grpc/codes.Code (gRPC status code) or function", val)
+		eval.InvalidArgError("int (gRPC status code) or function", val)
 		return
 	}
 	return

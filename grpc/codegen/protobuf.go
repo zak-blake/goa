@@ -107,7 +107,7 @@ func ProtoBufify(str string, firstUpper bool) string {
 		str = str[:idx]
 	}
 
-	str = codegen.CamelCase(str, firstUpper)
+	str = codegen.CamelCase(str, firstUpper, false)
 	if str == "" {
 		// All characters are invalid. Produce a default value.
 		if firstUpper {
@@ -116,6 +116,18 @@ func ProtoBufify(str string, firstUpper bool) string {
 		return "val"
 	}
 	return fixReservedProtoBuf(str)
+}
+
+// ProtoBufifyAtt honors any struct:field:name meta set on the attribute and
+// and calls ProtoBufify with the tag value if present or the given name
+// otherwise.
+func ProtoBufifyAtt(att *expr.AttributeExpr, name string, upper bool) string {
+	if tname, ok := att.Meta["struct:field:name"]; ok {
+		if len(tname) > 0 {
+			name = tname[0]
+		}
+	}
+	return ProtoBufify(name, upper)
 }
 
 // ProtoBufNativeMessageTypeName returns the protocol buffer built-in type

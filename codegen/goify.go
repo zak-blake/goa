@@ -24,7 +24,7 @@ func Goify(str string, firstUpper bool) string {
 		str = str[:idx]
 	}
 
-	str = CamelCase(str, firstUpper)
+	str = CamelCase(str, firstUpper, true)
 	if str == "" {
 		// All characters are invalid. Produce a default value.
 		if firstUpper {

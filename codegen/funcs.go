@@ -89,10 +89,11 @@ var toLower = map[string]string{"OAuth": "oauth"}
 // non letter and non digit character.
 //
 // If firstUpper is true the first letter of the string is capitalized else
-// the first letter is in lowercase. If a part of the string is a common
-// acronym, then it keeps the part capitalized (firstUpper = true)
+// the first letter is in lowercase.
+// If acronym is true and a part of the string is a common acronym
+//  then it keeps the part capitalized (firstUpper = true)
 // (e.g. APIVersion) or lowercase (firstUpper = false) (e.g. apiVersion).
-func CamelCase(name string, firstUpper bool) string {
+func CamelCase(name string, firstUpper bool, acronym bool) string {
 	if name == "" {
 		return ""
 	}
@@ -139,7 +140,7 @@ func CamelCase(name string, firstUpper bool) string {
 		// [w,i] is a word.
 		word := string(runes[w:i])
 		// is it one of our initialisms?
-		if u := strings.ToUpper(word); commonInitialisms[u] {
+		if u := strings.ToUpper(word); acronym && commonInitialisms[u] {
 			if firstUpper {
 				u = strings.ToUpper(u)
 			} else if w == 0 {

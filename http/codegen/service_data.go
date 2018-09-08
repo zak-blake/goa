@@ -746,19 +746,21 @@ func (d ServicesData) analyze(hs *expr.HTTPServiceExpr) *ServiceData {
 			basch *service.SchemeData
 		)
 		{
-			for _, req := range ep.Requirements {
-				for _, s := range req.Schemes {
+			for _, req := range a.Requirements {
+				for _, sch := range req.Schemes {
+					s := service.Scheme(ep.Requirements, sch.SchemeName).Dup()
+					s.In = sch.In
 					switch s.Type {
 					case "Basic":
 						basch = s
 					default:
 						switch s.In {
 						case "query":
-							qsch = appendUnique(qsch, s)
+							qsch = service.AppendScheme(qsch, s)
 						case "header":
-							hsch = appendUnique(hsch, s)
+							hsch = service.AppendScheme(hsch, s)
 						default:
-							bosch = appendUnique(bosch, s)
+							bosch = service.AppendScheme(bosch, s)
 						}
 					}
 				}
@@ -2296,20 +2298,6 @@ func attributeTypeData(ut expr.UserType, req, ptr, server bool, scope *codegen.N
 		ValidateRef: validateRef,
 		Example:     att.Example(expr.Root.API.Random()),
 	}
-}
-
-func appendUnique(s []*service.SchemeData, d *service.SchemeData) []*service.SchemeData {
-	found := false
-	for _, se := range s {
-		if se.Name == d.Name {
-			found = true
-			break
-		}
-	}
-	if found {
-		return s
-	}
-	return append(s, d)
 }
 
 // needConversion returns true if the type needs to be converted from a string.
