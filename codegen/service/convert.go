@@ -89,17 +89,13 @@ func ConvertFile(root *expr.RootExpr, service *expr.ServiceExpr) (*codegen.File,
 	for _, c := range conversions {
 		pkg := reflect.TypeOf(c.External)
 		p := pkg.PkgPath()
-
 		alias := strings.Split(pkg.String(), ".")[0]
-
 		ppm[p] = alias
 	}
 	for _, c := range creations {
 		pkg := reflect.TypeOf(c.External)
 		p := pkg.PkgPath()
-
 		alias := strings.Split(pkg.String(), ".")[0]
-
 		ppm[p] = alias
 	}
 	pkgs := make([]*codegen.ImportSpec, len(ppm))
@@ -343,13 +339,17 @@ func buildDesignType(dt *expr.DataType, t reflect.Type, ref expr.DataType, recs 
 		// Avoid infinite recursions
 		obj := expr.Object(make([]*expr.NamedAttributeExpr, len(fields)))
 		ut := &expr.UserTypeExpr{
-			AttributeExpr: &expr.AttributeExpr{Type: &obj},
-			TypeName:      t.Name(),
+			AttributeExpr: &expr.AttributeExpr{
+				Type: &obj,
+				Meta: map[string][]string{"goa.external": nil},
+			},
+			TypeName: t.Name(),
 		}
 		*dt = ut
 		rec.seen[t.Name()] = ut
 		var required []string
 		for i, f := range fields {
+			recf := rec.append("." + f.Name)
 			atn, fn := attributeName(oref, f.Name)
 			var aref expr.DataType
 			if oref != nil {
@@ -359,15 +359,17 @@ func buildDesignType(dt *expr.DataType, t reflect.Type, ref expr.DataType, recs 
 			}
 			var fdt expr.DataType
 			if f.Type.Kind() == reflect.Ptr {
-				if err := buildDesignType(&fdt, f.Type.Elem(), aref, rec.append("."+f.Name)); err != nil {
+				if err := buildDesignType(&fdt, f.Type.Elem(), aref, recf); err != nil {
 					return fmt.Errorf("%q.%s: %s", t.Name(), f.Name, err)
 				}
 				if expr.IsArray(fdt) {
-					return fmt.Errorf("%s: field of type pointer to slice are not supported, use slice instead", rec.path)
+					return fmt.Errorf("%s: field of type pointer to slice are not supported, use slice instead", recf.path)
 				}
 				if expr.IsMap(fdt) {
-					return fmt.Errorf("%s: field of type pointer to map are not supported, use map instead", rec.path)
+					return fmt.Errorf("%s: field of type pointer to map are not supported, use map instead", recf.path)
 				}
+			} else if f.Type.Kind() == reflect.Struct {
+				return fmt.Errorf("%s: fields of type struct must use pointers", recf.path)
 			} else {
 				if isPrimitive(f.Type) {
 					required = append(required, atn)
@@ -381,8 +383,11 @@ func buildDesignType(dt *expr.DataType, t reflect.Type, ref expr.DataType, recs 
 				name = name + ":" + fn
 			}
 			obj[i] = &expr.NamedAttributeExpr{
-				Name:      name,
-				Attribute: &expr.AttributeExpr{Type: fdt},
+				Name: name,
+				Attribute: &expr.AttributeExpr{
+					Type: fdt,
+					Meta: map[string][]string{"goa.external": nil},
+				},
 			}
 		}
 		if len(required) > 0 {

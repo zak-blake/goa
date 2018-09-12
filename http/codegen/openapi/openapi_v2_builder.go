@@ -379,9 +379,8 @@ func paramsFromHeaders(endpoint *expr.HTTPEndpointExpr) []*Parameter {
 	for _, n := range *expr.AsObject(merged.Type) {
 		header := n.Attribute
 		required := merged.IsRequiredNoDefault(n.Name)
-		p := paramFor(header, n.Name, "header", required)
+		p := paramFor(header, merged.ElemName(n.Name), "header", required)
 		params = append(params, p)
-		return nil
 	}
 	return params
 }
