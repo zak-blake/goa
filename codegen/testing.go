@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"goa.design/goa/expr"
 	"goa.design/goa/eval"
+	"goa.design/goa/expr"
 
 	"github.com/sergi/go-diff/diffmatchpatch"
 )
@@ -20,7 +20,7 @@ func RunDSL(t *testing.T, dsl func()) *expr.RootExpr {
 	eval.Reset()
 	expr.Root = new(expr.RootExpr)
 	expr.Root.GeneratedTypes = &expr.GeneratedRoot{}
-	expr.Root.API = expr.NewAPIExpr("test api", func(){})
+	expr.Root.API = expr.NewAPIExpr("test api", func() {})
 	expr.Root.API.Servers = []*expr.ServerExpr{{URL: "http://localhost"}}
 	eval.Register(expr.Root)
 	eval.Register(expr.Root.GeneratedTypes)
@@ -40,7 +40,7 @@ func RunDSLWithFunc(t *testing.T, dsl func(), fn func()) *expr.RootExpr {
 	eval.Reset()
 	expr.Root = new(expr.RootExpr)
 	expr.Root.GeneratedTypes = &expr.GeneratedRoot{}
-	expr.Root.API = expr.NewAPIExpr("test api", func(){})
+	expr.Root.API = expr.NewAPIExpr("test api", func() {})
 	expr.Root.API.Servers = []*expr.ServerExpr{{URL: "http://localhost"}}
 	eval.Register(expr.Root)
 	eval.Register(expr.Root.GeneratedTypes)
@@ -87,7 +87,7 @@ func sectionCodeWithPrefix(t *testing.T, section *SectionTemplate, prefix string
 // FormatTestCode formats the given Go code. The code must correspond to the
 // content of a valid Go source file (i.e. start with "package")
 func FormatTestCode(t *testing.T, code string) string {
-	tmp := createTempFile(t, code)
+	tmp := CreateTempFile(t, code)
 	defer os.Remove(tmp)
 	if err := finalizeGoSource(tmp); err != nil {
 		t.Fatal(err)
@@ -109,8 +109,8 @@ func Diff(t *testing.T, s1, s2 string) string {
 		diffs := dmp.DiffMain(s1, s2, false)
 		return dmp.DiffPrettyText(diffs)
 	}
-	left := createTempFile(t, s1)
-	right := createTempFile(t, s2)
+	left := CreateTempFile(t, s1)
+	right := CreateTempFile(t, s2)
 	defer os.Remove(left)
 	defer os.Remove(right)
 	cmd := exec.Command("diff", left, right)
@@ -171,7 +171,9 @@ func NewMap(keyt, elemt expr.DataType) *expr.AttributeExpr {
 	return &expr.AttributeExpr{Type: &expr.Map{KeyType: key, ElemType: elem}}
 }
 
-func createTempFile(t *testing.T, content string) string {
+// CreateTempFile creates a temporary file and writes the given content.
+// It is used only for testing.
+func CreateTempFile(t *testing.T, content string) string {
 	f, err := ioutil.TempFile("", "")
 	if err != nil {
 		t.Fatal(err)

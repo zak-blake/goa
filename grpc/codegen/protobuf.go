@@ -9,42 +9,94 @@ import (
 	"goa.design/goa/expr"
 )
 
-// ProtoBufMessageName returns the protocol buffer message name of the given
+// protoBufMessageName returns the protocol buffer message name of the given
 // attribute type.
-func ProtoBufMessageName(att *expr.AttributeExpr, s *codegen.NameScope) string {
-	return ProtoBufFullMessageName(att, "", s)
+func protoBufMessageName(att *expr.AttributeExpr, s *codegen.NameScope) string {
+	return protoBufFullMessageName(att, "", s)
 }
 
-// ProtoBufFullMessageName returns the protocol buffer message name of the
+// protoBufFullMessageName returns the protocol buffer message name of the
 // given user type qualified with the given package name if applicable.
-func ProtoBufFullMessageName(att *expr.AttributeExpr, pkg string, s *codegen.NameScope) string {
+func protoBufFullMessageName(att *expr.AttributeExpr, pkg string, s *codegen.NameScope) string {
 	switch actual := att.Type.(type) {
 	case expr.UserType:
-		n := s.HashedUnique(actual, typeName(actual.Name()), "")
+		n := s.HashedUnique(actual, protoBufify(actual.Name(), true), "")
 		if pkg == "" {
 			return n
 		}
 		return pkg + "." + n
 	case expr.CompositeExpr:
-		return ProtoBufFullMessageName(actual.Attribute(), pkg, s)
+		return protoBufFullMessageName(actual.Attribute(), pkg, s)
 	default:
 		panic(fmt.Sprintf("data type is not a user type %T", actual)) // bug
 	}
 }
 
-// ProtoBufMessageDef returns the protocol buffer code that defines a message
+// protoBufGoFullTypeName returns the protocol buffer type name for the given
+// attribute generated after compiling the proto file (in *.pb.go).
+func protoBufGoTypeName(att *expr.AttributeExpr, s *codegen.NameScope) string {
+	return protoBufGoFullTypeName(att, "", s)
+}
+
+// protoBufGoFullTypeName returns the protocol buffer type name qualified with
+// the given package name for the given attribute generated after compiling
+// the proto file (in *.pb.go).
+func protoBufGoFullTypeName(att *expr.AttributeExpr, pkg string, s *codegen.NameScope) string {
+	switch actual := att.Type.(type) {
+	case expr.UserType, expr.CompositeExpr:
+		return protoBufFullMessageName(att, pkg, s)
+	case expr.Primitive:
+		return protoBufNativeGoTypeName(actual)
+	case *expr.Array:
+		return "[]" + protoBufGoFullTypeRef(actual.ElemType, pkg, s)
+	case *expr.Map:
+		return fmt.Sprintf("map[%s]%s",
+			protoBufGoFullTypeRef(actual.KeyType, pkg, s),
+			protoBufGoFullTypeRef(actual.ElemType, pkg, s))
+	case *expr.Object:
+		return s.GoTypeDef(att, false)
+	default:
+		panic(fmt.Sprintf("unknown data type %T", actual)) // bug
+	}
+}
+
+// protoBufMessageDef returns the protocol buffer code that defines a message
 // which matches the data structure definition (the part that comes after
 // `message foo`). The message is defined using the proto3 syntax.
-func ProtoBufMessageDef(att *expr.AttributeExpr, s *codegen.NameScope) string {
+// NOTE: protocol buffer does not have native support for multi-dimensional
+// arrays or array of maps or map of maps or map of arrays. In such cases,
+// goa generates a user type that contains the inner array or map element
+// types. See https://github.com/protocolbuffers/protobuf/issues/4596.
+//
+// For example:
+//
+// Type("Response", func() {
+//   "items", ArrayOf(ArrayOf(ArrayOf(Int)))
+// })
+//
+// will get transformed to message
+//
+// message Response {
+//   repeated ArrayOfArrayOfInt items = 1;
+// }
+//
+// message ArraOfArrayOfInt {
+//   repeated ArrayOfInt field = 1;
+// }
+//
+// message ArrayOfInt {
+//   repeated int field = 1;
+// }
+func protoBufMessageDef(att *expr.AttributeExpr, s *codegen.NameScope) string {
 	switch actual := att.Type.(type) {
 	case expr.Primitive:
-		return ProtoBufNativeMessageTypeName(actual)
+		return protoBufNativeMessageTypeName(att.Type)
 	case *expr.Array:
-		return "repeated " + ProtoBufMessageDef(actual.ElemType, s)
+		return "repeated " + innerTypeName(actual.ElemType, s)
 	case *expr.Map:
-		return fmt.Sprintf("map<%s, %s>",
-			ProtoBufMessageDef(actual.KeyType, s),
-			ProtoBufMessageDef(actual.ElemType, s))
+		return fmt.Sprintf("map<%s, %s>", innerTypeName(actual.KeyType, s), innerTypeName(actual.ElemType, s))
+	case expr.UserType:
+		return protoBufMessageName(att, s)
 	case *expr.Object:
 		var ss []string
 		ss = append(ss, " {")
@@ -56,9 +108,9 @@ func ProtoBufMessageDef(att *expr.AttributeExpr, s *codegen.NameScope) string {
 				desc string
 			)
 			{
-				fn = fieldName(nat.Name, false)
+				fn = codegen.SnakeCase(protoBufify(nat.Name, false))
 				fnum = rpcTag(nat.Attribute)
-				typ = ProtoBufMessageDef(nat.Attribute, s)
+				typ = protoBufMessageDef(nat.Attribute, s)
 				if nat.Attribute.Description != "" {
 					desc = codegen.Comment(nat.Attribute.Description) + "\n\t"
 				}
@@ -67,34 +119,40 @@ func ProtoBufMessageDef(att *expr.AttributeExpr, s *codegen.NameScope) string {
 		}
 		ss = append(ss, "}")
 		return strings.Join(ss, "\n")
-	case expr.UserType:
-		return ProtoBufMessageName(att, s)
 	default:
 		panic(fmt.Sprintf("unknown data type %T", actual)) // bug
 	}
 }
 
-// ProtoBufTypeRef returns the Go code that refers to the Go type generated
-// from the protocol buffer type which matches the given attribute type.
-func ProtoBufTypeRef(att *expr.AttributeExpr, s *codegen.NameScope) string {
-	return "*" + ProtoBufMessageName(att, s)
+// protoBufGoTypeRef returns the Go code that refers to the Go type generated
+// by compiling the protocol buffer (in *.pb.go) for the given attribute.
+func protoBufGoTypeRef(att *expr.AttributeExpr, s *codegen.NameScope) string {
+	name := innerTypeName(att, s)
+	if expr.IsObject(att.Type) {
+		return "*" + name
+	}
+	return name
 }
 
-// ProtoBufFullTypeRef returns the Go code that refers to the Go type generated
-// from the protocol buffer type which matches the given attribute type defined
-// in the given package if a user type.
-func ProtoBufFullTypeRef(att *expr.AttributeExpr, pkg string, s *codegen.NameScope) string {
-	return "*" + ProtoBufFullMessageName(att, pkg, s)
+// protoBufGoFullTypeRef returns the Go code qualified with package name that
+// refers to the Go type generated by compiling the protocol buffer
+// (in *.pb.go) for the given attribute.
+func protoBufGoFullTypeRef(att *expr.AttributeExpr, pkg string, s *codegen.NameScope) string {
+	name := protoBufGoFullTypeName(att, pkg, s)
+	if expr.IsObject(att.Type) {
+		return "*" + name
+	}
+	return name
 }
 
-// ProtoBufify makes a valid protocol buffer identifier out of any string.
+// protoBufify makes a valid protocol buffer identifier out of any string.
 // It does that by removing any non letter and non digit character and by
-// making sure the first character is a letter or "_". ProtoBufify produces a
+// making sure the first character is a letter or "_". protoBufify produces a
 // "CamelCase" version of the string.
 //
 // If firstUpper is true the first character of the identifier is uppercase
 // otherwise it's lowercase.
-func ProtoBufify(str string, firstUpper bool) string {
+func protoBufify(str string, firstUpper bool) string {
 	// Optimize trivial case
 	if str == "" {
 		return ""
@@ -118,22 +176,22 @@ func ProtoBufify(str string, firstUpper bool) string {
 	return fixReservedProtoBuf(str)
 }
 
-// ProtoBufifyAtt honors any struct:field:name meta set on the attribute and
-// and calls ProtoBufify with the tag value if present or the given name
+// protoBufifyAtt honors any struct:field:name meta set on the attribute and
+// and calls protoBufify with the tag value if present or the given name
 // otherwise.
-func ProtoBufifyAtt(att *expr.AttributeExpr, name string, upper bool) string {
+func protoBufifyAtt(att *expr.AttributeExpr, name string, upper bool) string {
 	if tname, ok := att.Meta["struct:field:name"]; ok {
 		if len(tname) > 0 {
 			name = tname[0]
 		}
 	}
-	return ProtoBufify(name, upper)
+	return protoBufify(name, upper)
 }
 
-// ProtoBufNativeMessageTypeName returns the protocol buffer built-in type
+// protoBufNativeMessageTypeName returns the protocol buffer built-in type
 // corresponding to the given primitive type. It panics if t is not a
 // primitive type.
-func ProtoBufNativeMessageTypeName(t expr.DataType) string {
+func protoBufNativeMessageTypeName(t expr.DataType) string {
 	switch t.Kind() {
 	case expr.BooleanKind:
 		return "bool"
@@ -162,10 +220,10 @@ func ProtoBufNativeMessageTypeName(t expr.DataType) string {
 	}
 }
 
-// ProtoBufNativeGoTypeName returns the Go type corresponding to the given
+// protoBufNativeGoTypeName returns the Go type corresponding to the given
 // primitive type generated by the protocol buffer compiler after compiling
-// the ".proto" file.
-func ProtoBufNativeGoTypeName(t expr.DataType) string {
+// the ".proto" file (in *.pb.go).
+func protoBufNativeGoTypeName(t expr.DataType) string {
 	switch t.Kind() {
 	case expr.BooleanKind:
 		return "bool"
@@ -194,21 +252,6 @@ func ProtoBufNativeGoTypeName(t expr.DataType) string {
 	}
 }
 
-// typeName returns the CamelCase version of the given string.
-func typeName(str string) string {
-	return ProtoBufify(str, true)
-}
-
-// fieldName returns the snake_case version of the given string.
-// If upper is true it converts the string to all upper case.
-func fieldName(str string, upper bool) string {
-	str = codegen.SnakeCase(ProtoBufify(str, false))
-	if upper {
-		str = strings.ToUpper(str)
-	}
-	return str
-}
-
 // rpcTag returns the unique numbered RPC tag from the given attribute.
 func rpcTag(a *expr.AttributeExpr) uint64 {
 	var tag uint64
@@ -220,6 +263,34 @@ func rpcTag(a *expr.AttributeExpr) uint64 {
 		tag = tn
 	}
 	return tag
+}
+
+// innerTypeName traverses through the array or map type attribute and returns
+// the name of the innermost type prefixed with the surrounding type names.
+// It is used in constructing message field types in proto file for
+// nested arrays, nested maps, array inside a map, or map inside an array.
+// See https://github.com/protocolbuffers/protobuf/issues/4596.
+//
+// For example, given bellow attribute
+//
+// Type("Response", func() {
+//   "items", ArrayOf(MapOf(String, ArrayOf(UserType)))
+// })
+//
+// innerTypeName returns ArrayOfMapOfStringArrayOfUserType
+func innerTypeName(att *expr.AttributeExpr, s *codegen.NameScope) string {
+	var name string
+	switch actual := att.Type.(type) {
+	case expr.Primitive:
+		return name + protoBufNativeMessageTypeName(actual)
+	case expr.UserType:
+		return name + protoBufMessageName(att, s)
+	case *expr.Array:
+		return name + "ArrayOf" + protoBufify(innerTypeName(actual.ElemType, s), true)
+	case *expr.Map:
+		return name + "MapOf" + protoBufify(innerTypeName(actual.KeyType, s), true) + protoBufify(innerTypeName(actual.ElemType, s), true)
+	}
+	return name
 }
 
 // fixReservedProtoBuf appends an underscore on to protocol buffer reserved

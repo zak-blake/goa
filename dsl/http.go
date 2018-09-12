@@ -826,3 +826,32 @@ func params(exp eval.Expression) *expr.MappedAttributeExpr {
 		return nil
 	}
 }
+
+// headers returns the mapped attribute containing the headers for the given
+// expression if it's either the root, a service or an endpoint - nil otherwise.
+func headers(exp eval.Expression) *expr.MappedAttributeExpr {
+	switch e := exp.(type) {
+	case *expr.RootExpr:
+		if e.API.HTTP.Headers == nil {
+			e.API.HTTP.Headers = expr.NewEmptyMappedAttributeExpr()
+		}
+		return e.API.HTTP.Headers
+	case *expr.HTTPServiceExpr:
+		if e.Headers == nil {
+			e.Headers = expr.NewEmptyMappedAttributeExpr()
+		}
+		return e.Headers
+	case *expr.HTTPEndpointExpr:
+		if e.Headers == nil {
+			e.Headers = expr.NewEmptyMappedAttributeExpr()
+		}
+		return e.Headers
+	case *expr.HTTPResponseExpr:
+		if e.Headers == nil {
+			e.Headers = expr.NewEmptyMappedAttributeExpr()
+		}
+		return e.Headers
+	default:
+		return nil
+	}
+}

@@ -11,12 +11,17 @@ import (
 func TestProtoBufMessageDef(t *testing.T) {
 	var (
 		simpleArray = codegen.NewArray(expr.Boolean)
+		nestedArray = codegen.NewArray(simpleArray.Type)
 		simpleMap   = codegen.NewMap(expr.Int, expr.String)
+		nestedMap   = codegen.NewMap(expr.Int, simpleMap.Type)
 		ut          = &expr.UserTypeExpr{AttributeExpr: &expr.AttributeExpr{Type: expr.Boolean}, TypeName: "UserType"}
 		obj         = objectRPC("IntField", expr.Int, "ArrayField", simpleArray.Type, "MapField", simpleMap.Type, "UserTypeField", ut)
 		rt          = &expr.ResultTypeExpr{UserTypeExpr: &expr.UserTypeExpr{AttributeExpr: &expr.AttributeExpr{Type: expr.Boolean}, TypeName: "ResultType"}, Identifier: "application/vnd.goa.example", Views: nil}
 		userType    = &expr.AttributeExpr{Type: ut}
 		resultType  = &expr.AttributeExpr{Type: rt}
+		threeDArray = codegen.NewArray(codegen.NewArray(codegen.NewArray(ut).Type).Type)
+
+		nestedMapWithArray = codegen.NewMap(expr.Int, codegen.NewMap(expr.Int, codegen.NewArray(ut).Type).Type)
 	)
 	cases := map[string]struct {
 		att      *expr.AttributeExpr
@@ -34,43 +39,21 @@ func TestProtoBufMessageDef(t *testing.T) {
 		"StringKind":  {&expr.AttributeExpr{Type: expr.String}, "string"},
 		"BytesKind":   {&expr.AttributeExpr{Type: expr.Bytes}, "bytes"},
 
-		"Array":          {simpleArray, "repeated bool"},
-		"Map":            {simpleMap, "map<sint32, string>"},
-		"UserTypeExpr":   {userType, "UserType"},
-		"ResultTypeExpr": {resultType, "ResultType"},
+		"Array":           {simpleArray, "repeated bool"},
+		"ArrayOfArray":    {nestedArray, "repeated ArrayOfBool"},
+		"3-D Array":       {threeDArray, "repeated ArrayOfArrayOfUserType"},
+		"Map":             {simpleMap, "map<sint32, string>"},
+		"MapOfMap":        {nestedMap, "map<sint32, MapOfSint32String>"},
+		"MapOfMapOfArray": {nestedMapWithArray, "map<sint32, MapOfSint32ArrayOfUserType>"},
+		"UserTypeExpr":    {userType, "UserType"},
+		"ResultTypeExpr":  {resultType, "ResultType"},
 
 		"Object": {obj, " {\n\tsint32 int_field = 1;\n\trepeated bool array_field = 2;\n\tmap<sint32, string> map_field = 3;\n\tUserType user_type_field = 4;\n}"},
 	}
 
 	for k, tc := range cases {
 		scope := codegen.NewNameScope()
-		actual := ProtoBufMessageDef(tc.att, scope)
-		if actual != tc.expected {
-			t.Errorf("%s: got %#v, expected %#v", k, actual, tc.expected)
-		}
-	}
-}
-
-func TestProtoBufNativeMessageTypeName(t *testing.T) {
-	cases := map[string]struct {
-		dataType expr.DataType
-		expected string
-	}{
-		"BooleanKind": {expr.Boolean, "bool"},
-		"IntKind":     {expr.Int, "sint32"},
-		"Int32Kind":   {expr.Int32, "sint32"},
-		"Int64Kind":   {expr.Int64, "sint64"},
-		"UIntKind":    {expr.UInt, "uint32"},
-		"UInt32Kind":  {expr.UInt32, "uint32"},
-		"UInt64Kind":  {expr.UInt64, "uint64"},
-		"Float32Kind": {expr.Float32, "float"},
-		"Float64Kind": {expr.Float64, "double"},
-		"StringKind":  {expr.String, "string"},
-		"BytesKind":   {expr.Bytes, "bytes"},
-	}
-
-	for k, tc := range cases {
-		actual := ProtoBufNativeMessageTypeName(tc.dataType)
+		actual := protoBufMessageDef(tc.att, scope)
 		if actual != tc.expected {
 			t.Errorf("%s: got %#v, expected %#v", k, actual, tc.expected)
 		}

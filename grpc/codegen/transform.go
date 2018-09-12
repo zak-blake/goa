@@ -39,7 +39,7 @@ func init() {
 	transformMapT = template.Must(template.New("transformMap").Funcs(funcMap).Parse(transformMapTmpl))
 }
 
-// ProtoBufTypeTransform produces Go code that initializes the data structure
+// protoBufTypeTransform produces Go code that initializes the data structure
 // defined by target from an instance of the data structure described the
 // source. Either the source or target is a type referring to the protocol
 // buffer message type. The algorithm matches object fields by name and ignores
@@ -67,7 +67,7 @@ func init() {
 // scope is used to compute the name of the user types when initializing fields
 // that use them.
 //
-func ProtoBufTypeTransform(source, target expr.DataType, sourceVar, targetVar, sourcePkg, targetPkg string, proto bool, scope *codegen.NameScope) (string, []*codegen.TransformFunctionData, error) {
+func protoBufTypeTransform(source, target expr.DataType, sourceVar, targetVar, sourcePkg, targetPkg string, proto bool, scope *codegen.NameScope) (string, []*codegen.TransformFunctionData, error) {
 	var (
 		satt = &expr.AttributeExpr{Type: source}
 		tatt = &expr.AttributeExpr{Type: target}
@@ -139,9 +139,9 @@ func transformObject(source, target *expr.AttributeExpr, newVar bool, a targs) (
 					srcFldName = codegen.Goify(src.ElemName(n), true)
 					// Protocol buffer does not care about common initialisms like
 					// api -> API.
-					tgtFldName = ProtoBufify(tgt.ElemName(n), true)
+					tgtFldName = protoBufify(tgt.ElemName(n), true)
 				} else {
-					srcFldName = ProtoBufify(src.ElemName(n), true)
+					srcFldName = protoBufify(src.ElemName(n), true)
 					tgtFldName = codegen.Goify(tgt.ElemName(n), true)
 					tgtPtr = target.IsPrimitivePointer(n, true)
 				}
@@ -191,10 +191,10 @@ func transformObject(source, target *expr.AttributeExpr, newVar bool, a targs) (
 			{
 				if a.proto {
 					srcFldName = codegen.GoifyAtt(srcAtt, src.ElemName(n), true)
-					tgtFldName = ProtoBufifyAtt(tgtAtt, tgt.ElemName(n), true)
+					tgtFldName = protoBufifyAtt(tgtAtt, tgt.ElemName(n), true)
 				} else {
 					srcFldName = codegen.GoifyAtt(srcAtt, src.ElemName(n), true)
-					tgtFldName = ProtoBufifyAtt(tgtAtt, tgt.ElemName(n), true)
+					tgtFldName = protoBufifyAtt(tgtAtt, tgt.ElemName(n), true)
 				}
 			}
 			b := a
@@ -290,11 +290,42 @@ func transformArray(source, target *expr.Array, newVar bool, a targs) (string, e
 	if err := isCompatible(source.ElemType.Type, target.ElemType.Type, a.sourceVar+"[0]", a.targetVar+"[0]"); err != nil {
 		return "", err
 	}
+	var (
+		srcFld   string
+		tgtFld   string
+		elemRef  string
+		elemType *expr.AttributeExpr
+	)
+	{
+		if a.proto {
+			elemRef = protoBufGoFullTypeRef(target.ElemType, a.targetPkg, a.scope)
+			elemType = target.ElemType
+		} else {
+			elemRef = a.scope.GoFullTypeRef(target.ElemType, a.targetPkg)
+			elemType = source.ElemType
+		}
+		switch elemType.Type.(type) {
+		case *expr.Array, *expr.Map:
+			ut := &expr.UserTypeExpr{
+				AttributeExpr: wrapAttr(target.ElemType),
+				TypeName:      innerTypeName(target.ElemType, a.scope),
+			}
+			if a.proto {
+				tgtFld = ".Field"
+				elemRef = protoBufGoFullTypeRef(&expr.AttributeExpr{Type: ut}, a.targetPkg, a.scope)
+			} else {
+				srcFld = ".Field"
+			}
+		}
+	}
+
 	data := map[string]interface{}{
 		"Source":      a.sourceVar,
+		"SourceField": srcFld,
 		"Target":      a.targetVar,
+		"TargetField": tgtFld,
 		"NewVar":      newVar,
-		"ElemTypeRef": a.scope.GoFullTypeRef(target.ElemType, a.targetPkg),
+		"ElemTypeRef": elemRef,
 		"SourceElem":  source.ElemType,
 		"TargetElem":  target.ElemType,
 		"SourcePkg":   a.sourcePkg,
@@ -319,16 +350,52 @@ func transformMap(source, target *expr.Map, newVar bool, a targs) (string, error
 	if err := isCompatible(source.ElemType.Type, target.ElemType.Type, a.sourceVar+"[*]", a.targetVar+"[*]"); err != nil {
 		return "", err
 	}
+	var (
+		srcFld, tgtFld  string
+		keyRef, elemRef string
+
+		tgtName  string
+		elemType *expr.AttributeExpr
+	)
+	{
+		if a.proto {
+			keyRef = protoBufGoFullTypeRef(target.KeyType, a.targetPkg, a.scope)
+			elemRef = protoBufGoFullTypeRef(target.ElemType, a.targetPkg, a.scope)
+			elemType = target.ElemType
+		} else {
+			keyRef = a.scope.GoFullTypeRef(target.KeyType, a.targetPkg)
+			elemRef = a.scope.GoFullTypeRef(target.ElemType, a.targetPkg)
+			elemType = source.ElemType
+		}
+		switch elemType.Type.(type) {
+		case *expr.Array, *expr.Map:
+			ut := &expr.UserTypeExpr{
+				AttributeExpr: wrapAttr(target.ElemType),
+				TypeName:      innerTypeName(target.ElemType, a.scope),
+			}
+			if a.proto {
+				tgtFld = "Field"
+				att := &expr.AttributeExpr{Type: ut}
+				elemRef = protoBufGoFullTypeRef(att, a.targetPkg, a.scope)
+				tgtName = a.scope.GoFullTypeName(att, a.targetPkg)
+			} else {
+				srcFld = ".Field"
+			}
+		}
+	}
 	data := map[string]interface{}{
 		"Source":      a.sourceVar,
 		"Target":      a.targetVar,
+		"TargetName":  tgtName,
 		"NewVar":      newVar,
-		"KeyTypeRef":  a.scope.GoFullTypeRef(target.KeyType, a.targetPkg),
-		"ElemTypeRef": a.scope.GoFullTypeRef(target.ElemType, a.targetPkg),
+		"KeyTypeRef":  keyRef,
+		"ElemTypeRef": elemRef,
 		"SourceKey":   source.KeyType,
 		"TargetKey":   target.KeyType,
 		"SourceElem":  source.ElemType,
 		"TargetElem":  target.ElemType,
+		"SourceField": srcFld,
+		"TargetField": tgtFld,
 		"SourcePkg":   a.sourcePkg,
 		"TargetPkg":   a.targetPkg,
 		"Proto":       a.proto,
@@ -581,7 +648,7 @@ func typeConvert(sourceVar string, source, target expr.DataType, proto bool) str
 		return sourceVar
 	}
 	if proto {
-		sourceVar = fmt.Sprintf("%s(%s)", ProtoBufNativeGoTypeName(source), sourceVar)
+		sourceVar = fmt.Sprintf("%s(%s)", protoBufNativeGoTypeName(source), sourceVar)
 	} else {
 		sourceVar = fmt.Sprintf("%s(%s)", codegen.GoNativeTypeName(source), sourceVar)
 	}
@@ -614,14 +681,14 @@ func transformAttributeHelper(source, target *expr.AttributeExpr, sourceVar, tar
 
 const transformArrayTmpl = `{{ .Target}} {{ if .NewVar }}:{{ end }}= make([]{{ .ElemTypeRef }}, len({{ .Source }}))
 for {{ .LoopVar }}, val := range {{ .Source }} {
-  {{ transformAttribute .SourceElem .TargetElem "val" (printf "%s[%s]" .Target .LoopVar) .SourcePkg .TargetPkg .Proto false .Scope -}}
+  {{ transformAttribute .SourceElem .TargetElem (printf "val%s" .SourceField) (printf "%s[%s]%s" .Target .LoopVar .TargetField) .SourcePkg .TargetPkg .Proto false .Scope -}}
 }
 `
 
 const transformMapTmpl = `{{ .Target }} {{ if .NewVar }}:{{ end }}= make(map[{{ .KeyTypeRef }}]{{ .ElemTypeRef }}, len({{ .Source }}))
 for key, val := range {{ .Source }} {
   {{ transformAttribute .SourceKey .TargetKey "key" "tk" .SourcePkg .TargetPkg .Proto true .Scope -}}
-  {{ transformAttribute .SourceElem .TargetElem "val" (printf "tv%s" .LoopVar) .SourcePkg .TargetPkg .Proto true .Scope -}}
-  {{ .Target }}[tk] = {{ printf "tv%s" .LoopVar }}
+  {{ transformAttribute .SourceElem .TargetElem (printf "val%s" .SourceField) (printf "tv%s" .LoopVar) .SourcePkg .TargetPkg .Proto true .Scope -}}
+	{{ .Target }}[tk] = {{ if .TargetField }}&{{ .TargetName }}{ {{ .TargetField }}: {{ end }}{{ printf "tv%s" .LoopVar }}{{ if .TargetField }}}{{ end }}
 }
 `

@@ -351,14 +351,14 @@ func (d ServicesData) analyze(gs *expr.GRPCServiceExpr) *ServiceData {
 		if _, ok := e.Request.Type.(expr.UserType); !ok {
 			e.Request.Type = &expr.UserTypeExpr{
 				AttributeExpr: wrapAttr(e.Request),
-				TypeName:      fmt.Sprintf("%sRequest", ProtoBufify(e.Name(), true)),
+				TypeName:      fmt.Sprintf("%sRequest", protoBufify(e.Name(), true)),
 			}
 		} else if e.Request.Type == expr.Empty {
 			// empty type should still generate a message. Rename the type to have
 			// the endpoint name suffixed with Request.
 			e.Request.Type = &expr.UserTypeExpr{
 				AttributeExpr: &expr.AttributeExpr{Type: &expr.Object{}},
-				TypeName:      fmt.Sprintf("%sRequest", ProtoBufify(e.Name(), true)),
+				TypeName:      fmt.Sprintf("%sRequest", protoBufify(e.Name(), true)),
 			}
 		}
 
@@ -366,14 +366,14 @@ func (d ServicesData) analyze(gs *expr.GRPCServiceExpr) *ServiceData {
 		if _, ok := e.Response.Message.Type.(expr.UserType); !ok {
 			e.Response.Message.Type = &expr.UserTypeExpr{
 				AttributeExpr: wrapAttr(e.Response.Message),
-				TypeName:      fmt.Sprintf("%sResponse", ProtoBufify(e.Name(), true)),
+				TypeName:      fmt.Sprintf("%sResponse", protoBufify(e.Name(), true)),
 			}
 		} else if e.Response.Message.Type == expr.Empty {
 			// empty type should still generate a message. Rename the type to have
 			// the endpoint name suffixed with Response.
 			e.Response.Message.Type = &expr.UserTypeExpr{
 				AttributeExpr: &expr.AttributeExpr{Type: &expr.Object{}},
-				TypeName:      fmt.Sprintf("%sResponse", ProtoBufify(e.Name(), true)),
+				TypeName:      fmt.Sprintf("%sResponse", protoBufify(e.Name(), true)),
 			}
 		}
 
@@ -506,9 +506,7 @@ func (d ServicesData) analyze(gs *expr.GRPCServiceExpr) *ServiceData {
 func wrapAttr(att *expr.AttributeExpr) *expr.AttributeExpr {
 	var attr *expr.AttributeExpr
 	switch actual := att.Type.(type) {
-	case *expr.Array:
-	case *expr.Map:
-	case expr.Primitive:
+	case expr.Primitive, *expr.Array, *expr.Map:
 		attr = &expr.AttributeExpr{
 			Type: &expr.Object{
 				&expr.NamedAttributeExpr{
@@ -539,9 +537,9 @@ func collectMessages(at *expr.AttributeExpr, seen map[string]struct{}, scope *co
 		}
 		data = append(data, &MessageData{
 			Name:        dt.Name(),
-			VarName:     ProtoBufMessageName(at, scope),
+			VarName:     protoBufMessageName(at, scope),
 			Description: dt.Attribute().Description,
-			Def:         ProtoBufMessageDef(dt.Attribute(), scope),
+			Def:         protoBufMessageDef(dt.Attribute(), scope),
 			Type:        dt,
 		})
 		seen[dt.Name()] = struct{}{}
@@ -551,10 +549,30 @@ func collectMessages(at *expr.AttributeExpr, seen map[string]struct{}, scope *co
 			data = append(data, collect(nat.Attribute)...)
 		}
 	case *expr.Array:
-		data = append(data, collect(dt.ElemType)...)
+		switch dt.ElemType.Type.(type) {
+		case *expr.Array, *expr.Map:
+			// nested array/map. Generate a message for the inner array/map.
+			ut := &expr.UserTypeExpr{
+				AttributeExpr: wrapAttr(dt.ElemType),
+				TypeName:      innerTypeName(dt.ElemType, scope),
+			}
+			data = append(data, collect(&expr.AttributeExpr{Type: ut})...)
+		default:
+			data = append(data, collect(dt.ElemType)...)
+		}
 	case *expr.Map:
 		data = append(data, collect(dt.KeyType)...)
-		data = append(data, collect(dt.ElemType)...)
+		switch dt.ElemType.Type.(type) {
+		case *expr.Array, *expr.Map:
+			// nested array/map. Generate a message for the inner array/map.
+			ut := &expr.UserTypeExpr{
+				AttributeExpr: wrapAttr(dt.ElemType),
+				TypeName:      innerTypeName(dt.ElemType, scope),
+			}
+			data = append(data, collect(&expr.AttributeExpr{Type: ut})...)
+		default:
+			data = append(data, collect(dt.ElemType)...)
+		}
 	}
 	return
 }
@@ -609,7 +627,7 @@ func buildRequestTypeData(e *expr.GRPCEndpointExpr, sd *ServiceData, svr bool) *
 				srcVar = "p"
 				srcPkg = svc.PkgName
 				tgtPkg = sd.PkgName
-				retRef = ProtoBufFullTypeRef(e.Request, sd.PkgName, svc.Scope)
+				retRef = protoBufGoFullTypeRef(e.Request, sd.PkgName, svc.Scope)
 			}
 			isStruct = expr.IsObject(tgtAtt.Type)
 			code = protoBufTypeTransformHelper(srcAtt, tgtAtt, srcVar, tgtVar, srcPkg, tgtPkg, !svr, sd)
@@ -655,8 +673,8 @@ func buildRequestTypeData(e *expr.GRPCEndpointExpr, sd *ServiceData, svr bool) *
 		svc = sd.Service
 	)
 	{
-		name = ProtoBufMessageName(e.Request, svc.Scope)
-		ref = ProtoBufFullTypeRef(e.Request, sd.PkgName, svc.Scope)
+		name = protoBufMessageName(e.Request, svc.Scope)
+		ref = protoBufGoFullTypeRef(e.Request, sd.PkgName, svc.Scope)
 	}
 	return &TypeData{
 		Name: name,
@@ -704,7 +722,7 @@ func buildResponseTypeData(e *expr.GRPCEndpointExpr, sd *ServiceData, svr bool) 
 				tgtAtt = e.Response.Message
 				srcPkg = svc.PkgName
 				tgtPkg = sd.PkgName
-				retRef = ProtoBufFullTypeRef(e.Response.Message, sd.PkgName, svc.Scope)
+				retRef = protoBufGoFullTypeRef(e.Response.Message, sd.PkgName, svc.Scope)
 			} else {
 				name = "New" + svc.Scope.GoTypeName(e.MethodExpr.Result)
 				desc = fmt.Sprintf("%s builds the result type of the %q endpoint of the %q service from the gRPC response type.", name, e.Name(), svc.Name)
@@ -743,8 +761,8 @@ func buildResponseTypeData(e *expr.GRPCEndpointExpr, sd *ServiceData, svr bool) 
 		svc = sd.Service
 	)
 	if svr {
-		name = ProtoBufMessageName(e.Response.Message, svc.Scope)
-		ref = ProtoBufFullTypeRef(e.Response.Message, sd.PkgName, svc.Scope)
+		name = protoBufMessageName(e.Response.Message, svc.Scope)
+		ref = protoBufGoFullTypeRef(e.Response.Message, sd.PkgName, svc.Scope)
 	} else {
 		name = svc.Scope.GoTypeName(e.MethodExpr.Result)
 		ref = svc.Scope.GoFullTypeRef(e.MethodExpr.Result, svc.PkgName)
@@ -789,7 +807,7 @@ func buildErrorsData(e *expr.GRPCEndpointExpr, sd *ServiceData) []*ErrorData {
 // Request/Response message is always a user type), the function returns the
 // code for initializing the types appropriately by making use of the wrapped
 // "field" attribute. Use this function in places where
-// codegen.ProtoBufTypeTransform needs to be called.
+// protoBufTypeTransform needs to be called.
 func protoBufTypeTransformHelper(src, tgt *expr.AttributeExpr, srcVar, tgtVar, srcPkg, tgtPkg string, proto bool, sd *ServiceData) string {
 	var (
 		code string
@@ -799,7 +817,7 @@ func protoBufTypeTransformHelper(src, tgt *expr.AttributeExpr, srcVar, tgtVar, s
 		svc = sd.Service
 	)
 	if e := isCompatible(src.Type, tgt.Type, srcVar, tgtVar); e == nil {
-		code, h, err = ProtoBufTypeTransform(src.Type, tgt.Type, srcVar, tgtVar, srcPkg, tgtPkg, proto, svc.Scope)
+		code, h, err = protoBufTypeTransform(src.Type, tgt.Type, srcVar, tgtVar, srcPkg, tgtPkg, proto, svc.Scope)
 		if err != nil {
 			fmt.Println(err.Error()) // TBD validate DSL so errors are not possible
 			return ""
@@ -810,7 +828,7 @@ func protoBufTypeTransformHelper(src, tgt *expr.AttributeExpr, srcVar, tgtVar, s
 	if proto {
 		// tgt is a protocol buffer message type. src type is wrapped in an
 		// attribute called "field" in tgt.
-		pbType := ProtoBufFullMessageName(tgt, tgtPkg, svc.Scope)
+		pbType := protoBufFullMessageName(tgt, tgtPkg, svc.Scope)
 		code = fmt.Sprintf("%s := &%s{\nField: %s,\n}", tgtVar, pbType, typeConvert(srcVar, src.Type, tgt.Type, proto))
 	} else {
 		// tgt is a Go type. src is a protocol buffer message type.
