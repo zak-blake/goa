@@ -151,6 +151,8 @@ type (
 		// ClientStream indicates that the service method receives a result
 		// stream or sends a payload result or both.
 		ClientStream *StreamData
+		// StreamKind is the kind of the stream (payload or result or bidirectional).
+		StreamKind expr.StreamKind
 	}
 
 	// StreamData is the data used to generate client and server interfaces that
@@ -185,8 +187,6 @@ type (
 		// reference (if any) and the endpoint server stream. It is set only if the
 		// client sends a normal payload and server streams a result.
 		EndpointStruct string
-		// Kind is the kind of the stream (payload or result or bidirectional).
-		Kind expr.StreamKind
 	}
 
 	// RequirementData lists the schemes and scopes defined by a single
@@ -751,7 +751,6 @@ func buildMethodData(m *expr.MethodExpr, svcPkgName string, service *expr.Servic
 			Interface:      vname + "ServerStream",
 			VarName:        m.Name + "ServerStream",
 			EndpointStruct: vname + "EndpointInput",
-			Kind:           m.Stream,
 			SendName:       "Send",
 			SendDesc:       fmt.Sprintf("Send streams instances of %q.", rname),
 			SendTypeName:   rname,
@@ -761,13 +760,12 @@ func buildMethodData(m *expr.MethodExpr, svcPkgName string, service *expr.Servic
 		cliStream = &StreamData{
 			Interface:    vname + "ClientStream",
 			VarName:      m.Name + "ClientStream",
-			Kind:         m.Stream,
 			RecvName:     "Recv",
 			RecvDesc:     fmt.Sprintf("Recv reads instances of %q from the stream.", rname),
 			RecvTypeName: rname,
 			RecvTypeRef:  resultRef,
 		}
-		if m.Stream == expr.ClientStreamKind || m.Stream == expr.BidirectionalStreamKind {
+		if m.IsPayloadStreaming() {
 			switch m.Stream {
 			case expr.ClientStreamKind:
 				if resultRef != "" {
@@ -835,6 +833,7 @@ func buildMethodData(m *expr.MethodExpr, svcPkgName string, service *expr.Servic
 		Schemes:              schemes,
 		ServerStream:         svrStream,
 		ClientStream:         cliStream,
+		StreamKind:           m.Stream,
 	}
 }
 

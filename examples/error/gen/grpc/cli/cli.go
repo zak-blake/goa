@@ -29,10 +29,7 @@ func UsageCommands() string {
 
 // UsageExamples produces an example of a valid invocation of the CLI tool.
 func UsageExamples() string {
-	return os.Args[0] + ` --transport=grpc divider integer-divide --p '{
-      "a": 1956314822264574800,
-      "b": 9076451438121458831
-   }'` + "\n" +
+	return os.Args[0] + ` --transport=grpc divider integer-divide --message null` + "\n" +
 		""
 }
 
@@ -42,11 +39,11 @@ func ParseEndpoint(cc *grpc.ClientConn, opts ...grpc.CallOption) (goa.Endpoint, 
 	var (
 		dividerFlags = flag.NewFlagSet("divider", flag.ContinueOnError)
 
-		dividerIntegerDivideFlags = flag.NewFlagSet("integer-divide", flag.ExitOnError)
-		dividerIntegerDividePFlag = dividerIntegerDivideFlags.String("p", "", "")
+		dividerIntegerDivideFlags       = flag.NewFlagSet("integer-divide", flag.ExitOnError)
+		dividerIntegerDivideMessageFlag = dividerIntegerDivideFlags.String("message", "", "")
 
-		dividerDivideFlags = flag.NewFlagSet("divide", flag.ExitOnError)
-		dividerDividePFlag = dividerDivideFlags.String("p", "", "")
+		dividerDivideFlags       = flag.NewFlagSet("divide", flag.ExitOnError)
+		dividerDivideMessageFlag = dividerDivideFlags.String("message", "", "")
 	)
 	dividerFlags.Usage = dividerUsage
 	dividerIntegerDivideFlags.Usage = dividerIntegerDivideUsage
@@ -119,10 +116,10 @@ func ParseEndpoint(cc *grpc.ClientConn, opts ...grpc.CallOption) (goa.Endpoint, 
 			switch epn {
 			case "integer-divide":
 				endpoint = c.IntegerDivide()
-				data, err = dividersvcc.BuildIntegerDividePayload(*dividerIntegerDividePFlag)
+				data, err = dividersvcc.BuildIntegerDividePayload(*dividerIntegerDivideMessageFlag)
 			case "divide":
 				endpoint = c.Divide()
-				data, err = dividersvcc.BuildDividePayload(*dividerDividePFlag)
+				data, err = dividersvcc.BuildDividePayload(*dividerDivideMessageFlag)
 			}
 		}
 	}
@@ -148,29 +145,23 @@ Additional help:
 `, os.Args[0], os.Args[0])
 }
 func dividerIntegerDivideUsage() {
-	fmt.Fprintf(os.Stderr, `%s [flags] divider integer-divide -p JSON
+	fmt.Fprintf(os.Stderr, `%s [flags] divider integer-divide -message JSON
 
 IntegerDivide implements integer_divide.
-    -p JSON: 
+    -message JSON: 
 
 Example:
-    `+os.Args[0]+` --transport=grpc divider integer-divide --p '{
-      "a": 1956314822264574800,
-      "b": 9076451438121458831
-   }'
+    `+os.Args[0]+` --transport=grpc divider integer-divide --message null
 `, os.Args[0])
 }
 
 func dividerDivideUsage() {
-	fmt.Fprintf(os.Stderr, `%s [flags] divider divide -p JSON
+	fmt.Fprintf(os.Stderr, `%s [flags] divider divide -message JSON
 
 Divide implements divide.
-    -p JSON: 
+    -message JSON: 
 
 Example:
-    `+os.Args[0]+` --transport=grpc divider divide --p '{
-      "a": 0.858635429996671,
-      "b": 0.15144678048841884
-   }'
+    `+os.Args[0]+` --transport=grpc divider divide --message null
 `, os.Args[0])
 }

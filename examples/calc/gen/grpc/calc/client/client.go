@@ -39,12 +39,11 @@ func (c *Client) Add() goa.Endpoint {
 		if !ok {
 			return nil, goagrpc.ErrInvalidType("calc", "add", "*calcsvc.AddPayload", v)
 		}
-		req := NewAddRequest(p)
+		ctx, req := EncodeAddRequest(ctx, p)
 		resp, err := c.grpccli.Add(ctx, req, c.opts...)
 		if err != nil {
 			return nil, err
 		}
-		res := int(resp.Field)
-		return res, nil
+		return DecodeAddResponse(ctx, resp)
 	}
 }

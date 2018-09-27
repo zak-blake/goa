@@ -17,6 +17,9 @@ type (
 		Service *GRPCServiceExpr
 		// Request is the message passed to the gRPC method.
 		Request *AttributeExpr
+		// StreamingRequest is the message passed to the gRPC method through a
+		// stream.
+		StreamingRequest *AttributeExpr
 		// Responses is the success gRPC response from the method.
 		Response *GRPCResponseExpr
 		// GRPCErrors is the list of all the possible error gRPC responses.
@@ -62,6 +65,12 @@ func (e *GRPCEndpointExpr) Prepare() {
 	}
 	if e.Request.Validation == nil {
 		e.Request.Validation = &ValidationExpr{}
+	}
+	if e.StreamingRequest == nil {
+		e.StreamingRequest = &AttributeExpr{Type: Empty}
+	}
+	if e.StreamingRequest.Validation == nil {
+		e.StreamingRequest.Validation = &ValidationExpr{}
 	}
 	if e.Metadata == nil {
 		e.Metadata = NewEmptyMappedAttributeExpr()
@@ -273,6 +282,10 @@ func (e *GRPCEndpointExpr) Finalize() {
 		} else {
 			initAttrFromDesign(e.Request, e.MethodExpr.Payload)
 		}
+	}
+
+	if e.MethodExpr.StreamingPayload.Type != Empty {
+		initAttrFromDesign(e.StreamingRequest, e.MethodExpr.StreamingPayload)
 	}
 
 	// Finalize response

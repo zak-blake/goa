@@ -16,10 +16,13 @@ func ExampleCLI(genpkg string, root *expr.RootExpr, transports []*TransportData)
 		return nil // file already exists, skip it.
 	}
 	specs := []*codegen.ImportSpec{
+		{Path: "context"},
+		{Path: "encoding/json"},
 		{Path: "flag"},
 		{Path: "fmt"},
 		{Path: "os"},
 		{Path: "strings"},
+		{Path: "goa.design/goa"},
 	}
 	data := map[string]interface{}{
 		"Transports": transports,
@@ -87,19 +90,45 @@ const clientMainT = `func main() {
 		debug = *verboseF || *vF
 	}
 
+	var (
+		endpoint goa.Endpoint
+		payload interface{}
+		err error
+	)
+	{
 {{- if gt (len .Transports) 1 }}
 	switch transport {
 		{{- range $t := .Transports }}
 	case {{ printf "%q" $t.Name }}:
-		{{ $t.Name }}Do(*addrF, timeout, debug)
+		endpoint, payload, err = {{ $t.Name }}Do(*addrF, timeout, debug)
 	{{- end }}
 	default:
 		fmt.Fprintf(os.Stderr, "unknown transport %q", transport)
 		os.Exit(1)
 	}
 {{- else }}
-	{{ $defaultTransport.Name }}Do(*addrF, timeout, debug)
+	endpoint, payload, err = {{ $defaultTransport.Name }}Do(*addrF, timeout, debug)
 {{- end }}
+	}
+	if err != nil {
+    if err == flag.ErrHelp {
+      os.Exit(0)
+    }
+    fmt.Fprintln(os.Stderr, err.Error())
+    fmt.Fprintln(os.Stderr, "run '"+os.Args[0]+" --help' for detailed usage.")
+    os.Exit(1)
+  }
+
+	data, err := endpoint(context.Background(), payload)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err.Error())
+		os.Exit(1)
+	}
+
+	if data != nil && !debug {
+		m, _ := json.MarshalIndent(data, "", "    ")
+		fmt.Println(string(m))
+	}
 }
 
 func usage() {

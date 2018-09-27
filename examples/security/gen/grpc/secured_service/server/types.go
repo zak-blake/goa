@@ -46,9 +46,8 @@ func NewSecurePayload(message *secured_servicepb.SecureRequest, token string) *s
 // NewSecureResponse builds the gRPC response type from the result of the
 // "secure" endpoint of the "secured_service" service.
 func NewSecureResponse(res string) *secured_servicepb.SecureResponse {
-	v := &secured_servicepb.SecureResponse{
-		Field: res,
-	}
+	v := &secured_servicepb.SecureResponse{}
+	v.Field = res
 	return v
 }
 
@@ -65,9 +64,8 @@ func NewDoublySecurePayload(message *secured_servicepb.DoublySecureRequest, toke
 // NewDoublySecureResponse builds the gRPC response type from the result of the
 // "doubly_secure" endpoint of the "secured_service" service.
 func NewDoublySecureResponse(res string) *secured_servicepb.DoublySecureResponse {
-	v := &secured_servicepb.DoublySecureResponse{
-		Field: res,
-	}
+	v := &secured_servicepb.DoublySecureResponse{}
+	v.Field = res
 	return v
 }
 
@@ -87,8 +85,7 @@ func NewAlsoDoublySecurePayload(message *secured_servicepb.AlsoDoublySecureReque
 // NewAlsoDoublySecureResponse builds the gRPC response type from the result of
 // the "also_doubly_secure" endpoint of the "secured_service" service.
 func NewAlsoDoublySecureResponse(res string) *secured_servicepb.AlsoDoublySecureResponse {
-	v := &secured_servicepb.AlsoDoublySecureResponse{
-		Field: res,
-	}
+	v := &secured_servicepb.AlsoDoublySecureResponse{}
+	v.Field = res
 	return v
 }

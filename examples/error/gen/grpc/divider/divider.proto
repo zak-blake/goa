@@ -13,12 +13,12 @@ package divider;
 // Service is the divider service interface.
 service divider {
 	// IntegerDivide implements integer_divide.
-	rpc IntegerDivide (IntOperands) returns (IntegerDivideResponse);
+	rpc IntegerDivide (IntegerDivideRequest) returns (IntegerDivideResponse);
 	// Divide implements divide.
-	rpc Divide (FloatOperands) returns (DivideResponse);
+	rpc Divide (DivideRequest) returns (DivideResponse);
 }
 
-message IntOperands {
+message IntegerDivideRequest {
 	// Left operand
 	sint32 a = 1;
 	// Right operand
@@ -29,7 +29,7 @@ message IntegerDivideResponse {
 	sint32 field = 1;
 }
 
-message FloatOperands {
+message DivideRequest {
 	// Left operand
 	double a = 1;
 	// Right operand

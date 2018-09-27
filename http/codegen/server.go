@@ -90,7 +90,7 @@ func server(genpkg string, svc *expr.HTTPServiceExpr) *codegen.File {
 			if e.ServerStream.SendTypeRef != "" {
 				sections = append(sections, &codegen.SectionTemplate{Name: "server-stream-send", Source: streamSendT, Data: e.ServerStream, FuncMap: funcs})
 			}
-			switch e.ServerStream.Kind {
+			switch e.Method.StreamKind {
 			case expr.ClientStreamKind, expr.BidirectionalStreamKind:
 				sections = append(sections, &codegen.SectionTemplate{Name: "server-stream-recv", Source: streamRecvT, Data: e.ServerStream, FuncMap: funcs})
 			}

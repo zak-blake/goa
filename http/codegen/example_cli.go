@@ -31,6 +31,7 @@ func ExampleCLI(genpkg string, root *expr.RootExpr) *codegen.File {
 		{Path: "os"},
 		{Path: "time"},
 		{Path: "github.com/gorilla/websocket"},
+		{Path: "goa.design/goa"},
 		{Path: "goa.design/goa/http", Name: "goahttp"},
 		{Path: rootPath, Name: apiPkg},
 		{Path: genpkg + "/http/cli"},
@@ -70,7 +71,7 @@ func needStreaming(data []*ServiceData) bool {
 }
 
 // input: map[string]interface{}{"Services":[]ServiceData, "APIPkg": string, "APIName": string}
-const doHTTPT = `func httpDo(addr string, timeout int, debug bool) {
+const doHTTPT = `func httpDo(addr string, timeout int, debug bool) (goa.Endpoint, interface{}, error) {
 	var (
 		scheme string
 		host string
@@ -95,6 +96,7 @@ const doHTTPT = `func httpDo(addr string, timeout int, debug bool) {
 		doer = &http.Client{Timeout: time.Duration(timeout) * time.Second}
 		if debug {
 			doer = goahttp.NewDebugDoer(doer)
+			doer.(goahttp.DebugDoer).Fprint(os.Stderr)
 		}
 	}
 
@@ -108,7 +110,7 @@ const doHTTPT = `func httpDo(addr string, timeout int, debug bool) {
   }
 	{{ end }}
 
-	endpoint, payload, err := cli.ParseEndpoint(
+	return cli.ParseEndpoint(
 		scheme,
 		host,
 		doer,
@@ -127,30 +129,6 @@ const doHTTPT = `func httpDo(addr string, timeout int, debug bool) {
 			{{- end }}
 		{{- end }}
 	)
-	if err != nil {
-		if err == flag.ErrHelp {
-			os.Exit(0)
-		}
-		fmt.Fprintln(os.Stderr, err.Error())
-		fmt.Fprintln(os.Stderr, "run '"+os.Args[0]+" --help' for detailed usage.")
-		os.Exit(1)
-	}
-
-	data, err := endpoint(context.Background(), payload)
-
-	if debug {
-		doer.(goahttp.DebugDoer).Fprint(os.Stderr)
-	}
-
-	if err != nil {
-		fmt.Fprintln(os.Stderr, err.Error())
-		os.Exit(1)
-	}
-
-	if data != nil && !debug {
-		m, _ := json.MarshalIndent(data, "", "    ")
-		fmt.Println(string(m))
-	}
 }
 
 func httpUsageCommands() string {

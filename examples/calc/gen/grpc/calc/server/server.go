@@ -13,6 +13,8 @@ import (
 
 	calcsvc "goa.design/goa/examples/calc/gen/calc"
 	calcpb "goa.design/goa/examples/calc/gen/grpc/calc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 // Server implements the calcpb.CalcServer interface.
@@ -32,13 +34,14 @@ func New(e *calcsvc.Endpoints) *Server {
 }
 
 // Add implements the "Add" method in calcpb.CalcServer interface.
-func (s *Server) Add(ctx context.Context, p *calcpb.AddRequest) (*calcpb.AddResponse, error) {
-	payload := NewAddPayload(p)
+func (s *Server) Add(ctx context.Context, message *calcpb.AddRequest) (*calcpb.AddResponse, error) {
+	payload, err := DecodeAddRequest(ctx, message)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, err.Error())
+	}
 	v, err := s.endpoints.Add(ctx, payload)
 	if err != nil {
 		return nil, err
 	}
-	res := v.(int)
-	resp := NewAddResponse(res)
-	return resp, nil
+	return EncodeAddResponse(ctx, v), nil
 }

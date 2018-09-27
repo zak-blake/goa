@@ -22,3 +22,10 @@ func NewAddRequest(p *calcsvc.AddPayload) *calcpb.AddRequest {
 	}
 	return v
 }
+
+// NewAddResponse builds the result type of the "add" endpoint of the "calc"
+// service from the gRPC response type.
+func NewAddResponse(resp *calcpb.AddResponse) int {
+	v := int(resp.Field)
+	return v
+}

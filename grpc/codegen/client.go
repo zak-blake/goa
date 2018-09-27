@@ -42,6 +42,15 @@ func client(genpkg string, svc *expr.GRPCServiceExpr) *codegen.File {
 		Source: clientStructT,
 		Data:   data,
 	})
+	for _, e := range data.Endpoints {
+		if e.ClientStream != nil {
+			sections = append(sections, &codegen.SectionTemplate{
+				Name:   "client-stream-struct-type",
+				Source: streamStructTypeT,
+				Data:   e.ClientStream,
+			})
+		}
+	}
 	sections = append(sections, &codegen.SectionTemplate{
 		Name:   "client-init",
 		Source: clientInitT,
@@ -53,6 +62,41 @@ func client(genpkg string, svc *expr.GRPCServiceExpr) *codegen.File {
 			Source: clientEndpointInitT,
 			Data:   e,
 		})
+	}
+	for _, e := range data.Endpoints {
+		if e.ClientStream != nil {
+			if e.ClientStream.RecvConvert != nil {
+				sections = append(sections, &codegen.SectionTemplate{
+					Name:   "client-stream-recv",
+					Source: streamRecvT,
+					Data:   e.ClientStream,
+					FuncMap: map[string]interface{}{
+						"convertType": typeConvertField,
+					},
+				})
+			}
+			if e.Method.StreamKind == expr.ClientStreamKind || e.Method.StreamKind == expr.BidirectionalStreamKind {
+				sections = append(sections, &codegen.SectionTemplate{
+					Name:   "client-stream-send",
+					Source: streamSendT,
+					Data:   e.ClientStream,
+				})
+			}
+			if e.ServerStream.MustClose {
+				sections = append(sections, &codegen.SectionTemplate{
+					Name:   "client-stream-close",
+					Source: streamCloseT,
+					Data:   e.ClientStream,
+				})
+			}
+			if e.Method.ViewedResult != nil && e.Method.ViewedResult.ViewName == "" {
+				sections = append(sections, &codegen.SectionTemplate{
+					Name:   "client-stream-set-view",
+					Source: streamSetViewT,
+					Data:   e.ClientStream,
+				})
+			}
+		}
 	}
 	return &codegen.File{Path: path, SectionTemplates: sections}
 }
@@ -91,7 +135,7 @@ func clientEncodeDecode(genpkg string, svc *expr.GRPCServiceExpr) *codegen.File 
 					},
 				})
 			}
-			if e.ResultRef != "" {
+			if e.Response.ClientConvert != nil {
 				sections = append(sections, &codegen.SectionTemplate{
 					Name:    "response-decoder",
 					Source:  responseDecoderT,
@@ -144,7 +188,7 @@ func (c *{{ .ClientStruct }}) {{ .Method.VarName }}() goa.Endpoint {
 		if !ok {
 			return nil, goagrpc.ErrInvalidType("{{ .ServiceName }}", "{{ .Method.Name }}", "{{ .PayloadRef }}", v)
     }
-		ctx, req := Encode{{ .Method.VarName }}Request(ctx, p)
+		ctx{{ if not .Method.StreamingPayload }}, req :={{ else }} ={{ end }} Encode{{ .Method.VarName }}Request(ctx, p)
 	{{- end }}
 		{{- if and .Response.Headers .Response.Trailers }}
 			var hdr, trlr metadata.MD
@@ -153,11 +197,19 @@ func (c *{{ .ClientStruct }}) {{ .Method.VarName }}() goa.Endpoint {
 		{{- else if .Response.Trailers }}
 			var trlr metadata.MD
 		{{- end }}
-		{{ if .ResultRef }}resp{{ else }}_{{ end }}, err := c.grpccli.{{ .Method.VarName }}(ctx, {{ if .PayloadRef }}req{{ else }}nil{{ end }}, {{ if .Response.Headers }}grpc.Header(&hdr), {{ end }}{{ if .Response.Trailers }}grpc.Trailer(&trlr), {{ end }}c.opts...)
+		{{ if .ClientStream }}stream
+		{{- else if .ResultRef }}resp
+		{{- else }}_
+		{{- end }}, err := c.grpccli.{{ .Method.VarName }}(ctx,
+			{{- if not .Method.StreamingPayload }}req, {{ end }}
+			{{- if .Response.Headers }}grpc.Header(&hdr), {{ end }}
+			{{- if .Response.Trailers }}grpc.Trailer(&trlr), {{ end }}c.opts...)
 		if err != nil {
 			return nil, err
 		}
-	{{- if .ResultRef }}
+	{{- if .ClientStream }}
+		return &{{ .ClientStream.VarName }}{stream: stream}, nil
+	{{- else if .ResultRef }}
 		return Decode{{ .Method.VarName }}Response(ctx, resp{{ if .Response.Headers }}, hdr{{ end }}{{ if .Response.Trailers }}, trlr{{ end }})
 	{{- else }}
 		return nil, nil
@@ -168,8 +220,8 @@ func (c *{{ .ClientStruct }}) {{ .Method.VarName }}() goa.Endpoint {
 
 // input: EndpointData
 const responseDecoderT = `{{ printf "Decode%sResponse decodes responses from the %s %s endpoint." .Method.VarName .ServiceName .Method.Name | comment }}
-func Decode{{ .Method.VarName }}Response(ctx context.Context, resp {{ .Response.ServerType.Ref }}{{ if and .Response.Headers .Response.Trailers }}hdr, trlr metadata.MD{{ else if .Response.Headers }}hdr metadata.MD{{ else if .Response.Trailers }}trlr metadata.MD{{ end }}) ({{ .ResultRef }}, error) {
-{{- if .Response.ClientType.Init }}
+func Decode{{ .Method.VarName }}Response(ctx context.Context, resp {{ .Response.ServerConvert.TgtRef }}{{ if and .Response.Headers .Response.Trailers }}hdr, trlr metadata.MD{{ else if .Response.Headers }}hdr metadata.MD{{ else if .Response.Trailers }}trlr metadata.MD{{ end }}) ({{ .ResultRef }}, error) {
+{{- if .Response.ClientConvert.Init }}
 	{{- if or .Response.Headers .Response.Trailers }}
 		var (
 		{{- range .Response.Headers }}
@@ -192,7 +244,7 @@ func Decode{{ .Method.VarName }}Response(ctx context.Context, resp {{ .Response.
 			return nil, err
 		}
 	{{- end }}
-	res := {{ .Response.ClientType.Init.Name }}({{ range .Response.ClientType.Init.Args }}{{ .Name }}, {{ end }})
+	res := {{ .Response.ClientConvert.Init.Name }}({{ range .Response.ClientConvert.Init.Args }}{{ .Name }}, {{ end }})
 {{- else }}
 	res := {{ convertType "resp.Field" . false }}
 {{- end }}
@@ -254,9 +306,11 @@ func Decode{{ .Method.VarName }}Response(ctx context.Context, resp {{ .Response.
 
 // input: EndpointData
 const requestEncoderT = `{{ printf "Encode%sRequest encodes requests sent to %s %s endpoint." .Method.VarName .ServiceName .Method.Name | comment }}
-func Encode{{ .Method.VarName }}Request(ctx context.Context, p {{ .PayloadRef }}) (context.Context, {{ .Request.ClientType.Ref }}) {
-	req := {{ .Request.ClientType.Init.Name }}({{ range .Request.ClientType.Init.Args }}{{ .Name }}, {{ end }})
-	{{- if .Request.Metadata }}
+func Encode{{ .Method.VarName }}Request(ctx context.Context, p {{ .PayloadRef }}) {{ if not .Method.StreamingPayload }}({{ end }}context.Context{{ if not .Method.StreamingPayload }}, {{ .Request.ClientConvert.TgtRef }}){{ end }} {
+{{- if not .Method.StreamingPayload }}
+	req := {{ .Request.ClientConvert.Init.Name }}({{ range .Request.ClientConvert.Init.Args }}{{ .Name }}, {{ end }})
+{{- end }}
+{{- if .Request.Metadata }}
 	{{- range .Request.Metadata }}
 		{{- if .StringSlice }}
 			for _, value := range p.{{ .FieldName }} {
@@ -293,6 +347,6 @@ func Encode{{ .Method.VarName }}Request(ctx context.Context, p {{ .PayloadRef }}
 		{{- end }}
 	{{- end }}
 {{- end }}
-	return ctx, req
+	return ctx{{ if not .Method.StreamingPayload }}, req{{ end }}
 }
 ` + convertTypeToStringT

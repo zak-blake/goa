@@ -29,6 +29,7 @@ func ExampleCLI(genpkg string, root *expr.RootExpr) *codegen.File {
 		{Path: "google.golang.org/grpc"},
 		{Path: "os"},
 		{Path: "time"},
+		{Path: "goa.design/goa"},
 		{Path: "goa.design/goa/grpc", Name: "goagrpc"},
 		{Path: rootPath, Name: apiPkg},
 		{Path: genpkg + "/grpc/cli"},
@@ -49,33 +50,12 @@ func ExampleCLI(genpkg string, root *expr.RootExpr) *codegen.File {
 }
 
 // input: map[string]interface{}{"APIPkg": string, "APIName": string}
-const doGRPCT = `func grpcDo(addr string, timeout int, debug bool) {
+const doGRPCT = `func grpcDo(addr string, timeout int, debug bool) (goa.Endpoint, interface{}, error) {
 	conn, err := grpc.Dial(addr, grpc.WithInsecure())
 	if err != nil {
     fmt.Fprintln(os.Stderr, fmt.Sprintf("could not connect to GRPC server at %s: %v", addr, err))
   }
-	defer conn.Close()
-
-	endpoint, payload, err := cli.ParseEndpoint(conn)
-	if err != nil {
-		if err == flag.ErrHelp {
-			os.Exit(0)
-		}
-		fmt.Fprintln(os.Stderr, err.Error())
-		fmt.Fprintln(os.Stderr, "run '"+os.Args[0]+" --help' for detailed usage.")
-		os.Exit(1)
-	}
-
-	data, err := endpoint(context.Background(), payload)
-	if err != nil {
-		fmt.Fprintln(os.Stderr, err.Error())
-		os.Exit(1)
-	}
-
-	if data != nil && !debug {
-		m, _ := json.MarshalIndent(data, "", "    ")
-		fmt.Println(string(m))
-	}
+	return cli.ParseEndpoint(conn)
 }
 
 func grpcUsageCommands() string {

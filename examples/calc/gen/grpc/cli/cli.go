@@ -29,10 +29,7 @@ func UsageCommands() string {
 
 // UsageExamples produces an example of a valid invocation of the CLI tool.
 func UsageExamples() string {
-	return os.Args[0] + ` --transport=grpc calc add --p '{
-      "a": 8399553735696626949,
-      "b": 360622074634248926
-   }'` + "\n" +
+	return os.Args[0] + ` --transport=grpc calc add --message null` + "\n" +
 		""
 }
 
@@ -42,8 +39,8 @@ func ParseEndpoint(cc *grpc.ClientConn, opts ...grpc.CallOption) (goa.Endpoint, 
 	var (
 		calcFlags = flag.NewFlagSet("calc", flag.ContinueOnError)
 
-		calcAddFlags = flag.NewFlagSet("add", flag.ExitOnError)
-		calcAddPFlag = calcAddFlags.String("p", "", "")
+		calcAddFlags       = flag.NewFlagSet("add", flag.ExitOnError)
+		calcAddMessageFlag = calcAddFlags.String("message", "", "")
 	)
 	calcFlags.Usage = calcUsage
 	calcAddFlags.Usage = calcAddUsage
@@ -112,7 +109,7 @@ func ParseEndpoint(cc *grpc.ClientConn, opts ...grpc.CallOption) (goa.Endpoint, 
 			switch epn {
 			case "add":
 				endpoint = c.Add()
-				data, err = calcsvcc.BuildAddPayload(*calcAddPFlag)
+				data, err = calcsvcc.BuildAddPayload(*calcAddMessageFlag)
 			}
 		}
 	}
@@ -137,15 +134,12 @@ Additional help:
 `, os.Args[0], os.Args[0])
 }
 func calcAddUsage() {
-	fmt.Fprintf(os.Stderr, `%s [flags] calc add -p JSON
+	fmt.Fprintf(os.Stderr, `%s [flags] calc add -message JSON
 
 Add implements add.
-    -p JSON: 
+    -message JSON: 
 
 Example:
-    `+os.Args[0]+` --transport=grpc calc add --p '{
-      "a": 8399553735696626949,
-      "b": 360622074634248926
-   }'
+    `+os.Args[0]+` --transport=grpc calc add --message null
 `, os.Args[0])
 }

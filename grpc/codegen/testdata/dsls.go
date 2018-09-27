@@ -117,6 +117,21 @@ var MessageUserTypeWithNestedUserTypesDSL = func() {
 	})
 }
 
+var MessageResultTypeCollectionDSL = func() {
+	var RT = ResultType("application/vnd.goa.rt", func() {
+		TypeName("RT")
+		Attributes(func() {
+			Field(1, "IntField", Int)
+		})
+	})
+	Service("ServiceMessageUserTypeWithNestedUserTypes", func() {
+		Method("MethodMessageUserTypeWithNestedUserTypes", func() {
+			Result(CollectionOf(RT))
+			GRPC(func() {})
+		})
+	})
+}
+
 var MessageArrayDSL = func() {
 	var UT = Type("UT", func() {
 		Field(1, "ArrayOfPrimitives", ArrayOf(UInt))

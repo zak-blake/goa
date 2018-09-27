@@ -10,16 +10,18 @@ import (
 
 func TestProtoBufMessageDef(t *testing.T) {
 	var (
-		simpleArray = codegen.NewArray(expr.Boolean)
-		nestedArray = codegen.NewArray(simpleArray.Type)
-		simpleMap   = codegen.NewMap(expr.Int, expr.String)
-		nestedMap   = codegen.NewMap(expr.Int, simpleMap.Type)
-		ut          = &expr.UserTypeExpr{AttributeExpr: &expr.AttributeExpr{Type: expr.Boolean}, TypeName: "UserType"}
-		obj         = objectRPC("IntField", expr.Int, "ArrayField", simpleArray.Type, "MapField", simpleMap.Type, "UserTypeField", ut)
-		rt          = &expr.ResultTypeExpr{UserTypeExpr: &expr.UserTypeExpr{AttributeExpr: &expr.AttributeExpr{Type: expr.Boolean}, TypeName: "ResultType"}, Identifier: "application/vnd.goa.example", Views: nil}
-		userType    = &expr.AttributeExpr{Type: ut}
-		resultType  = &expr.AttributeExpr{Type: rt}
-		threeDArray = codegen.NewArray(codegen.NewArray(codegen.NewArray(ut).Type).Type)
+		simpleArray   = codegen.NewArray(expr.Boolean)
+		nestedArray   = codegen.NewArray(simpleArray.Type)
+		simpleMap     = codegen.NewMap(expr.Int, expr.String)
+		nestedMap     = codegen.NewMap(expr.Int, simpleMap.Type)
+		ut            = &expr.UserTypeExpr{AttributeExpr: &expr.AttributeExpr{Type: expr.Boolean}, TypeName: "UserType"}
+		obj           = objectRPC("IntField", expr.Int, "ArrayField", simpleArray.Type, "MapField", simpleMap.Type, "UserTypeField", ut)
+		rt            = &expr.ResultTypeExpr{UserTypeExpr: &expr.UserTypeExpr{AttributeExpr: &expr.AttributeExpr{Type: expr.Boolean}, TypeName: "ResultType"}, Identifier: "application/vnd.goa.example", Views: nil}
+		rtcol         = &expr.ResultTypeExpr{UserTypeExpr: &expr.UserTypeExpr{AttributeExpr: &expr.AttributeExpr{Type: codegen.NewArray(rt).Type}, TypeName: "ResultTypeCollection"}, Identifier: "application/vnd.goa.example", Views: nil}
+		userType      = &expr.AttributeExpr{Type: ut}
+		resultType    = &expr.AttributeExpr{Type: rt}
+		resultTypeCol = &expr.AttributeExpr{Type: rtcol}
+		threeDArray   = codegen.NewArray(codegen.NewArray(codegen.NewArray(ut).Type).Type)
 
 		nestedMapWithArray = codegen.NewMap(expr.Int, codegen.NewMap(expr.Int, codegen.NewArray(ut).Type).Type)
 	)
@@ -45,8 +47,10 @@ func TestProtoBufMessageDef(t *testing.T) {
 		"Map":             {simpleMap, "map<sint32, string>"},
 		"MapOfMap":        {nestedMap, "map<sint32, MapOfSint32String>"},
 		"MapOfMapOfArray": {nestedMapWithArray, "map<sint32, MapOfSint32ArrayOfUserType>"},
-		"UserTypeExpr":    {userType, "UserType"},
-		"ResultTypeExpr":  {resultType, "ResultType"},
+
+		"UserTypeExpr":         {userType, "UserType"},
+		"ResultTypeExpr":       {resultType, "ResultType"},
+		"ResultTypeCollection": {resultTypeCol, "ResultTypeCollection"},
 
 		"Object": {obj, " {\n\tsint32 int_field = 1;\n\trepeated bool array_field = 2;\n\tmap<sint32, string> map_field = 3;\n\tUserType user_type_field = 4;\n}"},
 	}

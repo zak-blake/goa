@@ -25,7 +25,7 @@ paths:
       - name: Authorization
         in: header
         description: JWT used for authentication
-        required: false
+        required: true
         type: string
       responses:
         "200":
@@ -64,7 +64,7 @@ paths:
       - name: Authorization
         in: header
         description: JWT used for authentication
-        required: false
+        required: true
         type: string
       responses:
         "200":
@@ -161,37 +161,37 @@ definitions:
     title: also_doubly_secure_invalid-scopesResponseBody
     type: string
     description: Token scopes are invalid
-    example: Consequatur ut.
+    example: Vel sit et doloribus.
   also_doubly_secure_unauthorizedResponseBody:
     title: also_doubly_secure_unauthorizedResponseBody
     type: string
     description: Credentials are invalid
-    example: Consequatur qui eligendi ut similique ut.
+    example: Veniam quis nulla officiis id rerum.
   doubly_secure_invalid-scopesResponseBody:
     title: doubly_secure_invalid-scopesResponseBody
     type: string
     description: Token scopes are invalid
-    example: Sequi modi asperiores nihil aspernatur rerum.
+    example: Ut molestiae aut et voluptas magni.
   doubly_secure_unauthorizedResponseBody:
     title: doubly_secure_unauthorizedResponseBody
     type: string
     description: Credentials are invalid
-    example: Ducimus est et alias numquam cum accusantium.
+    example: Odit quidem ut iusto.
   secure_invalid-scopesResponseBody:
     title: secure_invalid-scopesResponseBody
     type: string
     description: Token scopes are invalid
-    example: Sit et doloribus beatae veniam quis.
+    example: Sequi rerum assumenda consequatur ut iste.
   secure_unauthorizedResponseBody:
     title: secure_unauthorizedResponseBody
     type: string
     description: Credentials are invalid
-    example: Officiis id.
+    example: Et in et sit.
   signin_unauthorizedResponseBody:
     title: signin_unauthorizedResponseBody
     type: string
     description: Credentials are invalid
-    example: Magni et odit quidem ut iusto distinctio.
+    example: Quo est laudantium id officia deserunt expedita.
   signinResponseBody:
     title: signinResponseBody
     type: object

@@ -17,14 +17,14 @@ import (
 )
 
 // BuildAddPayload builds the payload for the calc add endpoint from CLI flags.
-func BuildAddPayload(calcAddP string) (*calcsvc.AddPayload, error) {
+func BuildAddPayload(calcAddMessage string) (*calcsvc.AddPayload, error) {
 	var err error
-	var p calcpb.AddRequest
+	var message calcpb.AddRequest
 	{
-		if calcAddP != "" {
-			err = json.Unmarshal([]byte(calcAddP), &p)
+		if calcAddMessage != "" {
+			err = json.Unmarshal([]byte(calcAddMessage), &message)
 			if err != nil {
-				return nil, fmt.Errorf("invalid JSON for p, example of valid JSON:\n%s", "'{\n      \"a\": 8399553735696626949,\n      \"b\": 360622074634248926\n   }'")
+				return nil, fmt.Errorf("invalid JSON for message, example of valid JSON:\n%s", "null")
 			}
 		}
 	}
@@ -32,8 +32,8 @@ func BuildAddPayload(calcAddP string) (*calcsvc.AddPayload, error) {
 		return nil, err
 	}
 	v := &calcsvc.AddPayload{
-		A: int(p.A),
-		B: int(p.B),
+		A: int(message.A),
+		B: int(message.B),
 	}
 	return v, nil
 }

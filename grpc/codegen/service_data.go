@@ -30,7 +30,7 @@ type (
 		// Endpoints describes the gRPC service endpoints.
 		Endpoints []*EndpointData
 		// Messages describes the message data for this service.
-		Messages []*MessageData
+		Messages []*service.UserTypeData
 		// ServerStruct is the name of the gRPC server struct.
 		ServerStruct string
 		// ClientStruct is the name of the gRPC client struct,
@@ -60,6 +60,8 @@ type (
 		ServiceName string
 		// PkgName is the name of the generated package in *.pb.go.
 		PkgName string
+		// ServicePkgName is the name of the service package name.
+		ServicePkgName string
 		// Method is the data for the underlying method expression.
 		Method *service.MethodData
 		// PayloadRef is the fully qualified reference to the method payload.
@@ -86,6 +88,8 @@ type (
 		// ServerInterface is the name of the gRPC server interface implemented
 		// by the service.
 		ServerInterface string
+		// ServerStream is the server stream data.
+		ServerStream *StreamData
 
 		// client side
 
@@ -94,31 +98,8 @@ type (
 		// ClientInterface is the name of the gRPC client interface implemented
 		// by the service.
 		ClientInterface string
-	}
-
-	// MessageData contains the data used to render the code related to a
-	// message for a gRPC service. It is used in generating the .proto file.
-	// A gRPC request message is computed from the method Payload expression
-	// (unless specified explicitly by Message DSL in the gRPC endpoint
-	// expression). A gRPC response message is computed from the method Result
-	// expression (unless specified explicitly by Message DSL in the gRPC
-	// response expression). If the method Payload/Result is empty (not defined)
-	// a corresponding message type with empty fields is still generated in the
-	// .proto file. NOTE: Codegen could use `google.protobuf.Empty` message type
-	// in such cases, but generating an empty message type for the request or
-	// response makes it easier (and safer) if the request/response message needs
-	// to be changed in the future.
-	MessageData struct {
-		// Name is the message name.
-		Name string
-		// Description is the message description.
-		Description string
-		// VarName is the variable name that holds the definition.
-		VarName string
-		// Def is the message definition.
-		Def string
-		// Type is the underlying type.
-		Type expr.UserType
+		// ClientStream is the client stream data.
+		ClientStream *StreamData
 	}
 
 	// MetadataData describes a gRPC metadata field.
@@ -180,23 +161,21 @@ type (
 	RequestData struct {
 		// Description is the request description.
 		Description string
-		// Message is the gRPC request message. It is used in generating
-		// .proto file.
-		Message *MessageData
+		// Message is the gRPC request message.
+		Message *service.UserTypeData
 		// Metadata is the request metadata.
 		Metadata []*MetadataData
-		// ServerType is the request data with constructor function to
+		// ServerConvert is the request data with constructor function to
 		// initialize the method payload type from the generated payload type in
 		// *.pb.go.
-		ServerType *TypeData
-		// ClientType is the request data with constructor function to
+		ServerConvert *ConvertData
+		// ClientConvert is the request data with constructor function to
 		// initialize the generated payload type in *.pb.go from the
 		// method payload.
-		ClientType *TypeData
-		// PayloadAttr sets the request message from the specified payload type
-		// attribute. This field is set when the design uses Message("name") syntax
-		// to set the request message and the payload type is an object.
-		PayloadAttr string
+		ClientConvert *ConvertData
+		// CLIArgs is the list of arguments for the command-line client.
+		// This is set only for the client side.
+		CLIArgs []*InitArgData
 	}
 
 	// ResponseData describes a gRPC success or error response.
@@ -205,39 +184,38 @@ type (
 		StatusCode string
 		// Description is the response description.
 		Description string
-		// Message is the gRPC response message. It is used in generating
-		// .proto file.
-		Message *MessageData
+		// Message is the gRPC response message.
+		Message *service.UserTypeData
 		// Headers is the response header metadata.
 		Headers []*MetadataData
 		// Trailers is the response trailer metadata.
 		Trailers []*MetadataData
-		// ServerType is the type data with constructor function to
+		// ServerConvert is the type data with constructor function to
 		// initialize the generated response type in *.pb.go from the
 		// method result type.
-		ServerType *TypeData
-		// ClientType is the type data with constructor function to
+		ServerConvert *ConvertData
+		// ClientConvert is the type data with constructor function to
 		// initialize the method result type from the generated response type in
 		// *.pb.go.
-		ClientType *TypeData
-		// ResultAttr sets the response message from the specified result type
-		// attribute. This field is set when the design uses Message("name") syntax
-		// to set the response message and the result type is an object.
-		ResultAttr string
+		ClientConvert *ConvertData
 	}
 
-	// TypeData contains the request/response data and the constructor function
-	// to initialize the type.
+	// ConvertData contains the data to convert source type to a target type.
 	// For request type, it contains data to transform gRPC request type to the
 	// corresponding payload type (server) and vice versa (client).
 	// For response type, it contains data to transform gRPC response type to the
 	// corresponding result type (client) and vice versa (server).
-	TypeData struct {
-		// Name is the type name.
-		Name string
-		// Ref is the fully qualified reference to the type.
-		Ref string
-		// Init contains the data required to render the constructor if any.
+	ConvertData struct {
+		// SrcName is the fully qualified name of the source type.
+		SrcName string
+		// SrcRef is the fully qualified reference to the source type.
+		SrcRef string
+		// TgtName is the fully qualified name of the target type.
+		TgtName string
+		// TgtRef is the fully qualified reference to the target type.
+		TgtRef string
+		// Init contains the data required to render the constructor if any
+		// to transform the source type to a target type.
 		Init *InitData
 	}
 
@@ -249,9 +227,6 @@ type (
 		Description string
 		// Args is the list of constructor arguments.
 		Args []*InitArgData
-		// CLIArgs is the list of arguments for the command-line client.
-		// This is set only for the client side.
-		CLIArgs []*InitArgData
 		// ReturnVarName is the name of the variable to be returned.
 		ReturnVarName string
 		// ReturnTypeRef is the qualified (including the package name)
@@ -289,6 +264,36 @@ type (
 		Validate string
 		// Example is a example value
 		Example interface{}
+	}
+
+	// StreamData contains data to render the stream struct type that implements
+	// the service stream interface.
+	StreamData struct {
+		// VarName is the name of the struct type.
+		VarName string
+		// ServiceInterface is the service interface that the struct implements.
+		ServiceInterface string
+		// Interface is the stream interface in *.pb.go stored in the struct.
+		Interface string
+		// SendName is the name of the send function.
+		SendName string
+		// SendDesc is the description for the send function.
+		SendDesc string
+		// SendConvert is the type sent through the stream. It contains the
+		// constructor to convert the service send type to the type expected by
+		// the gRPC send type (in *.pb.go)
+		SendConvert *ConvertData
+		// RecvConvert is the type received through the stream. It contains the
+		// constructor to convert the gRPC type (in *.pb.go) to the service receive
+		// type.
+		RecvConvert *ConvertData
+		// RecvName is the name of the receive function.
+		RecvName string
+		// RecvDesc is the description for the recv function.
+		RecvDesc string
+		// MustClose indicates whether to generate the Close() function
+		// for the stream.
+		MustClose bool
 	}
 )
 
@@ -347,114 +352,28 @@ func (d ServicesData) analyze(gs *expr.GRPCServiceExpr) *ServiceData {
 		seen = make(map[string]struct{})
 	}
 	for _, e := range gs.GRPCEndpoints {
-		// Make request message to a user type
-		if _, ok := e.Request.Type.(expr.UserType); !ok {
-			e.Request.Type = &expr.UserTypeExpr{
-				AttributeExpr: wrapAttr(e.Request),
-				TypeName:      fmt.Sprintf("%sRequest", protoBufify(e.Name(), true)),
-			}
-		} else if e.Request.Type == expr.Empty {
-			// empty type should still generate a message. Rename the type to have
-			// the endpoint name suffixed with Request.
-			e.Request.Type = &expr.UserTypeExpr{
-				AttributeExpr: &expr.AttributeExpr{Type: &expr.Object{}},
-				TypeName:      fmt.Sprintf("%sRequest", protoBufify(e.Name(), true)),
-			}
+		en := protoBufify(e.Name(), true)
+		makeProtoBufMessage(e.Request, en+"Request", svc.Scope)
+		if e.MethodExpr.StreamingPayload.Type != expr.Empty {
+			makeProtoBufMessage(e.StreamingRequest, en+"StreamingRequest", svc.Scope)
 		}
-
-		// Make response message to a user type
-		if _, ok := e.Response.Message.Type.(expr.UserType); !ok {
-			e.Response.Message.Type = &expr.UserTypeExpr{
-				AttributeExpr: wrapAttr(e.Response.Message),
-				TypeName:      fmt.Sprintf("%sResponse", protoBufify(e.Name(), true)),
-			}
-		} else if e.Response.Message.Type == expr.Empty {
-			// empty type should still generate a message. Rename the type to have
-			// the endpoint name suffixed with Response.
-			e.Response.Message.Type = &expr.UserTypeExpr{
-				AttributeExpr: &expr.AttributeExpr{Type: &expr.Object{}},
-				TypeName:      fmt.Sprintf("%sResponse", protoBufify(e.Name(), true)),
-			}
-		}
+		makeProtoBufMessage(e.Response.Message, en+"Response", svc.Scope)
 
 		// collect all the nested messages and return the top-level message
-		collect := func(att *expr.AttributeExpr) *MessageData {
-			msgs := collectMessages(att, seen, svc.Scope)
+		collect := func(att *expr.AttributeExpr) *service.UserTypeData {
+			msgs := collectMessages(att, seen, sd)
 			sd.Messages = append(sd.Messages, msgs...)
 			return msgs[0]
 		}
 
 		var (
-			request    *RequestData
-			response   *ResponseData
-			errors     []*ErrorData
 			payloadRef string
 			resultRef  string
-
-			md = svc.Method(e.Name())
+			errors     []*ErrorData
 		)
 		{
-			request = &RequestData{
-				Message:     collect(e.Request),
-				Description: e.Request.Description,
-				ServerType:  buildRequestTypeData(e, sd, true),
-				ClientType:  buildRequestTypeData(e, sd, false),
-				Metadata:    extractMetadata(e.Metadata, e.MethodExpr.Payload, svc.Scope),
-			}
-			// pass the metadata as arguments to payload constructor in server
-			// and also in the client CLI args
-			for _, m := range request.Metadata {
-				arg := &InitArgData{
-					Name:      m.VarName,
-					Ref:       m.VarName,
-					FieldName: m.FieldName,
-					TypeName:  m.TypeName,
-					TypeRef:   m.TypeRef,
-					Pointer:   m.Pointer,
-					Required:  m.Required,
-					Example:   m.Example,
-				}
-				request.ServerType.Init.Args = append(request.ServerType.Init.Args, arg)
-				request.ClientType.Init.CLIArgs = append(request.ClientType.Init.CLIArgs, arg)
-			}
 			if e.MethodExpr.Payload.Type != expr.Empty {
 				payloadRef = svc.Scope.GoFullTypeRef(e.MethodExpr.Payload, svc.PkgName)
-			}
-
-			response = &ResponseData{
-				Message:     collect(e.Response.Message),
-				StatusCode:  statusCodeToGRPCConst(e.Response.StatusCode),
-				Description: e.Response.Description,
-				ServerType:  buildResponseTypeData(e, sd, true),
-				ClientType:  buildResponseTypeData(e, sd, false),
-				Headers:     extractMetadata(e.Response.Headers, e.MethodExpr.Result, svc.Scope),
-				Trailers:    extractMetadata(e.Response.Trailers, e.MethodExpr.Result, svc.Scope),
-			}
-			// pass header metadata as arguments to result constructor in client
-			for _, m := range response.Headers {
-				response.ClientType.Init.Args = append(response.ClientType.Init.Args, &InitArgData{
-					Name:      m.VarName,
-					Ref:       m.VarName,
-					FieldName: m.FieldName,
-					TypeName:  m.TypeName,
-					TypeRef:   m.TypeRef,
-					Pointer:   m.Pointer,
-					Required:  m.Required,
-					Example:   m.Example,
-				})
-			}
-			// pass trailer metadata as arguments to result constructor in client
-			for _, m := range response.Trailers {
-				response.ClientType.Init.Args = append(response.ClientType.Init.Args, &InitArgData{
-					Name:      m.VarName,
-					Ref:       m.VarName,
-					FieldName: m.FieldName,
-					TypeName:  m.TypeName,
-					TypeRef:   m.TypeRef,
-					Pointer:   m.Pointer,
-					Required:  m.Required,
-					Example:   m.Example,
-				})
 			}
 			if e.MethodExpr.Result.Type != expr.Empty {
 				resultRef = svc.Scope.GoFullTypeRef(e.MethodExpr.Result, svc.PkgName)
@@ -463,8 +382,83 @@ func (d ServicesData) analyze(gs *expr.GRPCServiceExpr) *ServiceData {
 		}
 
 		var (
+			svrStream *StreamData
+			cliStream *StreamData
+		)
+		{
+			if e.MethodExpr.IsStreaming() {
+				svrStream = buildStreamData(e, sd, true)
+				cliStream = buildStreamData(e, sd, false)
+			}
+		}
+
+		var (
+			request *RequestData
+			reqMD   []*MetadataData
+		)
+		{
+			reqMD = extractMetadata(e.Metadata, e.MethodExpr.Payload, svc.Scope)
+			request = &RequestData{
+				Description:   e.Request.Description,
+				Metadata:      reqMD,
+				ServerConvert: buildRequestConvertData(e, reqMD, sd, true),
+				ClientConvert: buildRequestConvertData(e, reqMD, sd, false),
+			}
+			if obj := expr.AsObject(e.Request.Type); len(*obj) > 0 {
+				// add the request message as the first argument to the CLI
+				request.CLIArgs = append(request.CLIArgs, &InitArgData{
+					Name:     "message",
+					Ref:      "message",
+					TypeName: svc.Scope.GoFullTypeName(e.Request, sd.PkgName),
+					TypeRef:  svc.Scope.GoFullTypeRef(e.Request, sd.PkgName),
+				})
+			}
+			// pass the metadata as arguments to client CLI args
+			for _, m := range reqMD {
+				request.CLIArgs = append(request.CLIArgs, &InitArgData{
+					Name:      m.VarName,
+					Ref:       m.VarName,
+					FieldName: m.FieldName,
+					TypeName:  m.TypeName,
+					TypeRef:   m.TypeRef,
+					Pointer:   m.Pointer,
+					Required:  m.Required,
+					Example:   m.Example,
+				})
+			}
+			if e.StreamingRequest.Type != expr.Empty {
+				request.Message = collect(e.StreamingRequest)
+			} else {
+				request.Message = collect(e.Request)
+			}
+		}
+
+		var (
+			response *ResponseData
+			hdrs     []*MetadataData
+			trlrs    []*MetadataData
+		)
+		{
+			hdrs = extractMetadata(e.Response.Headers, e.MethodExpr.Result, svc.Scope)
+			trlrs = extractMetadata(e.Response.Trailers, e.MethodExpr.Result, svc.Scope)
+			response = &ResponseData{
+				StatusCode:    statusCodeToGRPCConst(e.Response.StatusCode),
+				Description:   e.Response.Description,
+				Headers:       hdrs,
+				Trailers:      trlrs,
+				ServerConvert: buildResponseConvertData(e, hdrs, trlrs, sd, true),
+				ClientConvert: buildResponseConvertData(e, hdrs, trlrs, sd, false),
+			}
+			if e.Response.Message.Type != expr.Empty || !e.MethodExpr.IsStreaming() {
+				response.Message = collect(e.Response.Message)
+			}
+		}
+
+		var (
 			msgSch []*service.SchemeData
 			metSch []*service.SchemeData
+
+			md = svc.Method(e.Name())
 		)
 		{
 			for _, req := range e.Requirements {
@@ -483,6 +477,7 @@ func (d ServicesData) analyze(gs *expr.GRPCServiceExpr) *ServiceData {
 		sd.Endpoints = append(sd.Endpoints, &EndpointData{
 			ServiceName:     svc.Name,
 			PkgName:         sd.PkgName,
+			ServicePkgName:  svc.PkgName,
 			Method:          md,
 			PayloadRef:      payloadRef,
 			ResultRef:       resultRef,
@@ -493,53 +488,32 @@ func (d ServicesData) analyze(gs *expr.GRPCServiceExpr) *ServiceData {
 			Errors:          errors,
 			ServerStruct:    sd.ServerStruct,
 			ServerInterface: sd.ServerInterface,
+			ServerStream:    svrStream,
 			ClientStruct:    sd.ClientStruct,
 			ClientInterface: sd.ClientInterface,
+			ClientStream:    cliStream,
 		})
 	}
 	return sd
 }
 
-// wrapAttr wraps the given attribute into an attribute named "field" if
-// the given attribute is a non-object type. For a raw object type it simply
-// returns a dupped attribute.
-func wrapAttr(att *expr.AttributeExpr) *expr.AttributeExpr {
-	var attr *expr.AttributeExpr
-	switch actual := att.Type.(type) {
-	case expr.Primitive, *expr.Array, *expr.Map:
-		attr = &expr.AttributeExpr{
-			Type: &expr.Object{
-				&expr.NamedAttributeExpr{
-					Name: "field",
-					Attribute: &expr.AttributeExpr{
-						Type: actual,
-						Meta: expr.MetaExpr{"rpc:tag": []string{"1"}},
-					},
-				},
-			},
-		}
-	case *expr.Object:
-		attr = expr.DupAtt(att)
-	}
-	return attr
-}
-
 // collectMessages recurses through the attribute to gather all the messages.
-func collectMessages(at *expr.AttributeExpr, seen map[string]struct{}, scope *codegen.NameScope) (data []*MessageData) {
+func collectMessages(at *expr.AttributeExpr, seen map[string]struct{}, sd *ServiceData) (data []*service.UserTypeData) {
 	if at == nil {
 		return
 	}
-	collect := func(at *expr.AttributeExpr) []*MessageData { return collectMessages(at, seen, scope) }
+	collect := func(at *expr.AttributeExpr) []*service.UserTypeData { return collectMessages(at, seen, sd) }
 	switch dt := at.Type.(type) {
 	case expr.UserType:
 		if _, ok := seen[dt.Name()]; ok {
 			return nil
 		}
-		data = append(data, &MessageData{
+		data = append(data, &service.UserTypeData{
 			Name:        dt.Name(),
-			VarName:     protoBufMessageName(at, scope),
+			VarName:     protoBufMessageName(at, sd.Service.Scope),
 			Description: dt.Attribute().Description,
-			Def:         protoBufMessageDef(dt.Attribute(), scope),
+			Def:         protoBufMessageDef(dt.Attribute(), sd.Service.Scope),
+			Ref:         protoBufGoFullTypeRef(at, sd.PkgName, sd.Service.Scope),
 			Type:        dt,
 		})
 		seen[dt.Name()] = struct{}{}
@@ -549,228 +523,226 @@ func collectMessages(at *expr.AttributeExpr, seen map[string]struct{}, scope *co
 			data = append(data, collect(nat.Attribute)...)
 		}
 	case *expr.Array:
-		switch dt.ElemType.Type.(type) {
-		case *expr.Array, *expr.Map:
-			// nested array/map. Generate a message for the inner array/map.
-			ut := &expr.UserTypeExpr{
-				AttributeExpr: wrapAttr(dt.ElemType),
-				TypeName:      innerTypeName(dt.ElemType, scope),
-			}
-			data = append(data, collect(&expr.AttributeExpr{Type: ut})...)
-		default:
-			data = append(data, collect(dt.ElemType)...)
-		}
+		data = append(data, collect(dt.ElemType)...)
 	case *expr.Map:
 		data = append(data, collect(dt.KeyType)...)
-		switch dt.ElemType.Type.(type) {
-		case *expr.Array, *expr.Map:
-			// nested array/map. Generate a message for the inner array/map.
-			ut := &expr.UserTypeExpr{
-				AttributeExpr: wrapAttr(dt.ElemType),
-				TypeName:      innerTypeName(dt.ElemType, scope),
-			}
-			data = append(data, collect(&expr.AttributeExpr{Type: ut})...)
-		default:
-			data = append(data, collect(dt.ElemType)...)
-		}
+		data = append(data, collect(dt.ElemType)...)
 	}
 	return
 }
 
-// buildRequestTypeData builds the type data and the constructor function
-// for the server and client packages. It assumes that the gRPC request type
-// is not nil.
-//	* server side - initializes method payload type from the generated gRPC
-//									request type in *.pb.go and the gRPC metadata.
-//	* client side - initializes generated gRPC request type in *.pb.go from
-//									the method payload.
+// buildRequestConvertData builds the convert data for the server and client
+// requests.
+//	* server side - converts generated gRPC request type in *.pb.go and the
+//									gRPC metadata to method payload type.
+//	* client side - converts method payload type to  generated gRPC request
+//									type in *.pb.go.
 //
-// svr param indicates that the type data is generated for server side.
-func buildRequestTypeData(e *expr.GRPCEndpointExpr, sd *ServiceData, svr bool) *TypeData {
-	buildInitFn := func(e *expr.GRPCEndpointExpr, sd *ServiceData, svr bool) *InitData {
-		if (svr && !needInit(e.MethodExpr.Payload.Type)) ||
-			(!svr && e.MethodExpr.Payload.Type == expr.Empty) {
-			return nil
-		}
-		var (
-			name     string
-			desc     string
-			code     string
-			retRef   string
-			args     []*InitArgData
-			srcVar   string
-			srcPkg   string
-			tgtPkg   string
-			srcAtt   *expr.AttributeExpr
-			tgtAtt   *expr.AttributeExpr
-			cliArgs  []*InitArgData
-			isStruct bool
-
-			svc    = sd.Service
-			tgtVar = "v"
-		)
-		{
-			if svr {
-				name = "New" + svc.Scope.GoTypeName(e.MethodExpr.Payload)
-				desc = fmt.Sprintf("%s builds the payload of the %q endpoint of the %q service from the gRPC request type.", name, e.Name(), svc.Name)
-				srcAtt = e.Request
-				tgtAtt = e.MethodExpr.Payload
-				srcVar = "message"
-				srcPkg = sd.PkgName
-				tgtPkg = svc.PkgName
-				retRef = svc.Scope.GoFullTypeRef(e.MethodExpr.Payload, svc.PkgName)
-			} else {
-				name = "New" + svc.Scope.GoTypeName(e.Request)
-				desc = fmt.Sprintf("%s builds the gRPC request type from the payload of the %q endpoint of the %q service.", name, e.Name(), svc.Name)
-				srcAtt = e.MethodExpr.Payload
-				tgtAtt = e.Request
-				srcVar = "p"
-				srcPkg = svc.PkgName
-				tgtPkg = sd.PkgName
-				retRef = protoBufGoFullTypeRef(e.Request, sd.PkgName, svc.Scope)
-			}
-			isStruct = expr.IsObject(tgtAtt.Type)
-			code = protoBufTypeTransformHelper(srcAtt, tgtAtt, srcVar, tgtVar, srcPkg, tgtPkg, !svr, sd)
-			args = []*InitArgData{
-				&InitArgData{
-					Name:     srcVar,
-					Ref:      srcVar,
-					TypeName: svc.Scope.GoFullTypeName(srcAtt, srcPkg),
-					TypeRef:  svc.Scope.GoFullTypeRef(srcAtt, srcPkg),
-					Example:  srcAtt.Example(expr.Root.API.Random()),
-				},
-			}
-			if !svr {
-				// add the request message as the first argument to the CLI
-				cliArgs = []*InitArgData{}
-				if obj := expr.AsObject(e.Request.Type); len(*obj) > 0 {
-					cliArgs = append(cliArgs, &InitArgData{
-						Name:     "message",
-						Ref:      "message",
-						TypeName: svc.Scope.GoFullTypeName(e.Request, sd.PkgName),
-						TypeRef:  svc.Scope.GoFullTypeRef(e.Request, sd.PkgName),
-						Example:  e.Request.Example(expr.Root.API.Random()),
-					})
-				}
-			}
-		}
-		return &InitData{
-			Name:           name,
-			Description:    desc,
-			ReturnVarName:  tgtVar,
-			ReturnTypeRef:  retRef,
-			ReturnIsStruct: isStruct,
-			Code:           code,
-			Args:           args,
-			CLIArgs:        cliArgs,
-		}
+// svr param indicates that the convert data is generated for server side.
+func buildRequestConvertData(e *expr.GRPCEndpointExpr, md []*MetadataData, sd *ServiceData, svr bool) *ConvertData {
+	if len(*expr.AsObject(e.Request.Type)) == 0 && len(md) == 0 && e.MethodExpr.IsStreaming() {
+		// No need to initialize empty request type for streaming endpoints.
+		// For unary endpoints, we must initialize request type even if empty so
+		// that we can generate server-side methods to satisfy the gRPC server
+		// interface.
+		return nil
 	}
 
+	if (svr && !needInit(e.MethodExpr.Payload.Type)) ||
+		(!svr && e.MethodExpr.IsPayloadStreaming()) {
+		return nil
+	}
 	var (
-		name string
-		ref  string
+		td *ConvertData
 
 		svc = sd.Service
 	)
 	{
-		name = protoBufMessageName(e.Request, svc.Scope)
-		ref = protoBufGoFullTypeRef(e.Request, sd.PkgName, svc.Scope)
+		if svr {
+			fn := func(data *InitData) *InitData {
+				data.Description = fmt.Sprintf("%s builds the payload of the %q endpoint of the %q service from the gRPC request type.", data.Name, e.Name(), svc.Name)
+				if e.MethodExpr.StreamingPayload.Type != expr.Empty {
+					// If payload streaming, remove the unary message type from the list
+					// of constructor args
+					data.Args = []*InitArgData{}
+				}
+				for _, m := range md {
+					// pass the metadata as arguments to payload constructor in server
+					data.Args = append(data.Args, &InitArgData{
+						Name:      m.VarName,
+						Ref:       m.VarName,
+						FieldName: m.FieldName,
+						TypeName:  m.TypeName,
+						TypeRef:   m.TypeRef,
+						Pointer:   m.Pointer,
+						Required:  m.Required,
+						Example:   m.Example,
+					})
+				}
+				return data
+			}
+			td = buildConvertData(e.Request, e.MethodExpr.Payload, "message", "v", sd.PkgName, svc.PkgName, false, sd, fn)
+		} else {
+			fn := func(data *InitData) *InitData {
+				data.Description = fmt.Sprintf("%s builds the gRPC request type from the payload of the %q endpoint of the %q service.", data.Name, e.Name(), svc.Name)
+				if e.MethodExpr.StreamingPayload.Type != expr.Empty {
+					// If payload streaming, remove the unary message type from the list
+					// of constructor args
+					data.Args = []*InitArgData{}
+				}
+				return data
+			}
+			td = buildConvertData(e.MethodExpr.Payload, e.Request, "p", "v", svc.PkgName, sd.PkgName, true, sd, fn)
+		}
 	}
-	return &TypeData{
-		Name: name,
-		Ref:  ref,
-		Init: buildInitFn(e, sd, svr),
-	}
+	return td
 }
 
-// buildResponseTypeData builds the type data and the constructor function
-// for the server and client packages. It assumes that the gRPC response type
-// is not nil.
-//	* server side - initializes generated gRPC response type in *.pb.go from
-//									the method result type.
-//	* client side - initializes method result type from the generated gRPC
-//									response type in *.pb.go and response metadata.
+// buildResponseConvertData builds the convert data for the server and client
+// responses.
+//	* server side - converts method result type to generated gRPC response type
+//									in *.pb.go
+//	* client side - converts generated gRPC response type in *.pb.go and
+//									response metadata to method result type.
 //
-// svr param indicates that the type data is generated for server side.
-func buildResponseTypeData(e *expr.GRPCEndpointExpr, sd *ServiceData, svr bool) *TypeData {
-	buildInitFn := func(e *expr.GRPCEndpointExpr, sd *ServiceData, svr bool) *InitData {
-		if (svr && e.MethodExpr.Result.Type == expr.Empty) ||
-			(!svr && !needInit(e.MethodExpr.Result.Type)) {
-			return nil
+// svr param indicates that the convert data is generated for server side.
+func buildResponseConvertData(e *expr.GRPCEndpointExpr, hdrs, trlrs []*MetadataData, sd *ServiceData, svr bool) *ConvertData {
+	if e.MethodExpr.IsStreaming() ||
+		// No need to initialize response type for streaming endpoints.
+		// For unary endpoints, we must initialize response type even if empty so
+		// that we can generate server-side methods to satisfy the gRPC server
+		// interface.
+		(!svr && !needInit(e.MethodExpr.Result.Type)) ||
+		(svr && e.MethodExpr.Result.Type == expr.Empty) {
+		return nil
+	}
+	var (
+		td *ConvertData
+
+		svc = sd.Service
+	)
+	{
+		if svr {
+			fn := func(data *InitData) *InitData {
+				data.Description = fmt.Sprintf("%s builds the gRPC response type from the result of the %q endpoint of the %q service.", data.Name, e.Name(), svc.Name)
+				return data
+			}
+			td = buildConvertData(e.MethodExpr.Result, e.Response.Message, "res", "v", svc.PkgName, sd.PkgName, true, sd, fn)
+		} else {
+			fn := func(data *InitData) *InitData {
+				data.Description = fmt.Sprintf("%s builds the result type of the %q endpoint of the %q service from the gRPC response type.", data.Name, e.Name(), svc.Name)
+				// pass header metadata as arguments to result constructor in client
+				for _, m := range hdrs {
+					data.Args = append(data.Args, &InitArgData{
+						Name:      m.VarName,
+						Ref:       m.VarName,
+						FieldName: m.FieldName,
+						TypeName:  m.TypeName,
+						TypeRef:   m.TypeRef,
+						Pointer:   m.Pointer,
+						Required:  m.Required,
+						Example:   m.Example,
+					})
+				}
+				// pass trailer metadata as arguments to result constructor in client
+				for _, m := range trlrs {
+					data.Args = append(data.Args, &InitArgData{
+						Name:      m.VarName,
+						Ref:       m.VarName,
+						FieldName: m.FieldName,
+						TypeName:  m.TypeName,
+						TypeRef:   m.TypeRef,
+						Pointer:   m.Pointer,
+						Required:  m.Required,
+						Example:   m.Example,
+					})
+				}
+				return data
+			}
+			td = buildConvertData(e.Response.Message, e.MethodExpr.Result, "resp", "v", sd.PkgName, svc.PkgName, false, sd, fn)
+		}
+	}
+	return td
+}
+
+// buildConvertData builds the ConvertData to convert src to tgt.
+//
+// src, tgt are the source and target attributes.
+// srcVar, tgtVar are the source and target variable names.
+// srcPkg, tgtPkg are the source and target package names.
+// proto indicates whether the target type is a protocol buffer type.
+// sd is the ServiceData
+// fn is a function to further configure the constructor InitData (for adding
+// metadata as args and CLI args)
+func buildConvertData(src, tgt *expr.AttributeExpr, srcVar, tgtVar, srcPkg, tgtPkg string, proto bool, sd *ServiceData, fn func(*InitData) *InitData) *ConvertData {
+	var (
+		data    *InitData
+		srcName string
+		srcRef  string
+		tgtName string
+		tgtRef  string
+
+		svc = sd.Service
+	)
+	{
+		srcName = protoBufGoFullTypeName(src, srcPkg, svc.Scope)
+		srcRef = protoBufGoFullTypeRef(src, srcPkg, svc.Scope)
+		tgtName = svc.Scope.GoFullTypeName(tgt, tgtPkg)
+		tgtRef = svc.Scope.GoFullTypeRef(tgt, tgtPkg)
+		if proto {
+			srcName = svc.Scope.GoFullTypeName(src, srcPkg)
+			srcRef = svc.Scope.GoFullTypeRef(src, srcPkg)
+			tgtName = protoBufGoFullTypeName(tgt, tgtPkg, svc.Scope)
+			tgtRef = protoBufGoFullTypeRef(tgt, tgtPkg, svc.Scope)
 		}
 		var (
-			name   string
-			desc   string
-			code   string
-			retRef string
-			args   []*InitArgData
-			srcVar string
-			srcPkg string
-			tgtPkg string
-			srcAtt *expr.AttributeExpr
-			tgtAtt *expr.AttributeExpr
-
-			svc    = sd.Service
-			tgtVar = "v"
+			name     string
+			isStruct bool
+			code     string
+			helpers  []*codegen.TransformFunctionData
+			args     []*InitArgData
+			err      error
 		)
 		{
-			if svr {
-				name = "New" + svc.Scope.GoTypeName(e.Response.Message)
-				desc = fmt.Sprintf("%s builds the gRPC response type from the result of the %q endpoint of the %q service.", name, e.Name(), svc.Name)
-				srcVar = "res"
-				srcAtt = e.MethodExpr.Result
-				tgtAtt = e.Response.Message
-				srcPkg = svc.PkgName
-				tgtPkg = sd.PkgName
-				retRef = protoBufGoFullTypeRef(e.Response.Message, sd.PkgName, svc.Scope)
-			} else {
-				name = "New" + svc.Scope.GoTypeName(e.MethodExpr.Result)
-				desc = fmt.Sprintf("%s builds the result type of the %q endpoint of the %q service from the gRPC response type.", name, e.Name(), svc.Name)
-				srcVar = "resp"
-				srcAtt = e.Response.Message
-				tgtAtt = e.MethodExpr.Result
-				srcPkg = sd.PkgName
-				tgtPkg = svc.PkgName
-				retRef = svc.Scope.GoFullTypeRef(e.MethodExpr.Result, svc.PkgName)
+			n := svc.Scope.GoTypeName(tgt)
+			if expr.IsPrimitive(tgt.Type) {
+				n = svc.Scope.GoTypeName(src)
 			}
-			code = protoBufTypeTransformHelper(srcAtt, tgtAtt, srcVar, tgtVar, srcPkg, tgtPkg, svr, sd)
+			name = "New" + n
+			isStruct = expr.IsObject(tgt.Type)
+			code, helpers, err = protoBufTypeTransform(src.Type, tgt.Type, srcVar, tgtVar, srcPkg, tgtPkg, proto, svc.Scope)
+			if err != nil {
+				fmt.Println(err.Error()) // TBD validate DSL so errors are not possible
+				return nil
+			}
+			sd.TransformHelpers = codegen.AppendHelpers(sd.TransformHelpers, helpers)
 			args = []*InitArgData{
 				&InitArgData{
 					Name:     srcVar,
 					Ref:      srcVar,
-					TypeName: svc.Scope.GoTypeName(srcAtt),
-					TypeRef:  svc.Scope.GoFullTypeRef(srcAtt, srcPkg),
-					Example:  srcAtt.Example(expr.Root.API.Random()),
+					TypeName: srcName,
+					TypeRef:  srcRef,
 				},
 			}
 		}
-		return &InitData{
-			Name:          name,
-			Description:   desc,
-			ReturnVarName: tgtVar,
-			ReturnTypeRef: retRef,
-			Code:          code,
-			Args:          args,
+		data = &InitData{
+			Name:           name,
+			ReturnVarName:  tgtVar,
+			ReturnTypeRef:  tgtRef,
+			ReturnIsStruct: isStruct,
+			Code:           code,
+			Args:           args,
+		}
+		if data != nil && fn != nil {
+			data = fn(data)
 		}
 	}
-
-	var (
-		name string
-		ref  string
-
-		svc = sd.Service
-	)
-	if svr {
-		name = protoBufMessageName(e.Response.Message, svc.Scope)
-		ref = protoBufGoFullTypeRef(e.Response.Message, sd.PkgName, svc.Scope)
-	} else {
-		name = svc.Scope.GoTypeName(e.MethodExpr.Result)
-		ref = svc.Scope.GoFullTypeRef(e.MethodExpr.Result, svc.PkgName)
-	}
-	return &TypeData{
-		Name: name,
-		Ref:  ref,
-		Init: buildInitFn(e, sd, svr),
+	return &ConvertData{
+		SrcName: srcName,
+		SrcRef:  srcRef,
+		TgtName: tgtName,
+		TgtRef:  tgtRef,
+		Init:    data,
 	}
 }
 
@@ -801,40 +773,72 @@ func buildErrorsData(e *expr.GRPCEndpointExpr, sd *ServiceData) []*ErrorData {
 	return errors
 }
 
-// protoBufTypeTransformHelper is a helper function to transform a protocol
-// buffer message type to a Go type and vice versa. If src and tgt are of
-// different types (i.e. the Payload/Result is a non-user type and
-// Request/Response message is always a user type), the function returns the
-// code for initializing the types appropriately by making use of the wrapped
-// "field" attribute. Use this function in places where
-// protoBufTypeTransform needs to be called.
-func protoBufTypeTransformHelper(src, tgt *expr.AttributeExpr, srcVar, tgtVar, srcPkg, tgtPkg string, proto bool, sd *ServiceData) string {
+// buildStreamData builds the StreamData for the server and client streams.
+//
+// svr param indicates that the stream data is built for the server.
+func buildStreamData(e *expr.GRPCEndpointExpr, sd *ServiceData, svr bool) *StreamData {
 	var (
-		code string
-		err  error
-		h    []*codegen.TransformFunctionData
+		varn      string
+		intName   string
+		svcInt    string
+		sendName  string
+		sendDesc  string
+		sendType  *ConvertData
+		recvName  string
+		recvDesc  string
+		recvType  *ConvertData
+		mustClose bool
 
 		svc = sd.Service
+		md  = svc.Method(e.Name())
 	)
-	if e := isCompatible(src.Type, tgt.Type, srcVar, tgtVar); e == nil {
-		code, h, err = protoBufTypeTransform(src.Type, tgt.Type, srcVar, tgtVar, srcPkg, tgtPkg, proto, svc.Scope)
-		if err != nil {
-			fmt.Println(err.Error()) // TBD validate DSL so errors are not possible
-			return ""
+	{
+		if svr {
+			varn = md.ServerStream.VarName
+			intName = fmt.Sprintf("%s.%s_%sServer", sd.PkgName, svc.StructName, md.VarName)
+			svcInt = fmt.Sprintf("%s.%s", svc.PkgName, md.ServerStream.Interface)
+			if e.MethodExpr.Result.Type != expr.Empty {
+				sendName = md.ServerStream.SendName
+				sendType = buildConvertData(e.MethodExpr.Result, e.Response.Message, "res", "v", svc.PkgName, sd.PkgName, true, sd, nil)
+			}
+			if e.MethodExpr.StreamingPayload.Type != expr.Empty {
+				recvName = md.ServerStream.RecvName
+				recvType = buildConvertData(e.StreamingRequest, e.MethodExpr.StreamingPayload, "v", "p", sd.PkgName, svc.PkgName, false, sd, nil)
+			}
+			mustClose = md.ServerStream.MustClose
+		} else {
+			varn = md.ClientStream.VarName
+			intName = fmt.Sprintf("%s.%s_%sClient", sd.PkgName, svc.StructName, md.VarName)
+			svcInt = fmt.Sprintf("%s.%s", svc.PkgName, md.ClientStream.Interface)
+			if e.MethodExpr.StreamingPayload.Type != expr.Empty {
+				sendName = md.ClientStream.SendName
+				sendType = buildConvertData(e.MethodExpr.StreamingPayload, e.StreamingRequest, "res", "v", svc.PkgName, sd.PkgName, true, sd, nil)
+			}
+			if e.MethodExpr.Result.Type != expr.Empty {
+				recvName = md.ClientStream.RecvName
+				recvType = buildConvertData(e.Response.Message, e.MethodExpr.Result, "v", "res", sd.PkgName, svc.PkgName, false, sd, nil)
+			}
+			mustClose = md.ClientStream.MustClose
 		}
-		sd.TransformHelpers = codegen.AppendHelpers(sd.TransformHelpers, h)
-		return code
+		if sendType != nil {
+			sendDesc = fmt.Sprintf("%s streams instances of %q to the %q endpoint gRPC stream.", sendName, sendType.SrcName, md.Name)
+		}
+		if recvType != nil {
+			recvDesc = fmt.Sprintf("%s reads instances of %q from the %q endpoint gRPC stream.", recvName, recvType.SrcName, md.Name)
+		}
 	}
-	if proto {
-		// tgt is a protocol buffer message type. src type is wrapped in an
-		// attribute called "field" in tgt.
-		pbType := protoBufFullMessageName(tgt, tgtPkg, svc.Scope)
-		code = fmt.Sprintf("%s := &%s{\nField: %s,\n}", tgtVar, pbType, typeConvert(srcVar, src.Type, tgt.Type, proto))
-	} else {
-		// tgt is a Go type. src is a protocol buffer message type.
-		code = fmt.Sprintf("%s := %s\n", tgtVar, typeConvert(srcVar+".Field", src.Type, tgt.Type, proto))
+	return &StreamData{
+		VarName:          varn,
+		Interface:        intName,
+		ServiceInterface: svcInt,
+		SendName:         sendName,
+		SendDesc:         sendDesc,
+		SendConvert:      sendType,
+		RecvName:         recvName,
+		RecvDesc:         recvDesc,
+		RecvConvert:      recvType,
+		MustClose:        mustClose,
 	}
-	return code
 }
 
 // extractMetadata collects the request/response metadata from the given
@@ -888,24 +892,8 @@ func needInit(dt expr.DataType) bool {
 	if dt == expr.Empty {
 		return false
 	}
-	switch actual := dt.(type) {
-	case expr.Primitive:
+	if o := expr.AsObject(dt); o != nil && len(*o) == 0 {
 		return false
-	case *expr.Array:
-		return needInit(actual.ElemType.Type)
-	case *expr.Map:
-		return needInit(actual.KeyType.Type) ||
-			needInit(actual.ElemType.Type)
-	case *expr.Object:
-		for _, nat := range *actual {
-			if needInit(nat.Attribute.Type) {
-				return true
-			}
-		}
-		return false
-	case expr.UserType:
-		return true
-	default:
-		panic(fmt.Sprintf("unknown data type %T", actual)) // bug
 	}
+	return true
 }

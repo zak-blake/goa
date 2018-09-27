@@ -561,9 +561,6 @@ type (
 		MustClose bool
 		// PkgName is the service package name.
 		PkgName string
-		// Kind is the kind of the stream (payload, result or
-		// bidirectional).
-		Kind expr.StreamKind
 	}
 )
 
@@ -1689,7 +1686,7 @@ func buildStreamData(ed *EndpointData, e *expr.HTTPEndpointExpr, scheme string, 
 		svrSendTypeRef = ed.Result.Ref
 		svrSendDesc = fmt.Sprintf("%s streams instances of %q to the %q endpoint websocket connection.", md.ServerStream.SendName, svrSendTypeName, md.Name)
 		cliRecvDesc = fmt.Sprintf("%s reads instances of %q from the %q endpoint websocket connection.", md.ClientStream.RecvName, svrSendTypeName, md.Name)
-		if e.MethodExpr.Stream == expr.ClientStreamKind || e.MethodExpr.Stream == expr.BidirectionalStreamKind {
+		if e.MethodExpr.IsPayloadStreaming() {
 			svrRecvTypeName = svc.Scope.GoFullTypeName(e.MethodExpr.StreamingPayload, svc.PkgName)
 			svrRecvTypeRef = svc.Scope.GoFullTypeRef(e.MethodExpr.StreamingPayload, svc.PkgName)
 			svrPayload = buildRequestBodyType(sd, e, e.StreamingBody, e.MethodExpr.StreamingPayload, true, svc.PkgName)
@@ -1786,7 +1783,6 @@ func buildStreamData(ed *EndpointData, e *expr.HTTPEndpointExpr, scheme string, 
 		PkgName:      svc.PkgName,
 		Scheme:       scheme,
 		Type:         "server",
-		Kind:         md.ServerStream.Kind,
 		SendName:     md.ServerStream.SendName,
 		SendDesc:     svrSendDesc,
 		SendTypeName: svrSendTypeName,
@@ -1806,7 +1802,6 @@ func buildStreamData(ed *EndpointData, e *expr.HTTPEndpointExpr, scheme string, 
 		PkgName:      svc.PkgName,
 		Scheme:       scheme,
 		Type:         "client",
-		Kind:         md.ClientStream.Kind,
 		SendName:     md.ClientStream.SendName,
 		SendDesc:     cliSendDesc,
 		SendTypeName: svrRecvTypeName,
@@ -2434,7 +2429,7 @@ const (
 	return req, nil`
 
 	// streamStructTypeT renders the server and client struct types that
-	// implements the client and server stream interfaces. The data to render
+	// implements the client and server stream interfaces.
 	// input: StreamData
 	streamStructTypeT = `{{ printf "%s implements the %s interface." .VarName .Interface | comment }}
 type {{ .VarName }} struct {

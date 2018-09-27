@@ -102,6 +102,19 @@ message RecursiveT {
 }
 `
 
+const MessageResultTypeCollectionCode = `
+message MethodMessageUserTypeWithNestedUserTypesRequest {
+}
+
+message RTCollection {
+	repeated RT field = 1;
+}
+
+message RT {
+	sint32 int_field = 1;
+}
+`
+
 const MessageArrayCode = `
 message MethodMessageArrayRequest {
 	repeated uint32 array_of_primitives = 1;

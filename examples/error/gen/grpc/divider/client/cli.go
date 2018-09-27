@@ -18,14 +18,14 @@ import (
 
 // BuildIntegerDividePayload builds the payload for the divider integer_divide
 // endpoint from CLI flags.
-func BuildIntegerDividePayload(dividerIntegerDivideP string) (*dividersvc.IntOperands, error) {
+func BuildIntegerDividePayload(dividerIntegerDivideMessage string) (*dividersvc.IntOperands, error) {
 	var err error
-	var p dividerpb.IntOperands
+	var message dividerpb.IntegerDivideRequest
 	{
-		if dividerIntegerDivideP != "" {
-			err = json.Unmarshal([]byte(dividerIntegerDivideP), &p)
+		if dividerIntegerDivideMessage != "" {
+			err = json.Unmarshal([]byte(dividerIntegerDivideMessage), &message)
 			if err != nil {
-				return nil, fmt.Errorf("invalid JSON for p, example of valid JSON:\n%s", "'{\n      \"a\": 1956314822264574800,\n      \"b\": 9076451438121458831\n   }'")
+				return nil, fmt.Errorf("invalid JSON for message, example of valid JSON:\n%s", "null")
 			}
 		}
 	}
@@ -33,22 +33,22 @@ func BuildIntegerDividePayload(dividerIntegerDivideP string) (*dividersvc.IntOpe
 		return nil, err
 	}
 	v := &dividersvc.IntOperands{
-		A: int(p.A),
-		B: int(p.B),
+		A: int(message.A),
+		B: int(message.B),
 	}
 	return v, nil
 }
 
 // BuildDividePayload builds the payload for the divider divide endpoint from
 // CLI flags.
-func BuildDividePayload(dividerDivideP string) (*dividersvc.FloatOperands, error) {
+func BuildDividePayload(dividerDivideMessage string) (*dividersvc.FloatOperands, error) {
 	var err error
-	var p dividerpb.FloatOperands
+	var message dividerpb.DivideRequest
 	{
-		if dividerDivideP != "" {
-			err = json.Unmarshal([]byte(dividerDivideP), &p)
+		if dividerDivideMessage != "" {
+			err = json.Unmarshal([]byte(dividerDivideMessage), &message)
 			if err != nil {
-				return nil, fmt.Errorf("invalid JSON for p, example of valid JSON:\n%s", "'{\n      \"a\": 0.858635429996671,\n      \"b\": 0.15144678048841884\n   }'")
+				return nil, fmt.Errorf("invalid JSON for message, example of valid JSON:\n%s", "null")
 			}
 		}
 	}
@@ -56,8 +56,8 @@ func BuildDividePayload(dividerDivideP string) (*dividersvc.FloatOperands, error
 		return nil, err
 	}
 	v := &dividersvc.FloatOperands{
-		A: p.A,
-		B: p.B,
+		A: message.A,
+		B: message.B,
 	}
 	return v, nil
 }

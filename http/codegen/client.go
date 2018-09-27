@@ -98,7 +98,7 @@ func client(genpkg string, svc *expr.HTTPServiceExpr) *codegen.File {
 					},
 				})
 			}
-			switch e.ClientStream.Kind {
+			switch e.Method.StreamKind {
 			case expr.ClientStreamKind, expr.BidirectionalStreamKind:
 				sections = append(sections, &codegen.SectionTemplate{
 					Name:   "client-stream-send",

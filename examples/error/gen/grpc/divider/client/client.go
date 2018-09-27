@@ -40,13 +40,12 @@ func (c *Client) IntegerDivide() goa.Endpoint {
 		if !ok {
 			return nil, goagrpc.ErrInvalidType("divider", "integer_divide", "*dividersvc.IntOperands", v)
 		}
-		req := NewIntOperands(p)
+		ctx, req := EncodeIntegerDivideRequest(ctx, p)
 		resp, err := c.grpccli.IntegerDivide(ctx, req, c.opts...)
 		if err != nil {
 			return nil, err
 		}
-		res := int(resp.Field)
-		return res, nil
+		return DecodeIntegerDivideResponse(ctx, resp)
 	}
 }
 
@@ -57,12 +56,11 @@ func (c *Client) Divide() goa.Endpoint {
 		if !ok {
 			return nil, goagrpc.ErrInvalidType("divider", "divide", "*dividersvc.FloatOperands", v)
 		}
-		req := NewFloatOperands(p)
+		ctx, req := EncodeDivideRequest(ctx, p)
 		resp, err := c.grpccli.Divide(ctx, req, c.opts...)
 		if err != nil {
 			return nil, err
 		}
-		res := resp.Field
-		return res, nil
+		return DecodeDivideResponse(ctx, resp)
 	}
 }

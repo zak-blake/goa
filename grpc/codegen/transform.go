@@ -4,39 +4,16 @@ import (
 	"bytes"
 	"fmt"
 	"strings"
-	"text/template"
 
 	"goa.design/goa/codegen"
 	"goa.design/goa/expr"
 )
 
-var (
-	transformArrayT *template.Template
-	transformMapT   *template.Template
-)
-
-type (
-	// too many args...
-
-	targs struct {
-		sourceVar, targetVar string
-		sourcePkg, targetPkg string
-		proto                bool
-		scope                *codegen.NameScope
-	}
-
-	thargs struct {
-		sourcePkg, targetPkg string
-		proto                bool
-		scope                *codegen.NameScope
-	}
-)
-
-// NOTE: can't initialize inline because https://github.com/golang/go/issues/1817
-func init() {
-	funcMap := template.FuncMap{"transformAttribute": transformAttributeHelper}
-	transformArrayT = template.Must(template.New("transformArray").Funcs(funcMap).Parse(transformArrayTmpl))
-	transformMapT = template.Must(template.New("transformMap").Funcs(funcMap).Parse(transformMapTmpl))
+// protoTransformer implements the codegen.Transformer interface.
+type protoTransformer struct {
+	// proto if true indicates that the target type is a protocol buffer Go type.
+	proto bool
+	scope *codegen.NameScope
 }
 
 // protoBufTypeTransform produces Go code that initializes the data structure
@@ -73,14 +50,14 @@ func protoBufTypeTransform(source, target expr.DataType, sourceVar, targetVar, s
 		tatt = &expr.AttributeExpr{Type: target}
 	)
 
-	a := targs{sourceVar, targetVar, sourcePkg, targetPkg, proto, scope}
-	code, err := transformAttribute(satt, tatt, true, a)
+	p := &protoTransformer{proto: proto, scope: scope}
+
+	code, err := p.TransformAttribute(satt, tatt, sourceVar, targetVar, sourcePkg, targetPkg, true)
 	if err != nil {
 		return "", nil, err
 	}
 
-	b := thargs{sourcePkg, targetPkg, proto, scope}
-	funcs, err := transformAttributeHelpers(source, target, b)
+	funcs, err := p.TransformAttributeHelpers(source, target, sourcePkg, targetPkg)
 	if err != nil {
 		return "", nil, err
 	}
@@ -88,34 +65,160 @@ func protoBufTypeTransform(source, target expr.DataType, sourceVar, targetVar, s
 	return strings.TrimRight(code, "\n"), funcs, nil
 }
 
-// transformAttribute converts source attribute expression to target returning
+// TransformAttribute converts source attribute expression to target returning
 // the conversion code and error (if any). Either source or target is a
 // protocol buffer message type.
-func transformAttribute(source, target *expr.AttributeExpr, newVar bool, a targs) (string, error) {
+func (p *protoTransformer) TransformAttribute(source, target *expr.AttributeExpr, sourceVar, targetVar, sourcePkg, targetPkg string, newVar bool) (string, error) {
 	var (
 		code string
 		err  error
 	)
-	switch {
-	case expr.IsArray(source.Type):
-		code, err = transformArray(expr.AsArray(source.Type), expr.AsArray(target.Type), newVar, a)
-	case expr.IsMap(source.Type):
-		code, err = transformMap(expr.AsMap(source.Type), expr.AsMap(target.Type), newVar, a)
-	case expr.IsObject(source.Type):
-		if code, err = transformObject(source, target, newVar, a); err != nil {
-			return "", err
+	{
+		svcAtt := target
+		if p.proto {
+			svcAtt = source
 		}
-	default:
-		assign := "="
-		if newVar {
-			assign = ":="
+		switch {
+		case expr.IsArray(svcAtt.Type):
+			code, err = p.transformArray(source, target, sourceVar, targetVar, sourcePkg, targetPkg, newVar)
+		case expr.IsMap(svcAtt.Type):
+			code, err = p.transformMap(source, target, sourceVar, targetVar, sourcePkg, targetPkg, newVar)
+		case expr.IsObject(svcAtt.Type):
+			code, err = p.transformObject(source, target, sourceVar, targetVar, sourcePkg, targetPkg, newVar)
+		default:
+			code, err = p.transformPrimitive(source, target, sourceVar, targetVar, sourcePkg, targetPkg, newVar)
 		}
-		code = fmt.Sprintf("%s %s %s\n", a.targetVar, assign, typeConvert(a.sourceVar, source.Type, target.Type, a.proto))
+	}
+	if err != nil {
+		return "", err
 	}
 	return code, nil
 }
 
-func transformObject(source, target *expr.AttributeExpr, newVar bool, a targs) (string, error) {
+func (p *protoTransformer) TransformAttributeHelpers(source, target expr.DataType, sourcePkg, targetPkg string, seen ...map[string]*codegen.TransformFunctionData) ([]*codegen.TransformFunctionData, error) {
+	if err := codegen.IsCompatible(source, target, "p", "res"); err != nil {
+		if p.proto {
+			target = unwrapAttr(&expr.AttributeExpr{Type: target}).Type
+		} else {
+			source = unwrapAttr(&expr.AttributeExpr{Type: source}).Type
+		}
+		if err = codegen.IsCompatible(source, target, "p", "res"); err != nil {
+			return nil, err
+		}
+	}
+	var (
+		helpers []*codegen.TransformFunctionData
+		err     error
+	)
+	// Do not generate a transform function for the top most user type.
+	switch {
+	case expr.IsArray(source):
+		source = expr.AsArray(source).ElemType.Type
+		target = expr.AsArray(target).ElemType.Type
+		helpers, err = p.TransformAttributeHelpers(source, target, sourcePkg, targetPkg, seen...)
+	case expr.IsMap(source):
+		sm := expr.AsMap(source)
+		tm := expr.AsMap(target)
+		source = sm.ElemType.Type
+		target = tm.ElemType.Type
+		helpers, err = p.TransformAttributeHelpers(source, target, sourcePkg, targetPkg, seen...)
+		if err == nil {
+			var other []*codegen.TransformFunctionData
+			source = sm.KeyType.Type
+			target = tm.KeyType.Type
+			other, err = p.TransformAttributeHelpers(source, target, sourcePkg, targetPkg, seen...)
+			helpers = append(helpers, other...)
+		}
+	case expr.IsObject(source):
+		helpers, err = codegen.TransformObjectHelpers(source, target, sourcePkg, targetPkg, p, seen...)
+	}
+	if err != nil {
+		return nil, err
+	}
+	return helpers, nil
+}
+
+func (p *protoTransformer) TransformFunctionData(source, target *expr.AttributeExpr, sourcePkg, targetPkg, code string) *codegen.TransformFunctionData {
+	var pref, resref string
+	{
+		if p.proto {
+			pref = p.scope.GoFullTypeRef(source, sourcePkg)
+			resref = protoBufGoFullTypeRef(target, targetPkg, p.scope)
+		} else {
+			pref = protoBufGoFullTypeRef(source, sourcePkg, p.scope)
+			resref = p.scope.GoFullTypeRef(target, targetPkg)
+		}
+	}
+	return &codegen.TransformFunctionData{
+		Name:          p.Helper(source, target),
+		ParamTypeRef:  pref,
+		ResultTypeRef: resref,
+		Code:          code,
+	}
+}
+
+func (p *protoTransformer) Helper(src, tgt *expr.AttributeExpr) string {
+	var (
+		sname string
+		tname string
+
+		suffix = "ProtoBuf"
+	)
+	{
+		sname = p.scope.GoTypeName(src)
+		if _, ok := src.Meta["goa.external"]; ok {
+			// type belongs to external package so name could clash
+			sname += "Ext"
+		}
+		tname = p.scope.GoTypeName(tgt)
+		if _, ok := tgt.Meta["goa.external"]; ok {
+			// type belongs to external package so name could clash
+			tname += "Ext"
+		}
+		if p.proto {
+			tname += suffix
+		} else {
+			sname += suffix
+		}
+	}
+	return codegen.Goify(sname+"To"+tname, false)
+}
+
+func (p *protoTransformer) transformPrimitive(source, target *expr.AttributeExpr, sourceVar, targetVar, sourcePkg, targetPkg string, newVar bool) (string, error) {
+	var code string
+	if err := codegen.IsCompatible(source.Type, target.Type, sourceVar, targetVar); err != nil {
+		if p.proto {
+			code += fmt.Sprintf("%s := &%s{}\n", targetVar, protoBufGoFullTypeName(target, targetPkg, p.scope))
+			targetVar += ".Field"
+			newVar = false
+			target = unwrapAttr(target)
+		} else {
+			source = unwrapAttr(source)
+			sourceVar += ".Field"
+		}
+		if err = codegen.IsCompatible(source.Type, target.Type, sourceVar, targetVar); err != nil {
+			return "", err
+		}
+	}
+	assign := "="
+	if newVar {
+		assign = ":="
+	}
+	code += fmt.Sprintf("%s %s %s\n", targetVar, assign, typeConvert(sourceVar, source.Type, target.Type, p.proto))
+	return code, nil
+}
+
+func (p *protoTransformer) transformObject(source, target *expr.AttributeExpr, sourceVar, targetVar, sourcePkg, targetPkg string, newVar bool) (string, error) {
+	if err := codegen.IsCompatible(source.Type, target.Type, sourceVar, targetVar); err != nil {
+		if p.proto {
+			target = unwrapAttr(target)
+		} else {
+			source = unwrapAttr(source)
+		}
+		if err = codegen.IsCompatible(source.Type, target.Type, sourceVar, targetVar); err != nil {
+			return "", err
+		}
+	}
 	var (
 		initCode     string
 		postInitCode string
@@ -125,7 +228,7 @@ func transformObject(source, target *expr.AttributeExpr, newVar bool, a targs) (
 	{
 		// iterate through attributes of primitive type first to initialize the
 		// struct
-		walkMatches(source, target, func(src, tgt *expr.MappedAttributeExpr, srcAtt, tgtAtt *expr.AttributeExpr, n string) {
+		codegen.WalkMatches(source, target, func(src, tgt *expr.MappedAttributeExpr, srcAtt, tgtAtt *expr.AttributeExpr, n string) {
 			if !expr.IsPrimitive(srcAtt.Type) {
 				return
 			}
@@ -134,7 +237,7 @@ func transformObject(source, target *expr.AttributeExpr, newVar bool, a targs) (
 				srcPtr, tgtPtr         bool
 			)
 			{
-				if a.proto {
+				if p.proto {
 					srcPtr = source.IsPrimitivePointer(n, true)
 					srcFldName = codegen.Goify(src.ElemName(n), true)
 					// Protocol buffer does not care about common initialisms like
@@ -147,25 +250,25 @@ func transformObject(source, target *expr.AttributeExpr, newVar bool, a targs) (
 				}
 			}
 			deref := ""
-			srcField := a.sourceVar + "." + srcFldName
+			srcField := sourceVar + "." + srcFldName
 			switch {
 			case srcPtr && !tgtPtr:
 				if !source.IsRequired(n) {
 					postInitCode += fmt.Sprintf("if %s != nil {\n\t%s.%s = %s\n}\n",
-						srcField, a.targetVar, tgtFldName, typeConvert("*"+srcField, srcAtt.Type, tgtAtt.Type, a.proto))
+						srcField, targetVar, tgtFldName, typeConvert("*"+srcField, srcAtt.Type, tgtAtt.Type, p.proto))
 					return
 				}
 				deref = "*"
 			case !srcPtr && tgtPtr:
 				deref = "&"
-				if sVar := typeConvert(srcField, srcAtt.Type, tgtAtt.Type, a.proto); sVar != srcField {
+				if sVar := typeConvert(srcField, srcAtt.Type, tgtAtt.Type, p.proto); sVar != srcField {
 					// type cast is required
 					tgtName := codegen.Goify(tgt.ElemName(n), false)
-					postInitCode += fmt.Sprintf("%sptr := %s\n%s.%s = %s%sptr\n", tgtName, sVar, a.targetVar, tgtFldName, deref, tgtName)
+					postInitCode += fmt.Sprintf("%sptr := %s\n%s.%s = %s%sptr\n", tgtName, sVar, targetVar, tgtFldName, deref, tgtName)
 					return
 				}
 			}
-			initCode += fmt.Sprintf("\n%s: %s%s,", tgtFldName, deref, typeConvert(srcField, srcAtt.Type, tgtAtt.Type, a.proto))
+			initCode += fmt.Sprintf("\n%s: %s%s,", tgtFldName, deref, typeConvert(srcField, srcAtt.Type, tgtAtt.Type, p.proto))
 		})
 	}
 	if initCode != "" {
@@ -180,27 +283,26 @@ func transformObject(source, target *expr.AttributeExpr, newVar bool, a targs) (
 	if _, ok := target.Type.(*expr.Object); ok {
 		deref = ""
 	}
-	buffer.WriteString(fmt.Sprintf("%s %s %s%s{%s}\n", a.targetVar, assign, deref,
-		a.scope.GoFullTypeName(target, a.targetPkg), initCode))
+	buffer.WriteString(fmt.Sprintf("%s %s %s%s{%s}\n", targetVar, assign, deref,
+		p.scope.GoFullTypeName(target, targetPkg), initCode))
 	buffer.WriteString(postInitCode)
 
 	var err error
 	{
-		walkMatches(source, target, func(src, tgt *expr.MappedAttributeExpr, srcAtt, tgtAtt *expr.AttributeExpr, n string) {
+		codegen.WalkMatches(source, target, func(src, tgt *expr.MappedAttributeExpr, srcAtt, tgtAtt *expr.AttributeExpr, n string) {
 			var srcFldName, tgtFldName string
 			{
-				if a.proto {
+				if p.proto {
 					srcFldName = codegen.GoifyAtt(srcAtt, src.ElemName(n), true)
 					tgtFldName = protoBufifyAtt(tgtAtt, tgt.ElemName(n), true)
 				} else {
-					srcFldName = codegen.GoifyAtt(srcAtt, src.ElemName(n), true)
-					tgtFldName = protoBufifyAtt(tgtAtt, tgt.ElemName(n), true)
+					srcFldName = protoBufifyAtt(tgtAtt, tgt.ElemName(n), true)
+					tgtFldName = codegen.GoifyAtt(srcAtt, src.ElemName(n), true)
 				}
 			}
-			b := a
-			b.sourceVar = a.sourceVar + "." + srcFldName
-			b.targetVar = a.targetVar + "." + tgtFldName
-			err = isCompatible(srcAtt.Type, tgtAtt.Type, b.sourceVar, b.targetVar)
+			srcVar := sourceVar + "." + srcFldName
+			tgtVar := targetVar + "." + tgtFldName
+			err = codegen.IsCompatible(srcAtt.Type, tgtAtt.Type, srcVar, tgtVar)
 			if err != nil {
 				return
 			}
@@ -212,13 +314,13 @@ func transformObject(source, target *expr.AttributeExpr, newVar bool, a targs) (
 				_, ok := srcAtt.Type.(expr.UserType)
 				switch {
 				case expr.IsArray(srcAtt.Type):
-					code, err = transformArray(expr.AsArray(srcAtt.Type), expr.AsArray(tgtAtt.Type), false, b)
+					code, err = p.transformArray(srcAtt, tgtAtt, srcVar, tgtVar, sourcePkg, targetPkg, false)
 				case expr.IsMap(srcAtt.Type):
-					code, err = transformMap(expr.AsMap(srcAtt.Type), expr.AsMap(tgtAtt.Type), false, b)
+					code, err = p.transformMap(srcAtt, tgtAtt, srcVar, tgtVar, sourcePkg, targetPkg, false)
 				case ok:
-					code = fmt.Sprintf("%s = %s(%s)\n", b.targetVar, transformHelperName(srcAtt, tgtAtt, b), b.sourceVar)
+					code = fmt.Sprintf("%s = %s(%s)\n", tgtVar, p.Helper(srcAtt, tgtAtt), srcVar)
 				case expr.IsObject(srcAtt.Type):
-					code, err = transformAttribute(srcAtt, tgtAtt, false, b)
+					code, err = p.TransformAttribute(srcAtt, tgtAtt, srcVar, tgtVar, sourcePkg, targetPkg, false)
 				}
 				if err != nil {
 					return
@@ -237,45 +339,11 @@ func transformObject(source, target *expr.AttributeExpr, newVar bool, a targs) (
 				// avoid derefencing nil.
 				var checkNil bool
 				{
-					checkNil = !expr.IsPrimitive(srcAtt.Type) && !src.IsRequired(n) || src.IsPrimitivePointer(n, true) && !a.proto
+					checkNil = !expr.IsPrimitive(srcAtt.Type) && !src.IsRequired(n) || src.IsPrimitivePointer(n, true) && !p.proto
 				}
 				if code != "" && checkNil {
-					code = fmt.Sprintf("if %s != nil {\n\t%s}\n", b.sourceVar, code)
+					code = fmt.Sprintf("if %s != nil {\n\t%s}\n", srcVar, code)
 				}
-
-				// Default value handling.
-				//
-				// There are 2 cases: one when generating marshaler code
-				// (a.unmarshal is false) and the other when generating
-				// unmarshaler code (a.unmarshal is true).
-				//
-				// When generating marshaler code we want to be lax and not
-				// assume that required fields are set in case they have a
-				// default value, instead the generated code is going to set the
-				// fields to their default value (only applies to non-primitive
-				// attributes).
-				//
-				// When generating unmarshaler code we rely on validations
-				// running prior to this code so assume required fields are set.
-				/*if tgt.HasDefaultValue(n) {
-				  if b.unmarshal {
-				    code += fmt.Sprintf("if %s == nil {\n\t", b.sourceVar)
-				    if tgt.IsPrimitivePointer(n, true) {
-				      code += fmt.Sprintf("var tmp %s = %#v\n\t%s = &tmp\n", GoNativeTypeName(tgtAtt.Type), tgtAtt.DefaultValue, b.targetVar)
-				    } else {
-				      code += fmt.Sprintf("%s = %#v\n", b.targetVar, tgtAtt.DefaultValue)
-				    }
-				    code += "}\n"
-				  } else if src.IsPrimitivePointer(n, true) || !expr.IsPrimitive(srcAtt.Type) {
-				    code += fmt.Sprintf("if %s == nil {\n\t", b.sourceVar)
-				    if tgt.IsPrimitivePointer(n, true) {
-				      code += fmt.Sprintf("var tmp %s = %#v\n\t%s = &tmp\n", GoNativeTypeName(tgtAtt.Type), tgtAtt.DefaultValue, b.targetVar)
-				    } else {
-				      code += fmt.Sprintf("%s = %#v\n", b.targetVar, tgtAtt.DefaultValue)
-				    }
-				    code += "}\n"
-				  }
-				}*/
 			}
 			buffer.WriteString(code)
 		})
@@ -286,356 +354,116 @@ func transformObject(source, target *expr.AttributeExpr, newVar bool, a targs) (
 	return buffer.String(), nil
 }
 
-func transformArray(source, target *expr.Array, newVar bool, a targs) (string, error) {
-	if err := isCompatible(source.ElemType.Type, target.ElemType.Type, a.sourceVar+"[0]", a.targetVar+"[0]"); err != nil {
-		return "", err
-	}
+func (p *protoTransformer) transformArray(source, target *expr.AttributeExpr, sourceVar, targetVar, sourcePkg, targetPkg string, newVar bool) (string, error) {
 	var (
-		srcFld   string
-		tgtFld   string
-		elemRef  string
-		elemType *expr.AttributeExpr
+		src, tgt *expr.Array
+		tgtInit  string
 	)
 	{
-		if a.proto {
-			elemRef = protoBufGoFullTypeRef(target.ElemType, a.targetPkg, a.scope)
-			elemType = target.ElemType
-		} else {
-			elemRef = a.scope.GoFullTypeRef(target.ElemType, a.targetPkg)
-			elemType = source.ElemType
-		}
-		switch elemType.Type.(type) {
-		case *expr.Array, *expr.Map:
-			ut := &expr.UserTypeExpr{
-				AttributeExpr: wrapAttr(target.ElemType),
-				TypeName:      innerTypeName(target.ElemType, a.scope),
-			}
-			if a.proto {
-				tgtFld = ".Field"
-				elemRef = protoBufGoFullTypeRef(&expr.AttributeExpr{Type: ut}, a.targetPkg, a.scope)
+		if err := codegen.IsCompatible(source.Type, target.Type, sourceVar+"[0]", targetVar+"[0]"); err != nil {
+			if p.proto {
+				src = expr.AsArray(source.Type)
+				tgt = expr.AsArray(unwrapAttr(target).Type)
+				tgtInit = fmt.Sprintf("%s := &%s{}\n", targetVar, protoBufGoFullTypeName(target, targetPkg, p.scope))
+				targetVar += ".Field"
+				newVar = false
 			} else {
-				srcFld = ".Field"
+				src = expr.AsArray(unwrapAttr(source).Type)
+				sourceVar += ".Field"
+				tgt = expr.AsArray(target.Type)
+			}
+			if err = codegen.IsCompatible(src.ElemType.Type, tgt.ElemType.Type, sourceVar+"[0]", targetVar+"[0]"); err != nil {
+				return "", err
 			}
 		}
 	}
-
+	var (
+		elemRef string
+	)
+	{
+		if p.proto {
+			elemRef = protoBufGoFullTypeRef(tgt.ElemType, targetPkg, p.scope)
+		} else {
+			elemRef = p.scope.GoFullTypeRef(tgt.ElemType, targetPkg)
+		}
+	}
 	data := map[string]interface{}{
-		"Source":      a.sourceVar,
-		"SourceField": srcFld,
-		"Target":      a.targetVar,
-		"TargetField": tgtFld,
+		"Source":      sourceVar,
+		"Target":      targetVar,
+		"TargetInit":  tgtInit,
 		"NewVar":      newVar,
 		"ElemTypeRef": elemRef,
-		"SourceElem":  source.ElemType,
-		"TargetElem":  target.ElemType,
-		"SourcePkg":   a.sourcePkg,
-		"TargetPkg":   a.targetPkg,
-		"Proto":       a.proto,
-		"Scope":       a.scope,
-		"LoopVar":     string(105 + strings.Count(a.targetVar, "[")),
+		"SourceElem":  src.ElemType,
+		"TargetElem":  tgt.ElemType,
+		//"SourceField": srcFld,
+		//"TargetField": tgtFld,
+		"SourceField": "",
+		"TargetField": "",
+		"SourcePkg":   sourcePkg,
+		"TargetPkg":   targetPkg,
+		"Transformer": p,
+		"LoopVar":     string(105 + strings.Count(targetVar, "[")),
 	}
-	var buf bytes.Buffer
-	if err := transformArrayT.Execute(&buf, data); err != nil {
-		panic(err) // bug
-	}
-	code := buf.String()
-
-	return code, nil
+	return codegen.TransformArray(data), nil
 }
 
-func transformMap(source, target *expr.Map, newVar bool, a targs) (string, error) {
-	if err := isCompatible(source.KeyType.Type, target.KeyType.Type, a.sourceVar+".key", a.targetVar+".key"); err != nil {
-		return "", err
+func (p *protoTransformer) transformMap(source, target *expr.AttributeExpr, sourceVar, targetVar, sourcePkg, targetPkg string, newVar bool) (string, error) {
+	var (
+		src, tgt       *expr.Map
+		srcFld, tgtFld string
+		tgtInit        string
+	)
+	{
+		if err := codegen.IsCompatible(source.Type, target.Type, sourceVar+"[*]", targetVar+"[*]"); err != nil {
+			if p.proto {
+				src = expr.AsMap(source.Type)
+				tgt = expr.AsMap(unwrapAttr(target).Type)
+				tgtInit, _ = p.transformObject(&expr.AttributeExpr{Type: expr.Empty}, tgt.ElemType, "", targetVar+"[tk]", sourcePkg, targetPkg, false)
+				tgtFld = ".Field"
+			} else {
+				src = expr.AsMap(unwrapAttr(source).Type)
+				srcFld = ".Field"
+				tgt = expr.AsMap(target.Type)
+			}
+			if err = codegen.IsCompatible(src.ElemType.Type, tgt.ElemType.Type, sourceVar+"[*]", targetVar+"[*]"); err != nil {
+				return "", err
+			}
+		}
 	}
-	if err := isCompatible(source.ElemType.Type, target.ElemType.Type, a.sourceVar+"[*]", a.targetVar+"[*]"); err != nil {
+	if err := codegen.IsCompatible(src.KeyType.Type, tgt.KeyType.Type, sourceVar+".key", targetVar+".key"); err != nil {
 		return "", err
 	}
 	var (
-		srcFld, tgtFld  string
 		keyRef, elemRef string
-
-		tgtName  string
-		elemType *expr.AttributeExpr
 	)
 	{
-		if a.proto {
-			keyRef = protoBufGoFullTypeRef(target.KeyType, a.targetPkg, a.scope)
-			elemRef = protoBufGoFullTypeRef(target.ElemType, a.targetPkg, a.scope)
-			elemType = target.ElemType
+		if p.proto {
+			keyRef = protoBufGoFullTypeRef(tgt.KeyType, targetPkg, p.scope)
+			elemRef = protoBufGoFullTypeRef(tgt.ElemType, targetPkg, p.scope)
 		} else {
-			keyRef = a.scope.GoFullTypeRef(target.KeyType, a.targetPkg)
-			elemRef = a.scope.GoFullTypeRef(target.ElemType, a.targetPkg)
-			elemType = source.ElemType
-		}
-		switch elemType.Type.(type) {
-		case *expr.Array, *expr.Map:
-			ut := &expr.UserTypeExpr{
-				AttributeExpr: wrapAttr(target.ElemType),
-				TypeName:      innerTypeName(target.ElemType, a.scope),
-			}
-			if a.proto {
-				tgtFld = "Field"
-				att := &expr.AttributeExpr{Type: ut}
-				elemRef = protoBufGoFullTypeRef(att, a.targetPkg, a.scope)
-				tgtName = a.scope.GoFullTypeName(att, a.targetPkg)
-			} else {
-				srcFld = ".Field"
-			}
+			keyRef = p.scope.GoFullTypeRef(tgt.KeyType, targetPkg)
+			elemRef = p.scope.GoFullTypeRef(tgt.ElemType, targetPkg)
 		}
 	}
 	data := map[string]interface{}{
-		"Source":      a.sourceVar,
-		"Target":      a.targetVar,
-		"TargetName":  tgtName,
+		"Source":      sourceVar,
+		"Target":      targetVar,
+		"TargetInit":  tgtInit,
 		"NewVar":      newVar,
 		"KeyTypeRef":  keyRef,
 		"ElemTypeRef": elemRef,
-		"SourceKey":   source.KeyType,
-		"TargetKey":   target.KeyType,
-		"SourceElem":  source.ElemType,
-		"TargetElem":  target.ElemType,
+		"SourceKey":   src.KeyType,
+		"TargetKey":   tgt.KeyType,
+		"SourceElem":  src.ElemType,
+		"TargetElem":  tgt.ElemType,
 		"SourceField": srcFld,
 		"TargetField": tgtFld,
-		"SourcePkg":   a.sourcePkg,
-		"TargetPkg":   a.targetPkg,
-		"Proto":       a.proto,
-		"Scope":       a.scope,
+		"SourcePkg":   sourcePkg,
+		"TargetPkg":   targetPkg,
+		"Transformer": p,
 		"LoopVar":     "",
 	}
-	if depth := mapDepth(target); depth > 0 {
-		data["LoopVar"] = string(97 + depth)
-	}
-	var buf bytes.Buffer
-	if err := transformMapT.Execute(&buf, data); err != nil {
-		panic(err) // bug
-	}
-	return buf.String(), nil
-}
-
-// mapDepth returns the level of nested maps. If map not nested, it returns 0.
-func mapDepth(mp *expr.Map) int {
-	return traverseMap(mp.ElemType.Type, 0)
-}
-
-func traverseMap(dt expr.DataType, depth int, seen ...map[string]struct{}) int {
-	if mp := expr.AsMap(dt); mp != nil {
-		depth++
-		depth = traverseMap(mp.ElemType.Type, depth, seen...)
-	} else if ar := expr.AsArray(dt); ar != nil {
-		depth = traverseMap(ar.ElemType.Type, depth, seen...)
-	} else if mo := expr.AsObject(dt); mo != nil {
-		var s map[string]struct{}
-		if len(seen) > 0 {
-			s = seen[0]
-		} else {
-			s = make(map[string]struct{})
-			seen = append(seen, s)
-		}
-		key := dt.Name()
-		if u, ok := dt.(expr.UserType); ok {
-			key = u.ID()
-		}
-		if _, ok := s[key]; ok {
-			return depth
-		}
-		s[key] = struct{}{}
-		var level int
-		for _, nat := range *mo {
-			// if object type has attributes of type map then find out the attribute that has
-			// the deepest level of nested maps
-			lvl := 0
-			lvl = traverseMap(nat.Attribute.Type, lvl, seen...)
-			if lvl > level {
-				level = lvl
-			}
-		}
-		depth += level
-	}
-	return depth
-}
-
-func transformAttributeHelpers(source, target expr.DataType, a thargs, seen ...map[string]*codegen.TransformFunctionData) ([]*codegen.TransformFunctionData, error) {
-	var (
-		helpers []*codegen.TransformFunctionData
-		err     error
-	)
-	// Do not generate a transform function for the top most user type.
-	switch {
-	case expr.IsArray(source):
-		source = expr.AsArray(source).ElemType.Type
-		target = expr.AsArray(target).ElemType.Type
-		helpers, err = transformAttributeHelpers(source, target, a, seen...)
-	case expr.IsMap(source):
-		sm := expr.AsMap(source)
-		tm := expr.AsMap(target)
-		source = sm.ElemType.Type
-		target = tm.ElemType.Type
-		helpers, err = transformAttributeHelpers(source, target, a, seen...)
-		if err == nil {
-			var other []*codegen.TransformFunctionData
-			source = sm.KeyType.Type
-			target = tm.KeyType.Type
-			other, err = transformAttributeHelpers(source, target, a, seen...)
-			helpers = append(helpers, other...)
-		}
-	case expr.IsObject(source):
-		helpers, err = transformObjectHelpers(source, target, a, seen...)
-	}
-	if err != nil {
-		return nil, err
-	}
-	return helpers, nil
-}
-
-func transformObjectHelpers(source, target expr.DataType, a thargs, seen ...map[string]*codegen.TransformFunctionData) ([]*codegen.TransformFunctionData, error) {
-	var (
-		helpers []*codegen.TransformFunctionData
-		err     error
-
-		satt = &expr.AttributeExpr{Type: source}
-		tatt = &expr.AttributeExpr{Type: target}
-	)
-	walkMatches(satt, tatt, func(src, tgt *expr.MappedAttributeExpr, srcAtt, tgtAtt *expr.AttributeExpr, n string) {
-		if err != nil {
-			return
-		}
-		h, err2 := collectHelpers(srcAtt, tgtAtt, a, src.IsRequired(n), seen...)
-		if err2 != nil {
-			err = err2
-			return
-		}
-		helpers = append(helpers, h...)
-	})
-	if err != nil {
-		return nil, err
-	}
-	return helpers, nil
-}
-
-// isCompatible returns an error if a and b are not both objects, both arrays,
-// both maps or both the same primitive type. actx and bctx are used to build
-// the error message if any.
-func isCompatible(a, b expr.DataType, actx, bctx string) error {
-	switch {
-	case expr.IsObject(a):
-		if !expr.IsObject(b) {
-			return fmt.Errorf("%s is an object but %s type is %s", actx, bctx, b.Name())
-		}
-	case expr.IsArray(a):
-		if !expr.IsArray(b) {
-			return fmt.Errorf("%s is an array but %s type is %s", actx, bctx, b.Name())
-		}
-	case expr.IsMap(a):
-		if !expr.IsMap(b) {
-			return fmt.Errorf("%s is a hash but %s type is %s", actx, bctx, b.Name())
-		}
-	default:
-		if a.Kind() != b.Kind() {
-			return fmt.Errorf("%s is a %s but %s type is %s", actx, a.Name(), bctx, b.Name())
-		}
-	}
-
-	return nil
-}
-
-// collectHelpers recursively traverses the given attributes and return the
-// transform helper functions required to generate the transform code.
-func collectHelpers(source, target *expr.AttributeExpr, a thargs, req bool, seen ...map[string]*codegen.TransformFunctionData) ([]*codegen.TransformFunctionData, error) {
-	var data []*codegen.TransformFunctionData
-	switch {
-	case expr.IsArray(source.Type):
-		helpers, err := transformAttributeHelpers(
-			expr.AsArray(source.Type).ElemType.Type,
-			expr.AsArray(target.Type).ElemType.Type,
-			a, seen...)
-		if err != nil {
-			return nil, err
-		}
-		data = append(data, helpers...)
-	case expr.IsMap(source.Type):
-		helpers, err := transformAttributeHelpers(
-			expr.AsMap(source.Type).KeyType.Type,
-			expr.AsMap(target.Type).KeyType.Type,
-			a, seen...)
-		if err != nil {
-			return nil, err
-		}
-		data = append(data, helpers...)
-		helpers, err = transformAttributeHelpers(
-			expr.AsMap(source.Type).ElemType.Type,
-			expr.AsMap(target.Type).ElemType.Type,
-			a, seen...)
-		if err != nil {
-			return nil, err
-		}
-		data = append(data, helpers...)
-	case expr.IsObject(source.Type):
-		if ut, ok := source.Type.(expr.UserType); ok {
-			name := transformHelperName(source, target, targs{proto: a.proto, scope: a.scope})
-			var s map[string]*codegen.TransformFunctionData
-			if len(seen) > 0 {
-				s = seen[0]
-			} else {
-				s = make(map[string]*codegen.TransformFunctionData)
-				seen = append(seen, s)
-			}
-			if _, ok := s[name]; ok {
-				return nil, nil
-			}
-			code, err := transformAttribute(ut.Attribute(), target, true,
-				targs{"v", "res", a.sourcePkg, a.targetPkg, a.proto, a.scope})
-			if err != nil {
-				return nil, err
-			}
-			if !req {
-				code = "if v == nil {\n\treturn nil\n}\n" + code
-			}
-			t := &codegen.TransformFunctionData{
-				Name:          name,
-				ParamTypeRef:  a.scope.GoFullTypeRef(source, a.sourcePkg),
-				ResultTypeRef: a.scope.GoFullTypeRef(target, a.targetPkg),
-				Code:          code,
-			}
-			s[name] = t
-			data = append(data, t)
-		}
-		var err error
-		walkMatches(source, target, func(srcm, _ *expr.MappedAttributeExpr, src, tgt *expr.AttributeExpr, n string) {
-			var helpers []*codegen.TransformFunctionData
-			helpers, err = collectHelpers(src, tgt, a, srcm.IsRequired(n), seen...)
-			if err != nil {
-				return
-			}
-			data = append(data, helpers...)
-		})
-
-		if err != nil {
-			return nil, err
-		}
-	}
-	return data, nil
-}
-
-func walkMatches(source, target *expr.AttributeExpr, walker func(src, tgt *expr.MappedAttributeExpr, srcc, tgtc *expr.AttributeExpr, n string)) {
-	src := expr.NewMappedAttributeExpr(source)
-	tgt := expr.NewMappedAttributeExpr(target)
-	srcObj := expr.AsObject(src.Type)
-	tgtObj := expr.AsObject(tgt.Type)
-	// Map source object attribute names to target object attributes
-	attributeMap := make(map[string]*expr.AttributeExpr)
-	for _, nat := range *srcObj {
-		if att := tgtObj.Attribute(nat.Name); att != nil {
-			attributeMap[nat.Name] = att
-		}
-	}
-	for _, natt := range *srcObj {
-		n := natt.Name
-		tgtc, ok := attributeMap[n]
-		if !ok {
-			continue
-		}
-		walker(src, tgt, natt.Attribute, tgtc, n)
-	}
+	return codegen.TransformMap(data, tgt), nil
 }
 
 // typeConvert converts the source attribute type based on the target type.
@@ -654,41 +482,3 @@ func typeConvert(sourceVar string, source, target expr.DataType, proto bool) str
 	}
 	return sourceVar
 }
-
-func transformHelperName(satt, tatt *expr.AttributeExpr, a targs) string {
-	var (
-		sname string
-		tname string
-
-		suffix = "ProtoBuf"
-	)
-	{
-		sname = a.scope.GoTypeName(satt)
-		tname = a.scope.GoTypeName(tatt)
-		if a.proto {
-			tname += suffix
-		} else {
-			sname += suffix
-		}
-	}
-	return codegen.Goify(sname+"To"+tname, false)
-}
-
-// used by template
-func transformAttributeHelper(source, target *expr.AttributeExpr, sourceVar, targetVar, sourcePkg, targetPkg string, proto, newVar bool, scope *codegen.NameScope) (string, error) {
-	return transformAttribute(source, target, newVar, targs{sourceVar, targetVar, sourcePkg, targetPkg, proto, scope})
-}
-
-const transformArrayTmpl = `{{ .Target}} {{ if .NewVar }}:{{ end }}= make([]{{ .ElemTypeRef }}, len({{ .Source }}))
-for {{ .LoopVar }}, val := range {{ .Source }} {
-  {{ transformAttribute .SourceElem .TargetElem (printf "val%s" .SourceField) (printf "%s[%s]%s" .Target .LoopVar .TargetField) .SourcePkg .TargetPkg .Proto false .Scope -}}
-}
-`
-
-const transformMapTmpl = `{{ .Target }} {{ if .NewVar }}:{{ end }}= make(map[{{ .KeyTypeRef }}]{{ .ElemTypeRef }}, len({{ .Source }}))
-for key, val := range {{ .Source }} {
-  {{ transformAttribute .SourceKey .TargetKey "key" "tk" .SourcePkg .TargetPkg .Proto true .Scope -}}
-  {{ transformAttribute .SourceElem .TargetElem (printf "val%s" .SourceField) (printf "tv%s" .LoopVar) .SourcePkg .TargetPkg .Proto true .Scope -}}
-	{{ .Target }}[tk] = {{ if .TargetField }}&{{ .TargetName }}{ {{ .TargetField }}: {{ end }}{{ printf "tv%s" .LoopVar }}{{ if .TargetField }}}{{ end }}
-}
-`

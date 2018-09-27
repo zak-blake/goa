@@ -35,8 +35,11 @@ func New(e *dividersvc.Endpoints) *Server {
 
 // IntegerDivide implements the "IntegerDivide" method in
 // dividerpb.DividerServer interface.
-func (s *Server) IntegerDivide(ctx context.Context, p *dividerpb.IntOperands) (*dividerpb.IntegerDivideResponse, error) {
-	payload := NewIntOperands(p)
+func (s *Server) IntegerDivide(ctx context.Context, message *dividerpb.IntegerDivideRequest) (*dividerpb.IntegerDivideResponse, error) {
+	payload, err := DecodeIntegerDivideRequest(ctx, message)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, err.Error())
+	}
 	v, err := s.endpoints.IntegerDivide(ctx, payload)
 	if err != nil {
 		en, ok := err.(ErrorNamer)
@@ -52,14 +55,15 @@ func (s *Server) IntegerDivide(ctx context.Context, p *dividerpb.IntOperands) (*
 			return nil, status.Error(codes.DeadlineExceeded, err.Error())
 		}
 	}
-	res := v.(int)
-	resp := NewIntegerDivideResponse(res)
-	return resp, nil
+	return EncodeIntegerDivideResponse(ctx, v), nil
 }
 
 // Divide implements the "Divide" method in dividerpb.DividerServer interface.
-func (s *Server) Divide(ctx context.Context, p *dividerpb.FloatOperands) (*dividerpb.DivideResponse, error) {
-	payload := NewFloatOperands(p)
+func (s *Server) Divide(ctx context.Context, message *dividerpb.DivideRequest) (*dividerpb.DivideResponse, error) {
+	payload, err := DecodeDivideRequest(ctx, message)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, err.Error())
+	}
 	v, err := s.endpoints.Divide(ctx, payload)
 	if err != nil {
 		en, ok := err.(ErrorNamer)
@@ -73,7 +77,5 @@ func (s *Server) Divide(ctx context.Context, p *dividerpb.FloatOperands) (*divid
 			return nil, status.Error(codes.DeadlineExceeded, err.Error())
 		}
 	}
-	res := v.(float64)
-	resp := NewDivideResponse(res)
-	return resp, nil
+	return EncodeDivideResponse(ctx, v), nil
 }

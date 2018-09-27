@@ -70,12 +70,14 @@ const (
 service {{ .Name }} {
 	{{- range .Endpoints }}
 	{{ if .Method.Description }}{{ .Method.Description | comment }}{{ end }}
-	rpc {{ .Method.VarName }} ({{ .Request.Message.Name }}) returns ({{ .Response.Message.Name }});
+	{{- $serverStream := or (eq .Method.StreamKind 3) (eq .Method.StreamKind 4) }}
+	{{- $clientStream := or (eq .Method.StreamKind 2) (eq .Method.StreamKind 4) }}
+	rpc {{ .Method.VarName }} ({{ if $clientStream }}stream {{ end }}{{ .Request.Message.Name }}) returns ({{ if $serverStream }}stream {{ end }}{{ .Response.Message.Name }});
 	{{- end }}
 }
 `
 
-	// input: TypeData
+	// input: service.UserTypeData
 	messageT = `{{ comment .Description }}
 message {{ .VarName }}{{ .Def }}
 `

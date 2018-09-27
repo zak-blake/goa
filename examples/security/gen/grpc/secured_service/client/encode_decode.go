@@ -41,7 +41,7 @@ func EncodeSecureRequest(ctx context.Context, p *securedservice.SecurePayload) (
 // DecodeSecureResponse decodes responses from the secured_service secure
 // endpoint.
 func DecodeSecureResponse(ctx context.Context, resp *secured_servicepb.SecureResponse) (string, error) {
-	res := resp.Field
+	res := NewSecureResponse(resp)
 	return res, nil
 }
 
@@ -56,7 +56,7 @@ func EncodeDoublySecureRequest(ctx context.Context, p *securedservice.DoublySecu
 // DecodeDoublySecureResponse decodes responses from the secured_service
 // doubly_secure endpoint.
 func DecodeDoublySecureResponse(ctx context.Context, resp *secured_servicepb.DoublySecureResponse) (string, error) {
-	res := resp.Field
+	res := NewDoublySecureResponse(resp)
 	return res, nil
 }
 
@@ -76,6 +76,6 @@ func EncodeAlsoDoublySecureRequest(ctx context.Context, p *securedservice.AlsoDo
 // DecodeAlsoDoublySecureResponse decodes responses from the secured_service
 // also_doubly_secure endpoint.
 func DecodeAlsoDoublySecureResponse(ctx context.Context, resp *secured_servicepb.AlsoDoublySecureResponse) (string, error) {
-	res := resp.Field
+	res := NewAlsoDoublySecureResponse(resp)
 	return res, nil
 }

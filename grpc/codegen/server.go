@@ -37,9 +37,25 @@ func server(genpkg string, svc *expr.GRPCServiceExpr) *codegen.File {
 		}),
 	}
 
-	sections = append(sections, &codegen.SectionTemplate{Name: "server-struct", Source: serverStructT, Data: data})
-	sections = append(sections, &codegen.SectionTemplate{Name: "server-init", Source: serverInitT, Data: data})
-
+	sections = append(sections, &codegen.SectionTemplate{
+		Name:   "server-struct",
+		Source: serverStructT,
+		Data:   data,
+	})
+	for _, e := range data.Endpoints {
+		if e.ServerStream != nil {
+			sections = append(sections, &codegen.SectionTemplate{
+				Name:   "server-stream-struct-type",
+				Source: streamStructTypeT,
+				Data:   e.ServerStream,
+			})
+		}
+	}
+	sections = append(sections, &codegen.SectionTemplate{
+		Name:   "server-init",
+		Source: serverInitT,
+		Data:   data,
+	})
 	for _, e := range data.Endpoints {
 		sections = append(sections, &codegen.SectionTemplate{
 			Name:   "server-grpc-interface",
@@ -47,7 +63,41 @@ func server(genpkg string, svc *expr.GRPCServiceExpr) *codegen.File {
 			Data:   e,
 		})
 	}
-
+	for _, e := range data.Endpoints {
+		if e.ServerStream != nil {
+			if e.ServerStream.SendConvert != nil {
+				sections = append(sections, &codegen.SectionTemplate{
+					Name:   "server-stream-send",
+					Source: streamSendT,
+					Data:   e.ServerStream,
+				})
+			}
+			if e.Method.StreamKind == expr.ClientStreamKind || e.Method.StreamKind == expr.BidirectionalStreamKind {
+				sections = append(sections, &codegen.SectionTemplate{
+					Name:   "server-stream-recv",
+					Source: streamRecvT,
+					Data:   e.ServerStream,
+					FuncMap: map[string]interface{}{
+						"convertType": typeConvertField,
+					},
+				})
+			}
+			if e.ServerStream.MustClose {
+				sections = append(sections, &codegen.SectionTemplate{
+					Name:   "server-stream-close",
+					Source: streamCloseT,
+					Data:   e.ServerStream,
+				})
+			}
+			if e.Method.ViewedResult != nil && e.Method.ViewedResult.ViewName == "" {
+				sections = append(sections, &codegen.SectionTemplate{
+					Name:   "server-stream-set-view",
+					Source: streamSetViewT,
+					Data:   e.ServerStream,
+				})
+			}
+		}
+	}
 	return &codegen.File{Path: path, SectionTemplates: sections}
 }
 
@@ -73,7 +123,7 @@ func serverEncodeDecode(genpkg string, svc *expr.GRPCServiceExpr) *codegen.File 
 	fm := transTmplFuncs(svc)
 	fm["convertType"] = typeConvertField
 	for _, e := range data.Endpoints {
-		if e.ResultRef != "" {
+		if e.Response.ServerConvert != nil {
 			sections = append(sections, &codegen.SectionTemplate{
 				Name:   "response-encoder",
 				Source: responseEncoderT,
@@ -158,6 +208,15 @@ type ErrorNamer interface {
 }
 `
 
+// streamStructTypeT renders the server and client struct types that
+// implements the client and server service stream interfaces.
+// input: StreamData
+const streamStructTypeT = `{{ printf "%s implements the %s.%s interface." .VarName .ServiceInterface | comment }}
+type {{ .VarName }} struct {
+	stream {{ .Interface }}
+}
+`
+
 // input: ServiceData
 const serverInitT = `{{ printf "%s instantiates the server struct with the %s service endpoints." .ServerInit .Service.Name | comment }}
 func {{ .ServerInit }}(e *{{ .Service.PkgName }}.Endpoints) *{{ .ServerStruct }} {
@@ -167,41 +226,70 @@ func {{ .ServerInit }}(e *{{ .Service.PkgName }}.Endpoints) *{{ .ServerStruct }}
 
 // input: EndpointData
 const serverGRPCInterfaceT = `{{ printf "%s implements the %q method in %s.%s interface." .Method.VarName .Method.VarName .PkgName .ServerInterface | comment }}
-func (s *{{ .ServerStruct }}) {{ .Method.VarName }}(ctx context.Context, message {{ .Request.ServerType.Ref }}) ({{ .Response.ServerType.Ref }}, error) {
+func (s *{{ .ServerStruct }}) {{ .Method.VarName }}(
+	{{- if not .ServerStream }}ctx context.Context, {{ end }}
+	{{- if not .Method.StreamingPayload }}message {{ .Request.Message.Ref }},{{ end }}
+	{{- if .ServerStream }}stream {{ .ServerStream.Interface }}{{ end }}) {{ if .ServerStream }}error{{ else if .Response.Message }}({{ .Response.Message.Ref }},	error{{ if .Response.Message }}){{ end }}{{ end }} {
 {{- if .PayloadRef }}
-	payload, err := Decode{{ .Method.VarName }}Request(ctx, message)
+	payload, err := Decode{{ .Method.VarName }}Request(
+		{{- if .Method.StreamingPayload }}stream
+		{{- else }}
+			{{- if .ServerStream }}stream, message
+			{{- else }}ctx, message
+			{{- end }}
+		{{- end }})
 	if err != nil {
-		return nil, status.Error(codes.InvalidArgument, err.Error())
+		return {{ if not .ServerStream }}nil, {{ end }}status.Error(codes.InvalidArgument, err.Error())
 	}
 {{- end }}
-	{{ if .ResultRef }}v{{ else }}_{{ end }}, err {{ if and .PayloadRef (not .ResultRef) }}={{ else }}:={{ end }} s.endpoints.{{ .Method.VarName }}(ctx, {{ if .PayloadRef }}payload{{ else }}nil{{ end }})
+{{- if .ServerStream }}
+	ep := &{{ .ServicePkgName }}.{{ .Method.VarName }}EndpointInput{
+		Stream: &{{ .ServerStream.VarName }}{stream: stream},
+	{{- if .PayloadRef }}
+		Payload: payload,
+	{{- end }}
+	}
+{{- end }}
+	{{- $newVar := and .ResultRef (not .ServerStream) }}
+	{{ if $newVar }}v
+	{{- else }}_
+	{{- end }}, err {{ if and .PayloadRef (not $newVar) }}={{ else }}:={{ end }} s.endpoints.{{ .Method.VarName }}({{ if .ServerStream }}stream.Context(){{ else }}ctx{{ end }}, {{ if .ServerStream }}ep{{ else }}payload{{ end }})
 	if err != nil {
 	{{- if .Errors }}
 		en, ok := err.(ErrorNamer)
 		if !ok {
-			return nil, err
+			return {{ if not .ServerStream }}nil, {{ end }}err
 		}
 		switch en.ErrorName() {
 		{{- range .Errors }}
 		case {{ printf "%q" .Name }}:
-			return nil, status.Error({{ .Response.StatusCode }}, err.Error())
+			return {{ if not $.ServerStream }}nil, {{ end }}status.Error({{ .Response.StatusCode }}, err.Error())
 		{{- end }}
 		}
 	{{- else }}
-		return nil, err
+		return {{ if not .ServerStream }}nil, {{ end }}err
 	{{- end }}
 	}
-	{{- if .ResultRef }}
-		return Encode{{ .Method.VarName }}Response(ctx, v), nil
+	{{- if .ServerStream }}
+		return nil
 	{{- else }}
-		return nil, nil
+		{{- if .ResultRef }}
+			return Encode{{ .Method.VarName }}Response(ctx, v), nil
+		{{- else }}
+			return nil, nil
+		{{- end }}
 	{{- end }}
 }
 `
 
 // input: EndpointData
 const requestDecoderT = `{{ printf "Decode%sRequest decodes requests sent to %s %s endpoint." .Method.VarName .ServiceName .Method.Name | comment }}
-func Decode{{ .Method.VarName }}Request(ctx context.Context, message {{ .Request.ServerType.Ref }}) ({{ .PayloadRef }}, error) {
+func Decode{{ .Method.VarName }}Request(
+	{{- if .ServerStream }}stream {{ .ServerStream.Interface }}
+	{{- else }}ctx context.Context
+	{{- end }}
+	{{- if not .Method.StreamingPayload }}, message {{ .Request.Message.Ref }}
+	{{- end }}) ({{ .PayloadRef }}, error) {
 	var (
 		payload {{ .PayloadRef }}
 		err error
@@ -214,7 +302,7 @@ func Decode{{ .Method.VarName }}Request(ctx context.Context, message {{ .Request
 		{{- end }}
 		)
 		{
-			md, ok := metadata.FromIncomingContext(ctx)
+			md, ok := metadata.FromIncomingContext({{ if .ServerStream }}stream.Context(){{ else }}ctx{{ end }})
 			if ok {
 		{{- range .Request.Metadata }}
 			{{- if or (eq .Type.Name "string") (eq .Type.Name "any") }}
@@ -270,10 +358,10 @@ func Decode{{ .Method.VarName }}Request(ctx context.Context, message {{ .Request
 			}
 		}
 	{{- end }}
-	{{- if .Request.ServerType.Init }}
-		payload = {{ .Request.ServerType.Init.Name }}({{ range .Request.ServerType.Init.Args }}{{ .Name }}, {{ end }})
+	{{- if .Request.ServerConvert.Init }}
+		payload = {{ .Request.ServerConvert.Init.Name }}({{ range .Request.ServerConvert.Init.Args }}{{ .Name }}, {{ end }})
 	{{- end }}
-	{{- if and (not .Request.ServerType.Init) (not .Request.Metadata) }}
+	{{- if and (not .Request.ServerConvert.Init) (not .Request.Metadata) }}
 		payload = {{ convertType "p.Field" . true }}
 	{{- end }}
 {{- range .MetadataSchemes }}
@@ -298,9 +386,9 @@ func Decode{{ .Method.VarName }}Request(ctx context.Context, message {{ .Request
 
 // input: EndpointData
 const responseEncoderT = `{{ printf "Encode%sResponse encodes responses from the %s %s endpoint." .Method.VarName .ServiceName .Method.Name | comment }}
-func Encode{{ .Method.VarName }}Response(ctx context.Context, v interface{}) {{ .Response.ServerType.Ref }} {
+func Encode{{ .Method.VarName }}Response(ctx context.Context, v interface{}) {{ .Response.ServerConvert.TgtRef }} {
 	res := v.({{ .ResultRef }})
-	resp := {{ .Response.ServerType.Init.Name }}({{ range .Response.ServerType.Init.Args }}{{ .Name }}, {{ end }})
+	resp := {{ .Response.ServerConvert.Init.Name }}({{ range .Response.ServerConvert.Init.Args }}{{ .Name }}, {{ end }})
 {{- if .Response.Headers }}
 	hdr := metadata.New(map[string]string{})
 	{{- range .Response.Headers }}
@@ -536,4 +624,47 @@ const convertTypeToStringT = `{{- define "type_conversion" }}
 		// unsupported type {{ .Type.Name }} for field {{ .FieldName }}
 	{{- end }}
 {{- end }}
+`
+
+// streamSendT renders the function implementing the Send method in
+// stream interface.
+// input: StreamData
+const streamSendT = `{{ comment .SendDesc }}
+func (s *{{ .VarName }}) {{ .SendName }}(res {{ .SendConvert.SrcRef }}) error {
+	v := {{ .SendConvert.Init.Name }}({{ range .SendConvert.Init.Args }}{{ .Name }}, {{ end }})
+	return s.stream.{{ .SendName }}(v)
+}
+`
+
+// streamRecvT renders the function implementing the Recv method in
+// stream interface.
+// input: StreamData
+const streamRecvT = `{{ comment .RecvDesc }}
+func (s *{{ .VarName }}) {{ .RecvName }}() ({{ .RecvConvert.TgtRef }}, error) {
+	var res {{ .RecvConvert.TgtRef }}
+	v, err := s.stream.{{ .RecvName }}()
+	if err != nil {
+		return res, err
+	}
+	res = {{ .RecvConvert.Init.Name }}({{ range .RecvConvert.Init.Args }}{{ .Name }}, {{ end }})
+	return res, nil
+}
+`
+
+// streamCloseT renders the function implementing the Close method in
+// stream interface.
+// input: StreamData
+const streamCloseT = `
+func (s *{{ .VarName }}) Close() error {
+	{{ comment "nothing to do here" }}
+	return nil
+}
+`
+
+// streamSetViewT renders the function implementing the SetView method in
+// server stream interface.
+// input: StreamData
+const streamSetViewT = `{{ printf "SetView sets the view." | comment }}
+func (s *{{ .VarName }}) SetView(view string) {
+}
 `

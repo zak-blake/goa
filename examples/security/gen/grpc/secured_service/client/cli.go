@@ -42,7 +42,7 @@ func BuildSecurePayload(securedServiceSecureMessage string, securedServiceSecure
 		if securedServiceSecureMessage != "" {
 			err = json.Unmarshal([]byte(securedServiceSecureMessage), &message)
 			if err != nil {
-				return nil, fmt.Errorf("invalid JSON for message, example of valid JSON:\n%s", "'{\n      \"fail\": true\n   }'")
+				return nil, fmt.Errorf("invalid JSON for message, example of valid JSON:\n%s", "null")
 			}
 		}
 	}
@@ -69,7 +69,7 @@ func BuildDoublySecurePayload(securedServiceDoublySecureMessage string, securedS
 		if securedServiceDoublySecureMessage != "" {
 			err = json.Unmarshal([]byte(securedServiceDoublySecureMessage), &message)
 			if err != nil {
-				return nil, fmt.Errorf("invalid JSON for message, example of valid JSON:\n%s", "'{\n      \"key\": \"abcdef12345\"\n   }'")
+				return nil, fmt.Errorf("invalid JSON for message, example of valid JSON:\n%s", "null")
 			}
 		}
 	}
@@ -96,7 +96,7 @@ func BuildAlsoDoublySecurePayload(securedServiceAlsoDoublySecureMessage string, 
 		if securedServiceAlsoDoublySecureMessage != "" {
 			err = json.Unmarshal([]byte(securedServiceAlsoDoublySecureMessage), &message)
 			if err != nil {
-				return nil, fmt.Errorf("invalid JSON for message, example of valid JSON:\n%s", "'{\n      \"key\": \"abcdef12345\",\n      \"password\": \"password\",\n      \"username\": \"user\"\n   }'")
+				return nil, fmt.Errorf("invalid JSON for message, example of valid JSON:\n%s", "null")
 			}
 		}
 	}

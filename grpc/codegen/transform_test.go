@@ -8,6 +8,8 @@ import (
 )
 
 var (
+	primitive = &expr.AttributeExpr{Type: expr.UInt}
+
 	arrayUInt   = codegen.NewArray(expr.UInt)
 	arrayUT     = codegen.NewArray(userType)
 	arrayMap    = codegen.NewArray(mapStringUT.Type)
@@ -34,44 +36,61 @@ func TestProtoBufTypeTransform(t *testing.T) {
 		targetVar = "target"
 	)
 	cases := []struct {
-		Name           string
-		Source, Target *expr.AttributeExpr
-		ToProto        bool
-		TargetPkg      string
+		Name    string
+		Attr    *expr.AttributeExpr
+		ToProto bool
 
 		Code string
 	}{
 		// test cases to transform goa type to protocol buffer type
-		{"obj-no-required-no-default-to-protobuf", objNoRequiredNoDefault, objNoRequiredNoDefault, true, "", objNoRequiredNoDefaultToProtoCode},
-		{"obj-required-to-protobuf", objRequired, objRequired, true, "", objRequiredToProtoCode},
-		{"obj-default-to-protobuf", objDefault, objDefault, true, "", objDefaultToProtoCode},
-		{"obj-with-array-map-to-protobuf", objWithArrayMap, objWithArrayMap, true, "", objWithArrayMapToProtoCode},
-		{"obj-mixed-to-protobuf", objMixed, objMixed, true, "", objMixedToProtoCode},
-		{"array-of-uint-to-protobuf", arrayUInt, arrayUInt, true, "", arrayUIntToProtoCode},
-		{"map-of-uint-int-to-protobuf", mapUIntInt, mapUIntInt, true, "", mapUIntIntToProtoCode},
-		{"map-of-string-array-to-protobuf", mapStringArray, mapStringArray, true, "", mapStringArrayToProtoCode},
-		{"nested-array-to-protobuf", nestedArray, nestedArray, true, "", nestedArrayToProtoCode},
-		{"array-of map-to-protobuf", arrayMap, arrayMap, true, "", arrayOfMapToProtoCode},
-		{"nested-map-to-protobuf", nestedMap, nestedMap, true, "", nestedMapToProtoCode},
+		{"obj-no-required-no-default-to-protobuf", objNoRequiredNoDefault, true, objNoRequiredNoDefaultToProtoCode},
+		{"obj-required-to-protobuf", objRequired, true, objRequiredToProtoCode},
+		{"obj-default-to-protobuf", objDefault, true, objDefaultToProtoCode},
+		{"obj-with-array-map-to-protobuf", objWithArrayMap, true, objWithArrayMapToProtoCode},
+		{"obj-mixed-to-protobuf", objMixed, true, objMixedToProtoCode},
+		{"array-of-uint-to-protobuf", arrayUInt, true, arrayUIntToProtoCode},
+		{"map-of-uint-int-to-protobuf", mapUIntInt, true, mapUIntIntToProtoCode},
+		{"map-of-string-array-to-protobuf", mapStringArray, true, mapStringArrayToProtoCode},
+		{"nested-array-to-protobuf", nestedArray, true, nestedArrayToProtoCode},
+		{"array-of-map-to-protobuf", arrayMap, true, arrayOfMapToProtoCode},
+		{"nested-map-to-protobuf", nestedMap, true, nestedMapToProtoCode},
+		//{"primitive-to-protobuf", primitive, true, primitiveToProtoCode},
 
 		// test cases to transform protocol buffer type to goa type
-		{"obj-no-required-no-default-to-goa", objNoRequiredNoDefault, objNoRequiredNoDefault, false, "", objNoRequiredNoDefaultToGoaCode},
-		{"obj-required-to-goa", objRequired, objRequired, false, "", objRequiredToGoaCode},
-		{"obj-default-to-goa", objDefault, objDefault, false, "", objDefaultToGoaCode},
-		{"obj-with-array-map-to-goa", objWithArrayMap, objWithArrayMap, false, "", objWithArrayMapToGoaCode},
-		{"obj-mixed-to-protobuf", objMixed, objMixed, false, "", objMixedToGoaCode},
-		{"array-of-uint-to-goa", arrayUInt, arrayUInt, false, "", arrayUIntToGoaCode},
-		{"map-of-uint-int-to-goa", mapUIntInt, mapUIntInt, false, "", mapUIntIntToGoaCode},
-		{"map-of-string-array-to-goa", mapStringArray, mapStringArray, false, "", mapStringArrayToGoaCode},
-		{"nested-array-to-goa", nestedArray, nestedArray, false, "", nestedArrayToGoaCode},
-		{"array-of map-to-goa", arrayMap, arrayMap, false, "", arrayOfMapToGoaCode},
-		{"nested-map-to-goa", nestedMap, nestedMap, false, "", nestedMapToGoaCode},
+		{"obj-no-required-no-default-to-goa", objNoRequiredNoDefault, false, objNoRequiredNoDefaultToGoaCode},
+		{"obj-required-to-goa", objRequired, false, objRequiredToGoaCode},
+		{"obj-default-to-goa", objDefault, false, objDefaultToGoaCode},
+		{"obj-with-array-map-to-goa", objWithArrayMap, false, objWithArrayMapToGoaCode},
+		{"obj-mixed-to-goa", objMixed, false, objMixedToGoaCode},
+		{"array-of-uint-to-goa", arrayUInt, false, arrayUIntToGoaCode},
+		{"map-of-uint-int-to-goa", mapUIntInt, false, mapUIntIntToGoaCode},
+		{"map-of-string-array-to-goa", mapStringArray, false, mapStringArrayToGoaCode},
+		{"nested-array-to-goa", nestedArray, false, nestedArrayToGoaCode},
+		{"array-of-map-to-goa", arrayMap, false, arrayOfMapToGoaCode},
+		{"nested-map-to-goa", nestedMap, false, nestedMapToGoaCode},
+		//{"primitive-to-goa", primitive, false, primitiveToGoaCode},
 	}
 	for _, c := range cases {
 		t.Run(c.Name, func(t *testing.T) {
-			src := &expr.UserTypeExpr{TypeName: "SourceType", AttributeExpr: c.Source}
-			tgt := &expr.UserTypeExpr{TypeName: "TargetType", AttributeExpr: c.Target}
-			code, _, err := protoBufTypeTransform(src, tgt, sourceVar, targetVar, "", c.TargetPkg, c.ToProto, codegen.NewNameScope())
+			var (
+				src, tgt expr.DataType
+
+				scope = codegen.NewNameScope()
+			)
+			{
+				if c.ToProto {
+					src = &expr.UserTypeExpr{TypeName: "SourceType", AttributeExpr: c.Attr}
+					tgtAtt := expr.DupAtt(c.Attr)
+					makeProtoBufMessage(tgtAtt, "TargetType", scope)
+					tgt = tgtAtt.Type
+				} else {
+					srcAtt := expr.DupAtt(c.Attr)
+					makeProtoBufMessage(srcAtt, "SourceType", scope)
+					src = srcAtt.Type
+					tgt = &expr.UserTypeExpr{TypeName: "TargetType", AttributeExpr: c.Attr}
+				}
+			}
+			code, _, err := protoBufTypeTransform(src, tgt, sourceVar, targetVar, "", "", c.ToProto, scope)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -188,7 +207,7 @@ const (
 
 	objMixedToProtoCode = `func transform() {
 	target := &TargetType{
-		String: source.String,
+		String_: source.String,
 	}
 	if source.Int != nil {
 		target.Int = int32(*source.Int)
@@ -198,11 +217,11 @@ const (
 		target.Array[i] = uint32(val)
 	}
 	if source.Map != nil {
-		target.Map = make(map[uint32]int32, len(source.Map))
+		target.Map_ = make(map[uint32]int32, len(source.Map))
 		for key, val := range source.Map {
 			tk := uint32(key)
 			tv := int32(val)
-			target.Map[tk] = tv
+			target.Map_[tk] = tv
 		}
 	}
 	target.UT = userTypeToUserTypeProtoBuf(source.UT)
@@ -211,7 +230,7 @@ const (
 
 	objMixedToGoaCode = `func transform() {
 	target := &TargetType{
-		String: source.String,
+		String: source.String_,
 	}
 	int_ptr := int(source.Int)
 	target.Int = &int_ptr
@@ -219,9 +238,9 @@ const (
 	for i, val := range source.Array {
 		target.Array[i] = uint(val)
 	}
-	if source.Map != nil {
-		target.Map = make(map[uint]int, len(source.Map))
-		for key, val := range source.Map {
+	if source.Map_ != nil {
+		target.Map = make(map[uint]int, len(source.Map_))
+		for key, val := range source.Map_ {
 			tk := uint(key)
 			tv := int(val)
 			target.Map[tk] = tv
@@ -341,7 +360,8 @@ const (
 				}
 			}
 		}
-		target[tk] = &ArrayOfArrayOfUserType{Field: tv}
+		target[tk] = &ArrayOfArrayOfUserType{}
+		target[tk].Field = tv
 	}
 }
 `
@@ -378,7 +398,8 @@ const (
 			}
 			tvb[tk] = tv
 		}
-		target[tk] = &MapOfStringUserType{Field: tvb}
+		target[tk] = &MapOfStringUserType{}
+		target[tk].Field = tvb
 	}
 }
 `
@@ -398,6 +419,18 @@ const (
 		}
 		target[tk] = tvb
 	}
+}
+`
+
+	primitiveToProtoCode = `func transform() {
+	target := &TargetType{
+		Field: uint32(source),
+	}
+}
+`
+
+	primitiveToGoaCode = `func transform() {
+	target := uint(source.Field)
 }
 `
 )
