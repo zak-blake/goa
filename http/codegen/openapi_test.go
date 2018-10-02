@@ -22,7 +22,8 @@ var update = flag.Bool("update", false, "update .golden files")
 func newDesign(httpSvcs ...*expr.HTTPServiceExpr) *expr.RootExpr {
 	openapi.Definitions = make(map[string]*openapi.Schema)
 	a := expr.NewAPIExpr("test", func() {})
-	a.Servers = []*expr.ServerExpr{{URL: "https://goa.design"}}
+	a.Servers = []*expr.ServerExpr{a.DefaultServer()}
+	a.Servers[0].Hosts[0].URIs = []expr.URIExpr{expr.URIExpr("https://goa.design")}
 	a.HTTP.Services = httpSvcs
 
 	services := make([]*expr.ServiceExpr, len(httpSvcs))
@@ -83,12 +84,11 @@ func TestOpenAPI(t *testing.T) {
 		empty   = newDesign()
 		invalid = newDesign()
 	)
-	invalid.API.Servers[0].URL = invalidURL
+	invalid.API.Servers[0].Hosts[0].URIs[0] = invalidURL
 	cases := map[string]struct {
 		Root  *expr.RootExpr
 		Error bool
 	}{
-		"nil":     {Root: nil, Error: false},
 		"empty":   {Root: empty, Error: false},
 		"valid":   {Root: simple, Error: false},
 		"invalid": {Root: invalid, Error: true},

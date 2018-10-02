@@ -12,7 +12,6 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"text/template"
 
@@ -36,6 +35,9 @@ type (
 		// FinalizeFunc is called after the file has been generated. It
 		// is given the absolute path to the file as argument.
 		FinalizeFunc func(string) error
+		// SkipExist indicates whether the file should be skipped if one
+		// already exists at the given path.
+		SkipExist bool
 	}
 
 	// A SectionTemplate is a template and accompanying render data. The
@@ -75,16 +77,9 @@ func (f *File) Render(dir string) (string, error) {
 		return "", err
 	}
 	path := filepath.Join(base, f.Path)
-	_, err = os.Stat(path)
-	if err == nil {
-		i := 1
-		for err == nil {
-			i = i + 1
-			ext := filepath.Ext(path)
-			path = strings.TrimSuffix(path, ext)
-			path = strings.TrimRight(path, "0123456789")
-			path = path + strconv.Itoa(i) + ext
-			_, err = os.Stat(path)
+	if f.SkipExist {
+		if _, err = os.Stat(path); err == nil {
+			return "", nil
 		}
 	}
 

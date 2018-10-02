@@ -15,22 +15,21 @@ import (
 )
 
 // NewV2 returns the OpenAPI v2 specification for the given API.
-func NewV2(root *expr.RootExpr) (*V2, error) {
+func NewV2(root *expr.RootExpr, h *expr.HostExpr) (*V2, error) {
 	if root == nil {
 		return nil, nil
 	}
-	tags := tagsFromExpr(root.Meta)
-	u, err := url.Parse(root.API.Servers[0].URL)
+	tags := tagsFromExpr(root.API.Meta)
+	u, err := url.Parse(string(h.URIs[0]))
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse server URL: %s", err)
 	}
 	host := u.Host
-
-	basePath := root.API.HTTP.Path
+	basePath := u.Path
 	if hasAbsoluteRoutes(root) {
 		basePath = ""
 	}
-	params, err := paramsFromExpr(root.API.HTTP.Params, basePath)
+	params, err := paramsFromExpr(expr.NewMappedAttributeExpr(h.Variables), basePath)
 	if err != nil {
 		return nil, err
 	}
@@ -50,7 +49,7 @@ func NewV2(root *expr.RootExpr) (*V2, error) {
 			Contact:        root.API.Contact,
 			License:        root.API.License,
 			Version:        root.API.Version,
-			Extensions:     ExtensionsFromExpr(root.Meta),
+			Extensions:     ExtensionsFromExpr(root.API.Meta),
 		},
 		Host:                host,
 		BasePath:            basePath,
@@ -94,7 +93,7 @@ func NewV2(root *expr.RootExpr) (*V2, error) {
 				continue
 			}
 			for _, route := range a.Routes {
-				if err := buildPathFromExpr(s, root, route, basePath); err != nil {
+				if err := buildPathFromExpr(s, root, h, route, basePath); err != nil {
 					return nil, err
 				}
 			}
@@ -542,9 +541,8 @@ func buildPathFromFileServer(s *V2, root *expr.RootExpr, fs *expr.HTTPFileServer
 	return nil
 }
 
-func buildPathFromExpr(s *V2, root *expr.RootExpr, route *expr.RouteExpr, basePath string) error {
+func buildPathFromExpr(s *V2, root *expr.RootExpr, h *expr.HostExpr, route *expr.RouteExpr, basePath string) error {
 	endpoint := route.Endpoint
-
 	tagNames := tagNamesFromExpr(endpoint.Service.Meta, endpoint.Meta)
 	if len(tagNames) == 0 {
 		// By default tag with service name
@@ -605,22 +603,18 @@ func buildPathFromExpr(s *V2, root *expr.RootExpr, route *expr.RouteExpr, basePa
 			operationID = fmt.Sprintf("%s#%d", operationID, index)
 		}
 
-		schemes := endpoint.Service.Schemes()
-		if len(schemes) == 0 {
-			schemes = root.API.Schemes()
-		}
+		schemes := h.Schemes()
+
+		// replace http with ws for streaming endpoints
 		if endpoint.MethodExpr.IsStreaming() {
-			// For streaming endpoints, discard schemes other than ws or wss
 			for i := len(schemes) - 1; i >= 0; i-- {
-				if schemes[i] != "ws" && schemes[i] != "wss" {
-					schemes = append(schemes[:i], schemes[i+1:]...)
+				if schemes[i] == "http" {
+					news := append([]string{"ws"}, schemes[i+1:]...)
+					schemes = append(schemes[:i], news...)
 				}
-			}
-		} else {
-			// Discard ws or wss schemes if they exist
-			for i := len(schemes) - 1; i >= 0; i-- {
-				if schemes[i] == "ws" || schemes[i] == "wss" {
-					schemes = append(schemes[:i], schemes[i+1:]...)
+				if schemes[i] == "https" {
+					news := append([]string{"wss"}, schemes[i+1:]...)
+					schemes = append(schemes[:i], news...)
 				}
 			}
 		}

@@ -1,6 +1,7 @@
 package codegen
 
 import (
+	"net/url"
 	"os"
 	"path"
 	"path/filepath"
@@ -14,20 +15,17 @@ import (
 // implementations.
 func ExampleServerFiles(genpkg string, root *expr.RootExpr) []*codegen.File {
 	var fw []*codegen.File
-	if m := exampleServer(genpkg, root); m != nil {
-		fw = append(fw, m)
-	}
-	if f := dummyMultipart(genpkg, root); f != nil {
-		fw = append(fw, f)
+	for _, svr := range root.API.Servers {
+		if m := exampleMain(genpkg, root, svr); m != nil {
+			fw = append(fw, m)
+		}
 	}
 	return fw
 }
 
-func exampleServer(genpkg string, root *expr.RootExpr) *codegen.File {
-	mainPath := filepath.Join("cmd", codegen.SnakeCase(codegen.Goify(root.API.Name, true))+"_svc", "http.go")
-	if _, err := os.Stat(mainPath); !os.IsNotExist(err) {
-		return nil // file already exists, skip it.
-	}
+func exampleMain(genpkg string, root *expr.RootExpr, svr *expr.ServerExpr) *codegen.File {
+	pkg := codegen.SnakeCase(codegen.Goify(svr.Name, true))
+	mainPath := filepath.Join("cmd", pkg, "main.go")
 	idx := strings.LastIndex(genpkg, string(os.PathSeparator))
 	rootPath := "."
 	if idx > 0 {
@@ -57,27 +55,32 @@ func exampleServer(genpkg string, root *expr.RootExpr) *codegen.File {
 		})
 	}
 	sections := []*codegen.SectionTemplate{codegen.Header("", "main", specs)}
-	svcdata := make([]*ServiceData, 0, len(root.API.HTTP.Services))
-	for _, svc := range root.API.HTTP.Services {
-		svcdata = append(svcdata, HTTPServices.Get(svc.Name()))
+	svcdata := make([]*ServiceData, len(svr.Services))
+	for i, svc := range svr.Services {
+		svcdata[i] = HTTPServices.Get(svc)
 	}
 	if needStream(svcdata) {
 		specs = append(specs, &codegen.ImportSpec{Path: "github.com/gorilla/websocket"})
 	}
+	// URIs have been validated by DSL.
+	u, _ := url.Parse(string(root.API.Servers[0].Hosts[0].URIs[0]))
 	data := map[string]interface{}{
-		"Services": svcdata,
-		"APIPkg":   apiPkg,
+		"Services":    svcdata,
+		"APIPkg":      apiPkg,
+		"DefaultHost": u.Host,
 	}
 	sections = append(sections, &codegen.SectionTemplate{
-		Name:   "serve-http",
-		Source: serveHTTPT,
-		Data:   data,
-		FuncMap: map[string]interface{}{
-			"needStream": needStream,
-		},
+		Name:    "service-main",
+		Source:  mainT,
+		Data:    data,
+		FuncMap: map[string]interface{}{"needStream": needStream},
 	})
 
-	return &codegen.File{Path: mainPath, SectionTemplates: sections}
+	return &codegen.File{
+		Path:             mainPath,
+		SectionTemplates: sections,
+		SkipExist:        true,
+	}
 }
 
 // dummyMultipart returns a dummy implementation of the multipart decoders
@@ -164,11 +167,19 @@ func {{ .FuncName }}(mw *multipart.Writer, p {{ .Payload.Ref }}) error {
 }
 `
 
-// input: map[string]interface{}{"Services":[]ServiceData, "APIPkg": string}
-const serveHTTPT = `func httpServe(addr string{{ range .Services }}{{ if .Endpoints }}, {{ .Service.VarName }}Endpoints *{{ .Service.PkgName }}.Endpoints{{ end }}{{ end }}, errc chan error, logger *log.Logger, debug bool) *http.Server {
-	// Setup goa log adapter. Replace logger with your own using your
-	// log package of choice. The goa.design/middleware/logging/...
-	// ackages define log adapters for common log packages.
+// input: map[string]interface{}{"Services":[]ServiceData, "APIPkg": string, "DefaultHost": string}
+const mainT = `func main() {
+	// Define command line flags, add any other flag required to configure
+	// the service.
+	var (
+		addr = flag.String("listen", "{{ .DefaultHost }}", "HTTP listen ` + "`" + `address` + "`" + `")
+		dbg  = flag.Bool("debug", false, "Log request and response bodies")
+	)
+	flag.Parse()
+
+	// Setup logger and goa log adapter. Replace logger with your own using
+	// your log package of choice. The goa.design/middleware/logging/...
+	// packages define log adapters for common log packages.
 	var (
 		adapter middleware.Logger
 	)

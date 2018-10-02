@@ -8,7 +8,7 @@ import (
 
 // RunHTTPDSL returns the http DSL root resulting from running the given DSL.
 func RunHTTPDSL(t *testing.T, dsl func()) *RootExpr {
-	setupHTTPDSLRun()
+	setupDSLRun()
 
 	// run DSL (first pass)
 	if !eval.Execute(dsl, nil) {
@@ -26,7 +26,7 @@ func RunHTTPDSL(t *testing.T, dsl func()) *RootExpr {
 
 // RunInvalidHTTPDSL returns the error resulting from running the given DSL.
 func RunInvalidHTTPDSL(t *testing.T, dsl func()) error {
-	setupHTTPDSLRun()
+	setupDSLRun()
 
 	// run DSL (first pass)
 	if !eval.Execute(dsl, nil) {
@@ -46,7 +46,7 @@ func RunInvalidHTTPDSL(t *testing.T, dsl func()) error {
 
 // RunGRPCDSL returns the gRPC DSL root resulting from running the given DSL.
 func RunGRPCDSL(t *testing.T, dsl func()) *RootExpr {
-	setupGRPCDSLRun()
+	setupDSLRun()
 
 	// run DSL (first pass)
 	if !eval.Execute(dsl, nil) {
@@ -62,16 +62,6 @@ func RunGRPCDSL(t *testing.T, dsl func()) *RootExpr {
 	return Root
 }
 
-func setupHTTPDSLRun() {
-	setupDSLRun()
-	Root.API.Servers = []*ServerExpr{{URL: "http://localhost"}}
-}
-
-func setupGRPCDSLRun() {
-	setupDSLRun()
-	Root.API.Servers = []*ServerExpr{{URL: "localhost"}}
-}
-
 func setupDSLRun() {
 	// reset all roots and codegen data structures
 	eval.Reset()
@@ -79,6 +69,6 @@ func setupDSLRun() {
 	Root.GeneratedTypes = &GeneratedRoot{}
 	eval.Register(Root)
 	eval.Register(Root.GeneratedTypes)
-	eval.Register(Root)
 	Root.API = NewAPIExpr("test api", func() {})
+	Root.API.Servers = []*ServerExpr{Root.API.DefaultServer()}
 }

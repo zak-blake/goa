@@ -42,7 +42,7 @@ func Example(genpkg string, roots []eval.Root) ([]*codegen.File, error) {
 			})
 			files = append(files, httpcodegen.ExampleServerFiles(genpkg, r)...)
 			if cli := httpcodegen.ExampleCLI(genpkg, r); cli != nil {
-				files = append(files, cli)
+				files = append(files, cli...)
 			}
 		}
 

@@ -251,27 +251,30 @@ const (
 `
 
 	arrayUIntToProtoCode = `func transform() {
-	target := make([]uint32, len(source))
+	target := &TargetType{}
+	target.Field = make([]uint32, len(source))
 	for i, val := range source {
-		target[i] = uint32(val)
+		target.Field[i] = uint32(val)
 	}
 }
 `
 
 	arrayUIntToGoaCode = `func transform() {
-	target := make([]uint, len(source))
-	for i, val := range source {
+	target := make([]uint, len(source.Field))
+	for i, val := range source.Field {
 		target[i] = uint(val)
 	}
 }
 `
 
 	nestedArrayToProtoCode = `func transform() {
-	target := make([]*ArrayOfUserType, len(source))
+	target := &TargetType{}
+	target.Field = make([]*ArrayOfUserType, len(source))
 	for i, val := range source {
-		target[i].Field = make([]*UserType, len(val))
+		target.Field[i] = &ArrayOfUserType{}
+		target.Field[i].Field = make([]*UserType, len(val))
 		for j, val := range val {
-			target[i].Field[j] = &UserType{
+			target.Field[i].Field[j] = &UserType{
 				A: val.A,
 				B: int32(val.B),
 			}
@@ -281,8 +284,8 @@ const (
 `
 
 	nestedArrayToGoaCode = `func transform() {
-	target := make([][]*UserType, len(source))
-	for i, val := range source {
+	target := make([][]*UserType, len(source.Field))
+	for i, val := range source.Field {
 		target[i] = make([]*UserType, len(val.Field))
 		for j, val := range val.Field {
 			target[i][j] = &UserType{
@@ -295,24 +298,26 @@ const (
 `
 
 	arrayOfMapToProtoCode = `func transform() {
-	target := make([]*MapOfStringUserType, len(source))
+	target := &TargetType{}
+	target.Field = make([]*MapOfStringUserType, len(source))
 	for i, val := range source {
-		target[i].Field = make(map[string]*UserType, len(val))
+		target.Field[i] = &MapOfStringUserType{}
+		target.Field[i].Field = make(map[string]*UserType, len(val))
 		for key, val := range val {
 			tk := key
 			tv := &UserType{
 				A: val.A,
 				B: int32(val.B),
 			}
-			target[i].Field[tk] = tv
+			target.Field[i].Field[tk] = tv
 		}
 	}
 }
 `
 
 	arrayOfMapToGoaCode = `func transform() {
-	target := make([]map[string]*UserType, len(source))
-	for i, val := range source {
+	target := make([]map[string]*UserType, len(source.Field))
+	for i, val := range source.Field {
 		target[i] = make(map[string]*UserType, len(val.Field))
 		for key, val := range val.Field {
 			tk := key
@@ -327,18 +332,19 @@ const (
 `
 
 	mapUIntIntToProtoCode = `func transform() {
-	target := make(map[uint32]int32, len(source))
+	target := &TargetType{}
+	target.Field = make(map[uint32]int32, len(source))
 	for key, val := range source {
 		tk := uint32(key)
 		tv := int32(val)
-		target[tk] = tv
+		target.Field[tk] = tv
 	}
 }
 `
 
 	mapUIntIntToGoaCode = `func transform() {
-	target := make(map[uint]int, len(source))
-	for key, val := range source {
+	target := make(map[uint]int, len(source.Field))
+	for key, val := range source.Field {
 		tk := uint(key)
 		tv := int(val)
 		target[tk] = tv
@@ -347,28 +353,30 @@ const (
 `
 
 	mapStringArrayToProtoCode = `func transform() {
-	target := make(map[string]*ArrayOfArrayOfUserType, len(source))
+	target := &TargetType{}
+	target.Field = make(map[string]*ArrayOfArrayOfUserType, len(source))
 	for key, val := range source {
 		tk := key
-		tv := make([]*ArrayOfUserType, len(val))
+		tv := &ArrayOfArrayOfUserType{}
+		tv.Field = make([]*ArrayOfUserType, len(val))
 		for i, val := range val {
-			tv[i].Field = make([]*UserType, len(val))
+			tv.Field[i] = &ArrayOfUserType{}
+			tv.Field[i].Field = make([]*UserType, len(val))
 			for j, val := range val {
-				tv[i].Field[j] = &UserType{
+				tv.Field[i].Field[j] = &UserType{
 					A: val.A,
 					B: int32(val.B),
 				}
 			}
 		}
-		target[tk] = &ArrayOfArrayOfUserType{}
-		target[tk].Field = tv
+		target.Field[tk] = tv
 	}
 }
 `
 
 	mapStringArrayToGoaCode = `func transform() {
-	target := make(map[string][][]*UserType, len(source))
-	for key, val := range source {
+	target := make(map[string][][]*UserType, len(source.Field))
+	for key, val := range source.Field {
 		tk := key
 		tv := make([][]*UserType, len(val.Field))
 		for i, val := range val.Field {
@@ -386,27 +394,28 @@ const (
 `
 
 	nestedMapToProtoCode = `func transform() {
-	target := make(map[uint32]*MapOfStringUserType, len(source))
+	target := &TargetType{}
+	target.Field = make(map[uint32]*MapOfStringUserType, len(source))
 	for key, val := range source {
 		tk := uint32(key)
-		tvb := make(map[string]*UserType, len(val))
+		tvb := &MapOfStringUserType{}
+		tvb.Field = make(map[string]*UserType, len(val))
 		for key, val := range val {
 			tk := key
 			tv := &UserType{
 				A: val.A,
 				B: int32(val.B),
 			}
-			tvb[tk] = tv
+			tvb.Field[tk] = tv
 		}
-		target[tk] = &MapOfStringUserType{}
-		target[tk].Field = tvb
+		target.Field[tk] = tvb
 	}
 }
 `
 
 	nestedMapToGoaCode = `func transform() {
-	target := make(map[uint]map[string]*UserType, len(source))
-	for key, val := range source {
+	target := make(map[uint]map[string]*UserType, len(source.Field))
+	for key, val := range source.Field {
 		tk := uint(key)
 		tvb := make(map[string]*UserType, len(val.Field))
 		for key, val := range val.Field {

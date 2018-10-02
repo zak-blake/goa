@@ -28,7 +28,7 @@ func OpenAPIFiles(root *expr.RootExpr) ([]*codegen.File, error) {
 		yamlSection *codegen.SectionTemplate
 	)
 	{
-		spec, err := openapi.NewV2(root)
+		spec, err := openapi.NewV2(root, root.API.Servers[0].Hosts[0])
 		if err != nil {
 			return nil, err
 		}

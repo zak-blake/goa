@@ -432,8 +432,6 @@ func (g *goTransformer) transformArray(source, target *expr.Array, sourceVar, ta
 		"ElemTypeRef": g.scope.GoFullTypeRef(target.ElemType, targetPkg),
 		"SourceElem":  source.ElemType,
 		"TargetElem":  target.ElemType,
-		"SourceField": "",
-		"TargetField": "",
 		"SourcePkg":   sourcePkg,
 		"TargetPkg":   targetPkg,
 		"Transformer": g,
@@ -469,8 +467,6 @@ func (g *goTransformer) transformMap(source, target *expr.Map, sourceVar, target
 		"TargetKey":   target.KeyType,
 		"SourceElem":  source.ElemType,
 		"TargetElem":  target.ElemType,
-		"SourceField": "",
-		"TargetField": "",
 		"SourcePkg":   sourcePkg,
 		"TargetPkg":   targetPkg,
 		"Transformer": g,
@@ -662,17 +658,17 @@ func transformAttributeHelper(source, target *expr.AttributeExpr, sourceVar, tar
 }
 
 const transformArrayTmpl = `{{ if .TargetInit }}{{ .TargetInit }}{{ end -}}
-{{ .Target}} {{ if .NewVar }}:{{ end }}= make([]{{ .ElemTypeRef }}, len({{ .Source }}))
+{{ .Target }} {{ if .NewVar }}:{{ end }}= make([]{{ .ElemTypeRef }}, len({{ .Source }}))
 for {{ .LoopVar }}, val := range {{ .Source }} {
-	{{ transformAttribute .SourceElem .TargetElem (printf "val%s" .SourceField) (printf "%s[%s]%s" .Target .LoopVar .TargetField) .SourcePkg .TargetPkg .Transformer false -}}
+	{{ transformAttribute .SourceElem .TargetElem "val" (printf "%s[%s]" .Target .LoopVar) .SourcePkg .TargetPkg .Transformer false -}}
 }
 `
 
-const transformMapTmpl = `{{ .Target }} {{ if .NewVar }}:{{ end }}= make(map[{{ .KeyTypeRef }}]{{ .ElemTypeRef }}, len({{ .Source }}))
+const transformMapTmpl = `{{ if .TargetInit }}{{ .TargetInit }}{{ end -}}
+{{ .Target }} {{ if .NewVar }}:{{ end }}= make(map[{{ .KeyTypeRef }}]{{ .ElemTypeRef }}, len({{ .Source }}))
 for key, val := range {{ .Source }} {
 	{{ transformAttribute .SourceKey .TargetKey "key" "tk" .SourcePkg .TargetPkg .Transformer true -}}
-	{{ transformAttribute .SourceElem .TargetElem (printf "val%s" .SourceField) (printf "tv%s" .LoopVar) .SourcePkg .TargetPkg .Transformer true -}}
-	{{ if .TargetInit }}{{ .TargetInit }}{{ end -}}
-	{{ .Target }}[tk]{{ .TargetField }} = {{ printf "tv%s" .LoopVar }}
+	{{ transformAttribute .SourceElem .TargetElem "val" (printf "tv%s" .LoopVar) .SourcePkg .TargetPkg .Transformer true -}}
+	{{ .Target }}[tk] = {{ printf "tv%s" .LoopVar }}
 }
 `

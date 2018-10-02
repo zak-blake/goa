@@ -3,7 +3,15 @@ info:
   title: Security Example API
   description: This API demonstrates the use of the goa security DSL
   version: ""
-host: localhost:8080
+host: localhost:80
+consumes:
+- application/json
+- application/xml
+- application/gob
+produces:
+- application/json
+- application/xml
+- application/gob
 paths:
   /secure:
     get:
@@ -41,6 +49,7 @@ paths:
           schema:
             $ref: '#/definitions/secure_invalid-scopesResponseBody'
       schemes:
+      - grpc
       - http
       security:
       - jwt: []
@@ -80,6 +89,7 @@ paths:
           schema:
             $ref: '#/definitions/doubly_secure_invalid-scopesResponseBody'
       schemes:
+      - grpc
       - http
       security:
       - api_key: []
@@ -124,6 +134,7 @@ paths:
           schema:
             $ref: '#/definitions/also_doubly_secure_invalid-scopesResponseBody'
       schemes:
+      - grpc
       - http
       security:
       - api_key: []
@@ -153,6 +164,7 @@ paths:
           schema:
             $ref: '#/definitions/signin_unauthorizedResponseBody'
       schemes:
+      - grpc
       - http
       security:
       - basic: []
@@ -166,56 +178,22 @@ definitions:
     title: also_doubly_secure_unauthorizedResponseBody
     type: string
     description: Credentials are invalid
-    example: Veniam quis nulla officiis id rerum.
-  doubly_secure_invalid-scopesResponseBody:
-    title: doubly_secure_invalid-scopesResponseBody
-    type: string
-    description: Token scopes are invalid
-    example: Ut molestiae aut et voluptas magni.
-  doubly_secure_unauthorizedResponseBody:
-    title: doubly_secure_unauthorizedResponseBody
+    example: Eligendi qui recusandae officia dolores a maxime.
+  DoublySecureUnauthorizedResponseBody:
+    title: DoublySecureUnauthorizedResponseBody
     type: string
     description: Credentials are invalid
-    example: Odit quidem ut iusto.
-  secure_invalid-scopesResponseBody:
-    title: secure_invalid-scopesResponseBody
-    type: string
-    description: Token scopes are invalid
-    example: Sequi rerum assumenda consequatur ut iste.
-  secure_unauthorizedResponseBody:
-    title: secure_unauthorizedResponseBody
+    example: Eveniet maxime.
+  SecureUnauthorizedResponseBody:
+    title: SecureUnauthorizedResponseBody
     type: string
     description: Credentials are invalid
-    example: Et in et sit.
-  signin_unauthorizedResponseBody:
-    title: signin_unauthorizedResponseBody
+    example: Ab vel rem.
+  SigninUnauthorizedResponseBody:
+    title: SigninUnauthorizedResponseBody
     type: string
     description: Credentials are invalid
-    example: Quo est laudantium id officia deserunt expedita.
-  signinResponseBody:
-    title: signinResponseBody
-    type: object
-    properties:
-      api_key:
-        type: string
-        description: API Key
-        example: abcdef12345
-      jwt:
-        type: string
-        description: JWT token
-        example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiYWRtaW4iOnRydWV9.TJVA95OrM7E2cBab30RMHrHDcEfxjoYZgeFONFh7HgQ
-      oauth_token:
-        type: string
-        description: OAuth2 token
-        example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiYWRtaW4iOnRydWV9.TJVA95OrM7E2cBab30RMHrHDcEfxjoYZgeFONFh7HgQ
-    example:
-      api_key: abcdef12345
-      jwt: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiYWRtaW4iOnRydWV9.TJVA95OrM7E2cBab30RMHrHDcEfxjoYZgeFONFh7HgQ
-      oauth_token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiYWRtaW4iOnRydWV9.TJVA95OrM7E2cBab30RMHrHDcEfxjoYZgeFONFh7HgQ
-    required:
-    - jwt
-    - api_key
-    - oauth_token
+    example: Et neque.
 securityDefinitions:
   api_key:
     type: apiKey

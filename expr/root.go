@@ -1,9 +1,8 @@
 package expr
 
 import (
-	"net/url"
+	"fmt"
 	"sort"
-	"strings"
 
 	"goa.design/goa/eval"
 )
@@ -16,7 +15,7 @@ type (
 	RootExpr struct {
 		// API contains the API expression built by the DSL.
 		API *APIExpr
-		// Services contains the list of services exposed by the API.
+		// Services contains the list of services defined in the design.
 		Services []*ServiceExpr
 		// Errors contains the list of errors returned by all the API
 		// methods.
@@ -52,21 +51,6 @@ type (
 		External interface{}
 	}
 )
-
-// NameMap returns the attribute and transport element name encoded in the given
-// string. The encoding uses a simple "attribute:element" notation which allows
-// to map transport field names (HTTP headers etc.) to underlying attributes.
-// The second element of the encoding is optional in which case both the element
-// and attribute have the same name.
-func NameMap(encoded string) (string, string) {
-	elems := strings.Split(encoded, ":")
-	attName := elems[0]
-	name := attName
-	if len(elems) > 1 {
-		name = elems[1]
-	}
-	return attName, name
-}
 
 // WalkSets returns the expressions in order of evaluation.
 func (r *RootExpr) WalkSets(walk eval.SetWalker) {
@@ -207,39 +191,36 @@ func (r *RootExpr) Error(name string) *ErrorExpr {
 	return nil
 }
 
-// HTTPSchemes returns the list of HTTP schemes used by the API servers.
-func (r *RootExpr) HTTPSchemes() []string {
-	schemes := make(map[string]bool)
-	for _, s := range r.API.Servers {
-		if u, err := url.Parse(s.URL); err != nil {
-			schemes[u.Scheme] = true
-		}
-	}
-	if len(schemes) == 0 {
-		return nil
-	}
-	ss := make([]string, len(schemes))
-	i := 0
-	for s := range schemes {
-		ss[i] = s
-		i++
-	}
-	sort.Strings(ss)
-	return ss
-}
-
 // EvalName is the name of the DSL.
 func (r *RootExpr) EvalName() string {
 	return "design"
 }
 
-// Validate makes sure the root expression is valid for code generation.
+// Validate makes sure server expressions are valid.
 func (r *RootExpr) Validate() error {
-	var verr eval.ValidationErrors
-	if r.API == nil {
-		verr.Add(r, "Missing API declaration")
+	verr := new(eval.ValidationErrors)
+	names := make(map[string]struct{})
+	for _, s := range r.API.Servers {
+		verr.Merge(s.Validate().(*eval.ValidationErrors))
+		if _, ok := names[s.Name]; ok {
+			verr.AddError(s, fmt.Errorf("duplicate server name"))
+		}
+		names[s.Name] = struct{}{}
 	}
-	return &verr
+	return verr
+}
+
+// Finalize finalizes the server expressions.
+func (r *RootExpr) Finalize() {
+	if r.API == nil {
+		r.API = &APIExpr{}
+	}
+	if len(r.API.Servers) == 0 {
+		r.API.Servers = []*ServerExpr{r.API.DefaultServer()}
+	}
+	for _, s := range r.API.Servers {
+		s.Finalize()
+	}
 }
 
 // Dup creates a new map from the given expression.

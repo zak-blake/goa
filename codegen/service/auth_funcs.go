@@ -67,6 +67,7 @@ func AuthFuncsFile(genpkg string, root *expr.RootExpr) *codegen.File {
 	return &codegen.File{
 		Path:             filepath,
 		SectionTemplates: sections,
+		SkipExist:        true,
 	}
 }
 

@@ -2,8 +2,6 @@ package dsl
 
 import (
 	"fmt"
-	"strings"
-
 	"reflect"
 
 	"goa.design/goa/eval"
@@ -85,12 +83,14 @@ const (
 // URLs and HTTP methods.
 //
 // The functions that appear in HTTP such as Header, Param or Body may take
-// advantage of the method payload or result types (depending on whether they
-// appear when describing the HTTP request or response). The properties of the
-// header, parameter or body attributes inherit the properties of the attributes
-// with the same names that appear in the method payload or result types.
+// advantage of the request or response types (depending on whether they appear
+// when describing the HTTP request or response). The properties of the header,
+// parameter or body attributes inherit the properties of the attributes with
+// the same names that appear in the request or response types. The functions
+// may also define new attributes or override the existing request or response
+// type attributes.
 //
-// HTTP must appear in API, a Service or an Method expression.
+// HTTP must appear in API, Service or Method.
 //
 // HTTP accepts an optional argument which is the defining DSL function.
 //
@@ -149,8 +149,6 @@ func HTTP(fns ...func()) {
 		fn = fns[0]
 	}
 	switch actual := eval.Current().(type) {
-	case *expr.APIExpr:
-		eval.Execute(fn, expr.Root)
 	case *expr.ServiceExpr:
 		res := expr.Root.API.HTTP.ServiceFor(actual)
 		res.DSLFunc = fn
@@ -163,7 +161,7 @@ func HTTP(fns ...func()) {
 	}
 }
 
-// Consumes adds a MIME type to the list of MIME types the APIs supports when
+// Consumes adds a MIME type to the list of MIME types the API supports when
 // accepting requests. While the DSL supports any MIME type, the code generator
 // only knows to generate the code for "application/json", "application/xml" and
 // "application/gob". The service code must provide the decoders for other MIME
@@ -175,7 +173,7 @@ func HTTP(fns ...func()) {
 //
 // Example:
 //
-//    API("cellar", func() {
+//    var _ = API("cellar", func() {
 //        // ...
 //        HTTP(func() {
 //            Consumes("application/json", "application/xml")
@@ -192,7 +190,7 @@ func Consumes(args ...string) {
 	}
 }
 
-// Produces adds a MIME type to the list of MIME types the APIs supports when
+// Produces adds a MIME type to the list of MIME types the API supports when
 // writing responses. While the DSL supports any MIME type, the code generator
 // only knows to generate the code for "application/json", "application/xml" and
 // "application/gob". The service code must provide the encoders for other MIME
@@ -204,7 +202,7 @@ func Consumes(args ...string) {
 //
 // Example:
 //
-//    API("cellar", func() {
+//    var _ = API("cellar", func() {
 //        // ...
 //        HTTP(func() {
 //            Produces("application/json", "application/xml")
@@ -221,30 +219,13 @@ func Produces(args ...string) {
 	}
 }
 
-// Path defines an API or service base path, i.e. a common path prefix to all
-// the API or service methods. The path may define wildcards (see GET for a
-// description of the wildcard syntax). The corresponding parameters must be
-// described using Params. Multiple base paths may be defined for services.
+// Path defines a service base path, i.e. a common path prefix to all the
+// service methods. The path may define wildcards (see GET for a description of
+// the wildcard syntax). The corresponding parameters must be described using
+// Params. Multiple base paths may be defined for services.
 func Path(val string) {
 	switch def := eval.Current().(type) {
-	case *expr.RootExpr:
-		if expr.Root.API.HTTP.Path != "" {
-			eval.ReportError(`only one base path may be specified for an API, got base paths %q and %q`, expr.Root.API.HTTP.Path, val)
-		}
-		expr.Root.API.HTTP.Path = val
 	case *expr.HTTPServiceExpr:
-		if !strings.HasPrefix(val, "//") {
-			rp := expr.Root.API.HTTP.Path
-			awcs := expr.ExtractHTTPWildcards(rp)
-			wcs := expr.ExtractHTTPWildcards(val)
-			for _, awc := range awcs {
-				for _, wc := range wcs {
-					if awc == wc {
-						eval.ReportError(`duplicate wildcard "%s" in API and service base paths`, wc)
-					}
-				}
-			}
-		}
 		def.Paths = append(def.Paths, val)
 	default:
 		eval.IncompatibleDSL()
@@ -337,11 +318,11 @@ func route(method, path string) *expr.RouteExpr {
 // validation etc.) of a header are inherited from the request or response type
 // attribute with the same name by default.
 //
-// Header must appear in the API HTTP expression (to define request headers
-// common to all the API endpoints), a specific method HTTP expression (to
-// define request headers), a Result expression (to define the response
-// headers) or an Error expression (to define the error response headers). Header
-// may also appear in a Headers expression.
+// Header may appear in a service HTTP expression (to define request headers
+// that apply to all the service endpoints), specific method HTTP expression (to
+// define request headers), a Result expression (to define the response headers)
+// or an Error expression (to define the error response headers). Header may
+// also appear in a Headers expression.
 //
 // Header accepts the same arguments as the Attribute function. The header name
 // may define a mapping between the attribute name and the HTTP header name when
@@ -381,17 +362,16 @@ func Header(name string, args ...interface{}) {
 // Params groups a set of Param expressions. It makes it possible to list
 // required parameters using the Required function.
 //
-// Params must appear in an API or Service HTTP expression to define the API or
-// service base path and query string parameters. Params may also appear in an
-// method HTTP expression to define the HTTP endpoint path and query string
-// parameters.
+// Params must appear in a Service HTTP expression to define the service base
+// path and query string parameters. Params may also appear in an method HTTP
+// expression to define the HTTP endpoint path and query string parameters.
 //
 // Params accepts one argument: Either a function listing the parameters or a
 // user type which must be an object and whose attributes define the parameters.
 //
 // Example:
 //
-//     var _ = API("cellar", func() {
+//     var _ = Service("cellar", func() {
 //         HTTP(func() {
 //             Params(func() {
 //                 Param("version", String, "API version", func() {
@@ -426,10 +406,9 @@ func Params(args interface{}) {
 
 // Param describes a single HTTP request path or query string parameter.
 //
-// Param must appear in the API HTTP expression (to define request parameters
-// common to all the API endpoints), a service HTTP expression to define common
-// parameters to all the service methods or a specific method HTTP
-// expression. Param may also appear in a Params expression.
+// Param may appear in a service HTTP expression to define common parameters to
+// all the service methods or a specific method HTTP expression. Param may also
+// appear in a Params expression.
 //
 // Param accepts the same arguments as the Function Attribute.
 //
@@ -802,16 +781,6 @@ func ContentType(typ string) {
 // endpoint - nil otherwise.
 func params(exp eval.Expression) *expr.MappedAttributeExpr {
 	switch e := exp.(type) {
-	case *expr.RootExpr:
-		if e.API.HTTP.Params == nil {
-			e.API.HTTP.Params = expr.NewEmptyMappedAttributeExpr()
-		}
-		return e.API.HTTP.Params
-	case *expr.ServerExpr:
-		if e.Params == nil {
-			e.Params = expr.NewEmptyMappedAttributeExpr()
-		}
-		return e.Params
 	case *expr.HTTPServiceExpr:
 		if e.Params == nil {
 			e.Params = expr.NewEmptyMappedAttributeExpr()
@@ -831,11 +800,6 @@ func params(exp eval.Expression) *expr.MappedAttributeExpr {
 // expression if it's either the root, a service or an endpoint - nil otherwise.
 func headers(exp eval.Expression) *expr.MappedAttributeExpr {
 	switch e := exp.(type) {
-	case *expr.RootExpr:
-		if e.API.HTTP.Headers == nil {
-			e.API.HTTP.Headers = expr.NewEmptyMappedAttributeExpr()
-		}
-		return e.API.HTTP.Headers
 	case *expr.HTTPServiceExpr:
 		if e.Headers == nil {
 			e.Headers = expr.NewEmptyMappedAttributeExpr()

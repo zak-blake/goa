@@ -360,19 +360,23 @@ func (p *protoTransformer) transformArray(source, target *expr.AttributeExpr, so
 		tgtInit  string
 	)
 	{
+		src = expr.AsArray(source.Type)
+		tgt = expr.AsArray(target.Type)
 		if err := codegen.IsCompatible(source.Type, target.Type, sourceVar+"[0]", targetVar+"[0]"); err != nil {
 			if p.proto {
-				src = expr.AsArray(source.Type)
 				tgt = expr.AsArray(unwrapAttr(target).Type)
-				tgtInit = fmt.Sprintf("%s := &%s{}\n", targetVar, protoBufGoFullTypeName(target, targetPkg, p.scope))
+				assign := "="
+				if newVar {
+					assign = ":="
+				}
+				tgtInit = fmt.Sprintf("%s %s &%s{}\n", targetVar, assign, protoBufGoFullTypeName(target, targetPkg, p.scope))
 				targetVar += ".Field"
 				newVar = false
 			} else {
 				src = expr.AsArray(unwrapAttr(source).Type)
 				sourceVar += ".Field"
-				tgt = expr.AsArray(target.Type)
 			}
-			if err = codegen.IsCompatible(src.ElemType.Type, tgt.ElemType.Type, sourceVar+"[0]", targetVar+"[0]"); err != nil {
+			if _, err := p.TransformAttribute(src.ElemType, tgt.ElemType, sourceVar, targetVar, sourcePkg, targetPkg, newVar); err != nil {
 				return "", err
 			}
 		}
@@ -395,10 +399,6 @@ func (p *protoTransformer) transformArray(source, target *expr.AttributeExpr, so
 		"ElemTypeRef": elemRef,
 		"SourceElem":  src.ElemType,
 		"TargetElem":  tgt.ElemType,
-		//"SourceField": srcFld,
-		//"TargetField": tgtFld,
-		"SourceField": "",
-		"TargetField": "",
 		"SourcePkg":   sourcePkg,
 		"TargetPkg":   targetPkg,
 		"Transformer": p,
@@ -409,23 +409,27 @@ func (p *protoTransformer) transformArray(source, target *expr.AttributeExpr, so
 
 func (p *protoTransformer) transformMap(source, target *expr.AttributeExpr, sourceVar, targetVar, sourcePkg, targetPkg string, newVar bool) (string, error) {
 	var (
-		src, tgt       *expr.Map
-		srcFld, tgtFld string
-		tgtInit        string
+		src, tgt *expr.Map
+		tgtInit  string
 	)
 	{
+		src = expr.AsMap(source.Type)
+		tgt = expr.AsMap(target.Type)
 		if err := codegen.IsCompatible(source.Type, target.Type, sourceVar+"[*]", targetVar+"[*]"); err != nil {
 			if p.proto {
-				src = expr.AsMap(source.Type)
 				tgt = expr.AsMap(unwrapAttr(target).Type)
-				tgtInit, _ = p.transformObject(&expr.AttributeExpr{Type: expr.Empty}, tgt.ElemType, "", targetVar+"[tk]", sourcePkg, targetPkg, false)
-				tgtFld = ".Field"
+				assign := "="
+				if newVar {
+					assign = ":="
+				}
+				tgtInit = fmt.Sprintf("%s %s &%s{}\n", targetVar, assign, protoBufGoFullTypeName(target, targetPkg, p.scope))
+				targetVar += ".Field"
+				newVar = false
 			} else {
 				src = expr.AsMap(unwrapAttr(source).Type)
-				srcFld = ".Field"
-				tgt = expr.AsMap(target.Type)
+				sourceVar += ".Field"
 			}
-			if err = codegen.IsCompatible(src.ElemType.Type, tgt.ElemType.Type, sourceVar+"[*]", targetVar+"[*]"); err != nil {
+			if _, err := p.TransformAttribute(src.ElemType, tgt.ElemType, sourceVar, targetVar, sourcePkg, targetPkg, newVar); err != nil {
 				return "", err
 			}
 		}
@@ -456,8 +460,6 @@ func (p *protoTransformer) transformMap(source, target *expr.AttributeExpr, sour
 		"TargetKey":   tgt.KeyType,
 		"SourceElem":  src.ElemType,
 		"TargetElem":  tgt.ElemType,
-		"SourceField": srcFld,
-		"TargetField": tgtFld,
 		"SourcePkg":   sourcePkg,
 		"TargetPkg":   targetPkg,
 		"Transformer": p,

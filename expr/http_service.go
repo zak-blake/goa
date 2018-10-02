@@ -2,9 +2,7 @@ package expr
 
 import (
 	"fmt"
-	"net/url"
 	"path"
-	"sort"
 	"strings"
 
 	"github.com/dimfeld/httppath"
@@ -53,27 +51,6 @@ func (svc *HTTPServiceExpr) Name() string {
 // Description of service (service)
 func (svc *HTTPServiceExpr) Description() string {
 	return svc.ServiceExpr.Description
-}
-
-// Schemes returns the service endpoint HTTP schemes.
-func (svc *HTTPServiceExpr) Schemes() []string {
-	schemes := make(map[string]bool)
-	for _, s := range svc.ServiceExpr.Servers {
-		if u, err := url.Parse(s.URL); err != nil {
-			schemes[u.Scheme] = true
-		}
-	}
-	if len(schemes) == 0 {
-		return nil
-	}
-	ss := make([]string, len(schemes))
-	i := 0
-	for s := range schemes {
-		ss[i] = s
-		i++
-	}
-	sort.Strings(ss)
-	return ss
 }
 
 // Error returns the error with the given name.
@@ -135,7 +112,7 @@ func (svc *HTTPServiceExpr) URITemplate() string {
 // API and parent service base paths as needed.
 func (svc *HTTPServiceExpr) FullPaths() []string {
 	if len(svc.Paths) == 0 {
-		return []string{path.Join(Root.API.HTTP.Path)}
+		return []string{"/"}
 	}
 	var paths []string
 	for _, p := range svc.Paths {
@@ -158,7 +135,7 @@ func (svc *HTTPServiceExpr) FullPaths() []string {
 				}
 			}
 		} else {
-			basePaths = []string{Root.API.HTTP.Path}
+			basePaths = []string{"/"}
 		}
 		for _, base := range basePaths {
 			paths = append(paths, httppath.Clean(path.Join(base, p)))
@@ -244,4 +221,11 @@ func (svc *HTTPServiceExpr) Validate() error {
 	}
 
 	return verr
+}
+
+// Finalize initializes the path if no path is set in design.
+func (svc *HTTPServiceExpr) Finalize() {
+	if len(svc.Paths) == 0 {
+		svc.Paths = []string{"/"}
+	}
 }

@@ -533,9 +533,6 @@ type (
 		// Response is the successful response data for the streaming
 		// endpoint.
 		Response *ResponseData
-		// Scheme is the scheme used by the streaming connection (ws or
-		// wss).
-		Scheme string
 		// SendName is the name of the send function.
 		SendName string
 		// SendDesc is the description for the send function.
@@ -624,20 +621,6 @@ func (d ServicesData) analyze(hs *expr.HTTPServiceExpr) *ServiceData {
 		ClientTypeNames:  make(map[string]bool),
 	}
 
-	var wsscheme string
-	{
-		for _, s := range hs.ServiceExpr.Schemes() {
-			if s == "ws" || s == "wss" {
-				wsscheme = s
-				break
-			}
-		}
-		if wsscheme == "" {
-			// use ws scheme for websocket if none specified
-			wsscheme = "ws"
-		}
-	}
-
 	for _, s := range hs.FileServers {
 		paths := make([]string, len(s.RequestPaths))
 		for i, p := range s.RequestPaths {
@@ -669,7 +652,7 @@ func (d ServicesData) analyze(hs *expr.HTTPServiceExpr) *ServiceData {
 		i := 0
 		for _, r := range a.Routes {
 			for _, rpath := range r.FullPaths() {
-				params := expr.ExtractRouteWildcards(rpath)
+				params := expr.ExtractHTTPWildcards(rpath)
 				var (
 					init *InitData
 				)
@@ -786,13 +769,10 @@ func (d ServicesData) analyze(hs *expr.HTTPServiceExpr) *ServiceData {
 				}
 			}
 			var buf bytes.Buffer
-			var payloadRef, scheme string
+			var payloadRef string
 			pathInit := routes[0].PathInit
 			if len(pathInit.ClientArgs) > 0 && a.MethodExpr.Payload.Type != expr.Empty {
 				payloadRef = svc.Scope.GoFullTypeRef(a.MethodExpr.Payload, svc.PkgName)
-			}
-			if ep.ServerStream != nil || ep.ClientStream != nil {
-				scheme = wsscheme
 			}
 			data := map[string]interface{}{
 				"PayloadRef":   payloadRef,
@@ -801,7 +781,6 @@ func (d ServicesData) analyze(hs *expr.HTTPServiceExpr) *ServiceData {
 				"Args":         args,
 				"PathInit":     pathInit,
 				"Verb":         routes[0].Verb,
-				"Scheme":       scheme,
 			}
 			if err := requestInitTmpl.Execute(&buf, data); err != nil {
 				panic(err) // bug
@@ -842,7 +821,7 @@ func (d ServicesData) analyze(hs *expr.HTTPServiceExpr) *ServiceData {
 			RequestEncoder:  requestEncoder,
 			ResponseDecoder: fmt.Sprintf("Decode%sResponse", ep.VarName),
 		}
-		buildStreamData(ad, a, wsscheme, rd)
+		buildStreamData(ad, a, rd)
 
 		if a.MultipartRequest {
 			ad.MultipartRequestDecoder = &MultipartData{
@@ -1660,7 +1639,7 @@ func buildErrorsData(e *expr.HTTPEndpointExpr, sd *ServiceData) []*ErrorGroupDat
 	return vals
 }
 
-func buildStreamData(ed *EndpointData, e *expr.HTTPEndpointExpr, scheme string, sd *ServiceData) {
+func buildStreamData(ed *EndpointData, e *expr.HTTPEndpointExpr, sd *ServiceData) {
 	if !e.MethodExpr.IsStreaming() {
 		return
 	}
@@ -1781,7 +1760,6 @@ func buildStreamData(ed *EndpointData, e *expr.HTTPEndpointExpr, scheme string, 
 		Payload:      svrPayload,
 		Response:     ed.Result.Responses[0],
 		PkgName:      svc.PkgName,
-		Scheme:       scheme,
 		Type:         "server",
 		SendName:     md.ServerStream.SendName,
 		SendDesc:     svrSendDesc,
@@ -1800,7 +1778,6 @@ func buildStreamData(ed *EndpointData, e *expr.HTTPEndpointExpr, scheme string, 
 		Payload:      cliPayload,
 		Response:     ed.Result.Responses[0],
 		PkgName:      svc.PkgName,
-		Scheme:       scheme,
 		Type:         "client",
 		SendName:     md.ClientStream.SendName,
 		SendDesc:     cliSendDesc,
@@ -2417,7 +2394,7 @@ const (
 	{{- end }}
 	}
 {{- end }}
-	u := &url.URL{Scheme: {{ if .Scheme }}{{ printf "%q" .Scheme }}{{ else }}c.scheme{{ end }}, Host: c.host, Path: {{ .PathInit.Name }}({{ range .PathInit.ClientArgs }}{{ .Ref }}, {{ end }})}
+	u := &url.URL{Scheme: c.scheme, Host: c.host, Path: {{ .PathInit.Name }}({{ range .PathInit.ClientArgs }}{{ .Ref }}, {{ end }})}
 	req, err := http.NewRequest("{{ .Verb }}", u.String(), nil)
 	if err != nil {
 		return nil, goahttp.ErrInvalidURL("{{ .ServiceName }}", "{{ .EndpointName }}", u.String(), err)

@@ -212,7 +212,7 @@ func runDSL(t *testing.T, dsl func()) *expr.RootExpr {
 	expr.Root = new(expr.RootExpr)
 	eval.Register(expr.Root)
 	expr.Root.API = expr.NewAPIExpr("test api", func() {})
-	expr.Root.API.Servers = []*expr.ServerExpr{{URL: "http://localhost"}}
+	expr.Root.API.Servers = []*expr.ServerExpr{expr.Root.API.DefaultServer()}
 
 	// run DSL (first pass)
 	if !eval.Execute(dsl, nil) {

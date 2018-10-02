@@ -13,10 +13,10 @@ import (
 // When used in a GRPC response expression, it defines the headers to be sent
 // in the response metadata.
 //
-// To define HTTP headers, Headers must appear in an API or Service HTTP
-// expression to define request headers common to all the API or service
-// methods. Headers may also appear in a method, response or error HTTP
-// expression to define the HTTP endpoint request and response headers.
+// To define HTTP headers, Headers must appear in an Service HTTP expression
+// to define request headers common to all the service methods. Headers may
+// also appear in a method, response or error HTTP expression to define the
+// HTTP endpoint request and response headers.
 //
 // To define gRPC response header metadata, Headers must appear in a GRPC
 // response expression.
@@ -29,7 +29,7 @@ import (
 //
 //     // HTTP headers
 //
-//     var _ = API("cellar", func() {
+//     var _ = Service("cellar", func() {
 //         HTTP(func() {
 //             Headers(func() {
 //                 Header("version:Api-Version", String, "API version", func() {
