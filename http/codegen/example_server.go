@@ -11,21 +11,20 @@ import (
 	"goa.design/goa/expr"
 )
 
-// ExampleServerFiles returns and example main and dummy service
-// implementations.
+// ExampleServerFiles returns example server implementations.
 func ExampleServerFiles(genpkg string, root *expr.RootExpr) []*codegen.File {
 	var fw []*codegen.File
 	for _, svr := range root.API.Servers {
-		if m := exampleMain(genpkg, root, svr); m != nil {
+		if m := exampleServer(genpkg, root, svr); m != nil {
 			fw = append(fw, m)
 		}
 	}
 	return fw
 }
 
-func exampleMain(genpkg string, root *expr.RootExpr, svr *expr.ServerExpr) *codegen.File {
+func exampleServer(genpkg string, root *expr.RootExpr, svr *expr.ServerExpr) *codegen.File {
 	pkg := codegen.SnakeCase(codegen.Goify(svr.Name, true))
-	mainPath := filepath.Join("cmd", pkg, "main.go")
+	mainPath := filepath.Join("cmd", pkg, "http.go")
 	idx := strings.LastIndex(genpkg, string(os.PathSeparator))
 	rootPath := "."
 	if idx > 0 {
@@ -70,8 +69,8 @@ func exampleMain(genpkg string, root *expr.RootExpr, svr *expr.ServerExpr) *code
 		"DefaultHost": u.Host,
 	}
 	sections = append(sections, &codegen.SectionTemplate{
-		Name:    "service-main",
-		Source:  mainT,
+		Name:    "serve-grpc",
+		Source:  serveHTTPT,
 		Data:    data,
 		FuncMap: map[string]interface{}{"needStream": needStream},
 	})
@@ -137,6 +136,7 @@ func dummyMultipart(genpkg string, root *expr.RootExpr) *codegen.File {
 	return &codegen.File{
 		Path:             mpath,
 		SectionTemplates: sections,
+		SkipExist:        true,
 	}
 }
 
@@ -168,15 +168,13 @@ func {{ .FuncName }}(mw *multipart.Writer, p {{ .Payload.Ref }}) error {
 `
 
 // input: map[string]interface{}{"Services":[]ServiceData, "APIPkg": string, "DefaultHost": string}
-const mainT = `func main() {
-	// Define command line flags, add any other flag required to configure
-	// the service.
-	var (
-		addr = flag.String("listen", "{{ .DefaultHost }}", "HTTP listen ` + "`" + `address` + "`" + `")
-		dbg  = flag.Bool("debug", false, "Log request and response bodies")
-	)
-	flag.Parse()
+const serveHTTPT = `{{ comment "httpsvr implements Server interface." }}
+type httpsvr struct {
+  svr *http.Server
+  addr string
+}
 
+func newHTTPServer(scheme, host string{{ range .Services }}{{ if .Endpoints }}, {{ .Service.VarName }}Endpoints *{{ .Service.PkgName }}.Endpoints{{ end }}{{ end }}, logger *log.Logger, debug bool) Server {
 	// Setup logger and goa log adapter. Replace logger with your own using
 	// your log package of choice. The goa.design/middleware/logging/...
 	// packages define log adapters for common log packages.
@@ -231,6 +229,16 @@ const mainT = `func main() {
 	{{ .Service.PkgName }}svr.Mount(mux{{ if .Endpoints }}, {{ .Service.VarName }}Server{{ end }})
 	{{- end }}
 
+	{{- range .Services }}
+	for _, m := range {{ .Service.VarName }}Server.Mounts {
+		{{- if .FileServers }}
+		logger.Printf("file %q mounted on %s %s", m.Method, m.Verb, m.Pattern)
+		{{- else }}
+		logger.Printf("method %q mounted on %s %s", m.Method, m.Verb, m.Pattern)
+		{{- end }}
+	}
+	{{- end }}
+
 	// Wrap the multiplexer with additional middlewares. Middlewares mounted
 	// here apply to all the service endpoints.
 	var handler http.Handler = mux
@@ -244,29 +252,30 @@ const mainT = `func main() {
 
 	// Start HTTP server using default configuration, change the code to
 	// configure the server as required by your service.
-	srv := &http.Server{Addr: addr, Handler: handler}
-	go func() {
-		{{- range .Services }}
-		for _, m := range {{ .Service.VarName }}Server.Mounts {
-			{{- if .FileServers }}
-			logger.Printf("file %q mounted on %s %s", m.Method, m.Verb, m.Pattern)
-			{{- else }}
-			logger.Printf("method %q mounted on %s %s", m.Method, m.Verb, m.Pattern)
-			{{- end }}
-		}
-		{{- end }}
-		logger.Printf("HTTP listening on %s", addr)
-		errc <- srv.ListenAndServe()
-	}()
+	srv := &http.Server{Addr: host, Handler: handler}
 
-	return srv
+	return &httpsvr{svr: srv, addr: host}
 }
 
-func httpStop(srv *http.Server) {
+func (h *httpsvr) Start(errc chan error) {
+	go func() {
+		errc <- h.svr.ListenAndServe()
+	}()
+}
+
+func (h *httpsvr) Stop() error {
 	// Shutdown gracefully with a 30s timeout.
-  ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-  defer cancel()
-	srv.Shutdown(ctx)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	return h.svr.Shutdown(ctx)
+}
+
+func (h *httpsvr) Addr() string {
+  return h.addr
+}
+
+func (h *httpsvr) Type() string {
+  return "HTTP"
 }
 
 // errorHandler returns a function that writes and logs the given error.

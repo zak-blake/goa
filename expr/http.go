@@ -7,15 +7,6 @@ import (
 type (
 	// HTTPExpr contains the API level HTTP specific expressions.
 	HTTPExpr struct {
-		// Path is the common request path prefix to all the service
-		// HTTP endpoints.
-		Path string
-		// Params defines the HTTP request path and query parameters
-		// common to all the API endpoints.
-		Params *MappedAttributeExpr
-		// Headers defines the HTTP request headers common to to all
-		// the API endpoints.
-		Headers *MappedAttributeExpr
 		// Consumes lists the mime types supported by the API
 		// controllers.
 		Consumes []string

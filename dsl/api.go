@@ -46,7 +46,12 @@ func API(name string, fn func()) *expr.APIExpr {
 		eval.IncompatibleDSL()
 		return nil
 	}
-	expr.Root.API = expr.NewAPIExpr(name, fn)
+	expr.Root.API = &expr.APIExpr{
+		Name:    name,
+		DSLFunc: fn,
+		HTTP:    new(expr.HTTPExpr),
+		GRPC:    new(expr.GRPCExpr),
+	}
 	return expr.Root.API
 }
 

@@ -11,18 +11,25 @@ import (
 
 // ExampleServerFiles returns and example main and dummy service
 // implementations.
-func ExampleServerFiles(genpkg string, root *expr.RootExpr) *codegen.File {
-	return exampleServer(genpkg, root)
+func ExampleServerFiles(genpkg string, root *expr.RootExpr) []*codegen.File {
+	var fw []*codegen.File
+	for _, svr := range root.API.Servers {
+		if m := exampleServer(genpkg, root, svr); m != nil {
+			fw = append(fw, m)
+		}
+	}
+	return fw
 }
 
-func exampleServer(genpkg string, root *expr.RootExpr) *codegen.File {
+func exampleServer(genpkg string, root *expr.RootExpr, svr *expr.ServerExpr) *codegen.File {
 	var (
 		mainPath string
 		apiPkg   string
 	)
 	{
 		apiPkg = strings.ToLower(codegen.Goify(root.API.Name, false))
-		mainPath = filepath.Join("cmd", codegen.SnakeCase(codegen.Goify(root.API.Name, true))+"_svc", "grpc.go")
+		pkg := codegen.SnakeCase(codegen.Goify(svr.Name, true))
+		mainPath = filepath.Join("cmd", pkg, "grpc.go")
 		if _, err := os.Stat(mainPath); !os.IsNotExist(err) {
 			return nil // file already exists, skip it.
 		}
@@ -84,11 +91,17 @@ func exampleServer(genpkg string, root *expr.RootExpr) *codegen.File {
 			},
 		})
 	}
-	return &codegen.File{Path: mainPath, SectionTemplates: sections}
+	return &codegen.File{Path: mainPath, SectionTemplates: sections, SkipExist: true}
 }
 
 // input: map[string]interface{}{"Services":[]ServiceData, "APIPkg": string}
-const serveGRPCT = `func grpcServe(addr string{{ range .Services }}{{ if .Endpoints }}, {{ .Service.VarName }}Endpoints *{{ .Service.PkgName }}.Endpoints{{ end }}{{ end }}, errc chan error, logger *log.Logger, debug bool) *grpc.Server {
+const serveGRPCT = `{{ comment "grpcsvr implements Server interface." }}
+type grpcsvr struct {
+	svr *grpc.Server
+	addr string
+}
+
+func newGRPCServer(scheme, host string{{ range .Services }}{{ if .Endpoints }}, {{ .Service.VarName }}Endpoints *{{ .Service.PkgName }}.Endpoints{{ end }}{{ end }}, logger *log.Logger, debug bool) Server {
 	// Setup goa log adapter. Replace logger with your own using your
   // log package of choice. The goa.design/middleware/logging/...
   // packages define log adapters for common log packages.
@@ -125,29 +138,35 @@ const serveGRPCT = `func grpcServe(addr string{{ range .Services }}{{ if .Endpoi
       middleware.Log(adapter),
 	  )),
 	)
-	
 
 	// Register the servers.
 	{{- range .Services }}
 	{{ .PkgName }}.Register{{ goify .Service.VarName true }}Server(srv, {{ .Service.VarName }}Server)
 	{{- end }}
 
-	// Start gRPC server using default configuration, change the code to
-	// configure the server as required by your service.
-	go func() {
-		lis, err := net.Listen("tcp", addr)
-		if err != nil {
-      logger.Fatalf("failed to listen: %v", err)
-      errc <- err
-    }
-    logger.Printf("gRPC listening on %s", addr)
-		errc <- srv.Serve(lis)
-	}()
-
-	return srv
+	return &grpcsvr{svr: srv, addr: host}
 }
 
-func grpcStop(srv *grpc.Server) {
-	srv.Stop()
+func (g *grpcsvr) Start(errc chan error) {
+	go func() {
+		lis, err := net.Listen("tcp", g.addr)
+		if err != nil {
+      errc <- err
+    }
+		errc <- g.svr.Serve(lis)
+	}()
+}
+
+func (g *grpcsvr) Stop() error {
+	g.svr.Stop()
+	return nil
+}
+
+func (g *grpcsvr) Addr() string {
+	return g.addr
+}
+
+func (g *grpcsvr) Type() string {
+  return "gRPC"
 }
 `

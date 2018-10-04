@@ -1,41 +1,85 @@
 package main
 
 import (
-	"context"
 	"flag"
 	"fmt"
 	"log"
-	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
-	"time"
+	"strings"
 
 	calc "goa.design/goa/examples/calc"
 	calcsvc "goa.design/goa/examples/calc/gen/calc"
-	calcsvcsvr "goa.design/goa/examples/calc/gen/http/calc/server"
-	goahttp "goa.design/goa/http"
-	"goa.design/goa/http/middleware"
 )
+
+// Server provides the means to start and stop a server.
+type Server interface {
+	// Start starts a server and sends any errors to the error channel.
+	Start(errc chan error)
+	// Stop stops a server.
+	Stop() error
+	// Addr returns the listen address.
+	Addr() string
+	// Type returns the server type (HTTP or gRPC)
+	Type() string
+}
 
 func main() {
 	// Define command line flags, add any other flag required to configure
 	// the service.
 	var (
-		addr = flag.String("listen", "localhost:8000", "HTTP listen `address`")
-		dbg  = flag.Bool("debug", false, "Log request and response bodies")
+		hostF     = flag.String("host", "development", "Server host (valid values: development, production)")
+		domainF   = flag.String("domain", "", "Host domain name (overrides host domain and port specified in design)")
+		httpPortF = flag.String("http-port", "", "HTTP port (used in conjunction with -- domain flag)")
+		grpcPortF = flag.String("grpc-port", "", "gRPC port (used in conjunction with -- domain flag)")
+		versionF  = flag.String("version", "v1", "API version")
+		secureF   = flag.Bool("secure", false, "Use secure scheme (https or grpcs)")
+		dbgF      = flag.Bool("debug", false, "Log request and response bodies")
 	)
 	flag.Parse()
+
+	var (
+		httpAddr string
+		grpcAddr string
+	)
+	{
+		if *domainF != "" {
+			httpScheme := "http"
+			if *secureF {
+				httpScheme = "https"
+			}
+			httpPort := *httpPortF
+			if httpPort == "" {
+				httpPort = "80"
+				if *secureF {
+					httpPort = "443"
+				}
+			}
+			httpAddr = httpScheme + "://" + *domainF + ":" + httpPort
+			grpcScheme := "grpc"
+			if *secureF {
+				grpcScheme = "grpcs"
+			}
+			grpcPort := *grpcPortF
+			if grpcPort == "" {
+				grpcPort = "8080"
+				if *secureF {
+					grpcPort = "8443"
+				}
+			}
+			grpcAddr = grpcScheme + "://" + *domainF + ":" + grpcPort
+		}
+	}
 
 	// Setup logger and goa log adapter. Replace logger with your own using
 	// your log package of choice. The goa.design/middleware/logging/...
 	// packages define log adapters for common log packages.
 	var (
-		adapter middleware.Logger
-		logger  *log.Logger
+		logger *log.Logger
 	)
 	{
 		logger = log.New(os.Stderr, "[calc] ", log.Ltime)
-		adapter = middleware.NewLogger(logger)
 	}
 
 	// Create the structs that implement the services.
@@ -55,48 +99,6 @@ func main() {
 		calcEndpoints = calcsvc.NewEndpoints(calcSvc)
 	}
 
-	// Provide the transport specific request decoder and response encoder.
-	// The goa http package has built-in support for JSON, XML and gob.
-	// Other encodings can be used by providing the corresponding functions,
-	// see goa.design/encoding.
-	var (
-		dec = goahttp.RequestDecoder
-		enc = goahttp.ResponseEncoder
-	)
-
-	// Build the service HTTP request multiplexer and configure it to serve
-	// HTTP requests to the service endpoints.
-	var mux goahttp.Muxer
-	{
-		mux = goahttp.NewMuxer()
-	}
-
-	// Wrap the endpoints with the transport specific layers. The generated
-	// server packages contains code generated from the design which maps
-	// the service input and output data structures to HTTP requests and
-	// responses.
-	var (
-		calcServer *calcsvcsvr.Server
-	)
-	{
-		eh := ErrorHandler(logger)
-		calcServer = calcsvcsvr.New(calcEndpoints, mux, dec, enc, eh)
-	}
-
-	// Configure the mux.
-	calcsvcsvr.Mount(mux, calcServer)
-
-	// Wrap the multiplexer with additional middlewares. Middlewares mounted
-	// here apply to all the service endpoints.
-	var handler http.Handler = mux
-	{
-		if *dbg {
-			handler = middleware.Debug(mux, os.Stdout)(handler)
-		}
-		handler = middleware.Log(adapter)(handler)
-		handler = middleware.RequestID()(handler)
-	}
-
 	// Create channel used by both the signal handler and server goroutines
 	// to notify the main goroutine when to stop the server.
 	errc := make(chan error)
@@ -109,35 +111,69 @@ func main() {
 		errc <- fmt.Errorf("%s", <-c)
 	}()
 
-	// Start HTTP server using default configuration, change the code to
-	// configure the server as required by your service.
-	srv := &http.Server{Addr: *addr, Handler: handler}
-	go func() {
-		for _, m := range calcServer.Mounts {
-			logger.Printf("file %q mounted on %s %s", m.Method, m.Verb, m.Pattern)
+	var (
+		addr string
+		u    *url.URL
+		svrs []Server
+	)
+	switch *hostF {
+	case "development":
+		if httpAddr != "" {
+			addr = httpAddr
+		} else {
+			addr = "http://localhost:8000/calc"
 		}
-		logger.Printf("listening on %s", *addr)
-		errc <- srv.ListenAndServe()
-	}()
+		u = parseAddr(addr)
+		svrs = append(svrs, newHTTPServer(u.Scheme, u.Host, calcEndpoints, logger, *dbgF))
+		if grpcAddr != "" {
+			addr = grpcAddr
+		} else {
+			addr = "grpc://localhost:8080"
+		}
+		u = parseAddr(addr)
+		svrs = append(svrs, newGRPCServer(u.Scheme, u.Host, calcEndpoints, logger, *dbgF))
+	case "production":
+		if httpAddr != "" {
+			addr = httpAddr
+		} else {
+			addr = "https://{version}.goa.design/calc"
+		}
+		addr = strings.Replace(addr, "{version}", *versionF, -1)
+		u = parseAddr(addr)
+		svrs = append(svrs, newHTTPServer(u.Scheme, u.Host, calcEndpoints, logger, *dbgF))
+		if grpcAddr != "" {
+			addr = grpcAddr
+		} else {
+			addr = "grpcs://{version}.goa.design"
+		}
+		addr = strings.Replace(addr, "{version}", *versionF, -1)
+		u = parseAddr(addr)
+		svrs = append(svrs, newGRPCServer(u.Scheme, u.Host, calcEndpoints, logger, *dbgF))
+	default:
+		fmt.Fprintf(os.Stderr, "invalid host argument: %q (valid hosts: development|production", *hostF)
+		os.Exit(1)
+	}
+
+	// Start the servers
+	for _, s := range svrs {
+		logger.Println("Starting " + s.Type() + " server at " + s.Addr())
+		s.Start(errc)
+	}
 
 	// Wait for signal.
 	logger.Printf("exiting (%v)", <-errc)
-
-	// Shutdown gracefully with a 30s timeout.
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-	srv.Shutdown(ctx)
-
+	for _, s := range svrs {
+		logger.Println("Shutting down " + s.Type() + " server at " + s.Addr())
+		s.Stop()
+	}
 	logger.Println("exited")
 }
 
-// ErrorHandler returns a function that writes and logs the given error.
-// The function also writes and logs the error unique ID so that it's possible
-// to correlate.
-func ErrorHandler(logger *log.Logger) func(context.Context, http.ResponseWriter, error) {
-	return func(ctx context.Context, w http.ResponseWriter, err error) {
-		id := ctx.Value(middleware.RequestIDKey).(string)
-		w.Write([]byte("[" + id + "] encoding: " + err.Error()))
-		logger.Printf("[%s] ERROR: %s", id, err.Error())
+func parseAddr(addr string) *url.URL {
+	u, err := url.Parse(addr)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "invalid URL %#v: %s", addr, err)
+		os.Exit(1)
 	}
+	return u
 }

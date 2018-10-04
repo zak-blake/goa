@@ -98,7 +98,9 @@ const (
 //
 //    var _ = API("calc", func() {
 //        HTTP(func() {
-//            Path("/api") // Prefix to HTTP path of all requests.
+//            Response(InvalidRequest, func() {
+//                Header("Error-Code:code")
+//            })
 //        })
 //    })
 //

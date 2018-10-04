@@ -4,14 +4,6 @@ info:
   description: An example illustrating error handling in goa. See docs/ErrorHandling.md.
   version: ""
 host: localhost:80
-consumes:
-- application/json
-- application/xml
-- application/gob
-produces:
-- application/json
-- application/xml
-- application/gob
 paths:
   /div/{a}/{b}:
     get:

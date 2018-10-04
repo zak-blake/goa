@@ -8,8 +8,8 @@ import (
 	"os"
 	"os/signal"
 
-	divider "goa.design/goa/examples/error"
-	dividersvc "goa.design/goa/examples/error/gen/divider"
+	chatter "goa.design/goa/examples/streaming"
+	chattersvc "goa.design/goa/examples/streaming/gen/chatter"
 )
 
 // Server provides the means to start and stop a server.
@@ -77,24 +77,24 @@ func main() {
 		logger *log.Logger
 	)
 	{
-		logger = log.New(os.Stderr, "[divider] ", log.Ltime)
+		logger = log.New(os.Stderr, "[chatter] ", log.Ltime)
 	}
 
 	// Create the structs that implement the services.
 	var (
-		dividerSvc dividersvc.Service
+		chatterSvc chattersvc.Service
 	)
 	{
-		dividerSvc = divider.NewDivider(logger)
+		chatterSvc = chatter.NewChatter(logger)
 	}
 
 	// Wrap the services in endpoints that can be invoked from other
 	// services potentially running in different processes.
 	var (
-		dividerEndpoints *dividersvc.Endpoints
+		chatterEndpoints *chattersvc.Endpoints
 	)
 	{
-		dividerEndpoints = dividersvc.NewEndpoints(dividerSvc)
+		chatterEndpoints = chattersvc.NewEndpoints(chatterSvc, chatter.ChatterBasicAuth, chatter.ChatterJWTAuth)
 	}
 
 	// Create channel used by both the signal handler and server goroutines
@@ -122,14 +122,14 @@ func main() {
 			addr = "http://localhost:80"
 		}
 		u = parseAddr(addr)
-		svrs = append(svrs, newHTTPServer(u.Scheme, u.Host, dividerEndpoints, logger, *dbgF))
+		svrs = append(svrs, newHTTPServer(u.Scheme, u.Host, chatterEndpoints, logger, *dbgF))
 		if grpcAddr != "" {
 			addr = grpcAddr
 		} else {
 			addr = "grpc://localhost:8080"
 		}
 		u = parseAddr(addr)
-		svrs = append(svrs, newGRPCServer(u.Scheme, u.Host, dividerEndpoints, logger, *dbgF))
+		svrs = append(svrs, newGRPCServer(u.Scheme, u.Host, chatterEndpoints, logger, *dbgF))
 	default:
 		fmt.Fprintf(os.Stderr, "invalid host argument: %q (valid hosts: localhost", *hostF)
 		os.Exit(1)

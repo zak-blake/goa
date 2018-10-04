@@ -58,7 +58,7 @@ const (
 // appear in the request or response types. The functions may also define new
 // attributes or override the existing request or response type attributes.
 //
-// GRPC must appear in API, a Service or a Method expression.
+// GRPC must appear in a Service or a Method expression.
 //
 // GRPC accepts a single argument which is the defining DSL function.
 //
@@ -92,8 +92,6 @@ const (
 //
 func GRPC(fn func()) {
 	switch actual := eval.Current().(type) {
-	case *expr.APIExpr:
-		eval.Execute(fn, expr.Root)
 	case *expr.ServiceExpr:
 		res := expr.Root.API.GRPC.ServiceFor(actual)
 		res.DSLFunc = fn

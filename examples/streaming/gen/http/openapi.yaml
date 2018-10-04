@@ -3,14 +3,6 @@ info:
   title: Chatter service describing the streaming features of goa v2.
   version: ""
 host: localhost:80
-consumes:
-- application/json
-- application/xml
-- application/gob
-produces:
-- application/json
-- application/xml
-- application/gob
 paths:
   /echoer:
     get:

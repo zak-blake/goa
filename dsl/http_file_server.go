@@ -7,7 +7,7 @@ import (
 	"goa.design/goa/expr"
 )
 
-// Files defines a endpoint that serves static assets via HTTP. The logic for
+// Files defines an endpoint that serves static assets via HTTP. The logic for
 // what to do when the filename points to a file vs. a directory is the same as
 // the standard http package ServeFile function. The path may end with a
 // wildcard that matches the rest of the URL (e.g. *filepath). If it does the
