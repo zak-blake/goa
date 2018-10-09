@@ -54,9 +54,10 @@ func serverType(genpkg string, svc *expr.GRPCServiceExpr, seen map[string]struct
 	header := codegen.Header(svc.Name()+" gRPC server types", "server",
 		[]*codegen.ImportSpec{
 			{Path: "unicode/utf8"},
-			{Path: genpkg + "/" + codegen.SnakeCase(svc.Name()), Name: sd.Service.PkgName},
 			{Path: "goa.design/goa", Name: "goa"},
-			{Path: genpkg + "/grpc/" + codegen.SnakeCase(svc.Name()), Name: svc.Name() + "pb"},
+			{Path: filepath.Join(genpkg, codegen.SnakeCase(svc.Name())), Name: sd.Service.PkgName},
+			{Path: filepath.Join(genpkg, codegen.SnakeCase(svc.Name()), "views"), Name: sd.Service.ViewsPkg},
+			{Path: filepath.Join(genpkg, "grpc", codegen.SnakeCase(svc.Name())), Name: svc.Name() + "pb"},
 		},
 	)
 	sections := []*codegen.SectionTemplate{header}

@@ -116,6 +116,7 @@ func serverEncodeDecode(genpkg string, svc *expr.GRPCServiceExpr) *codegen.File 
 			{Path: "google.golang.org/grpc/metadata"},
 			{Path: "goa.design/goa", Name: "goa"},
 			{Path: filepath.Join(genpkg, codegen.SnakeCase(svc.Name())), Name: data.Service.PkgName},
+			{Path: filepath.Join(genpkg, codegen.SnakeCase(svc.Name()), "views"), Name: data.Service.ViewsPkg},
 			{Path: filepath.Join(genpkg, "grpc", codegen.SnakeCase(svc.Name())), Name: svc.Name() + "pb"},
 		}),
 	}
@@ -387,12 +388,20 @@ func Decode{{ .Method.VarName }}Request(
 // input: EndpointData
 const responseEncoderT = `{{ printf "Encode%sResponse encodes responses from the %s %s endpoint." .Method.VarName .ServiceName .Method.Name | comment }}
 func Encode{{ .Method.VarName }}Response(ctx context.Context, v interface{}) {{ .Response.ServerConvert.TgtRef }} {
+{{- if .ViewedResultRef }}
+	vres := v.({{ .ViewedResultRef }})
+	res := vres.Projected
+{{- else }}
 	res := v.({{ .ResultRef }})
+{{- end }}
 	resp := {{ .Response.ServerConvert.Init.Name }}({{ range .Response.ServerConvert.Init.Args }}{{ .Name }}, {{ end }})
-{{- if .Response.Headers }}
+{{- if or .Response.Headers .ViewedResultRef }}
 	hdr := metadata.New(map[string]string{})
 	{{- range .Response.Headers }}
 		{{ template "metadata_encoder" (metadataEncodeDecodeData . "hdr") }}
+	{{- end }}
+	{{- if .ViewedResultRef }}
+		hdr.Append("goa-view", vres.View)
 	{{- end }}
 	grpc.SendHeader(ctx, hdr)
 {{- end }}

@@ -12,7 +12,7 @@ import (
 // include a HTTP root.
 func OpenAPI(_ string, roots []eval.Root) ([]*codegen.File, error) {
 	for _, root := range roots {
-		if r, ok := root.(*expr.RootExpr); ok {
+		if r, ok := root.(*expr.RootExpr); ok && len(r.API.HTTP.Services) > 0 {
 			return httpcodegen.OpenAPIFiles(r)
 		}
 	}

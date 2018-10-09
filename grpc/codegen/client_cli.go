@@ -153,7 +153,7 @@ func endpointParser(genpkg string, root *expr.RootExpr, data []*commandData) *co
 	for _, svc := range root.API.GRPC.Services {
 		sd := GRPCServices.Get(svc.Name())
 		specs = append(specs, &codegen.ImportSpec{
-			Path: genpkg + "/grpc/" + codegen.SnakeCase(sd.Service.Name) + "/client",
+			Path: filepath.Join(genpkg, "grpc", codegen.SnakeCase(sd.Service.Name), "client"),
 			Name: sd.Service.PkgName + "c",
 		})
 	}
@@ -212,8 +212,8 @@ func payloadBuilders(genpkg string, svc *expr.GRPCServiceExpr, data *commandData
 	specs := []*codegen.ImportSpec{
 		{Path: "encoding/json"},
 		{Path: "fmt"},
-		{Path: genpkg + "/" + codegen.SnakeCase(svc.Name()), Name: sd.Service.PkgName},
-		{Path: genpkg + "/grpc/" + codegen.SnakeCase(svc.Name()), Name: svc.Name() + "pb"},
+		{Path: filepath.Join(genpkg, codegen.SnakeCase(svc.Name())), Name: sd.Service.PkgName},
+		{Path: filepath.Join(genpkg, "grpc", codegen.SnakeCase(svc.Name())), Name: svc.Name() + "pb"},
 	}
 	sections := []*codegen.SectionTemplate{
 		codegen.Header(title, "client", specs),

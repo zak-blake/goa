@@ -68,6 +68,8 @@ type (
 		PayloadRef string
 		// ResultRef is the fully qualified reference to the method result.
 		ResultRef string
+		// ViewedResultRef is the fully qualified reference to the viewed result.
+		ViewedResultRef string
 		// Request is the gRPC request data.
 		Request *RequestData
 		// Response is the gRPC response data.
@@ -192,11 +194,11 @@ type (
 		Trailers []*MetadataData
 		// ServerConvert is the type data with constructor function to
 		// initialize the generated response type in *.pb.go from the
-		// method result type.
+		// method result type or the projected result type.
 		ServerConvert *ConvertData
 		// ClientConvert is the type data with constructor function to
-		// initialize the method result type from the generated response type in
-		// *.pb.go.
+		// initialize the method result type or the projected result type
+		// from the generated response type in *.pb.go.
 		ClientConvert *ConvertData
 	}
 
@@ -367,9 +369,12 @@ func (d ServicesData) analyze(gs *expr.GRPCServiceExpr) *ServiceData {
 		}
 
 		var (
-			payloadRef string
-			resultRef  string
-			errors     []*ErrorData
+			payloadRef      string
+			resultRef       string
+			viewedResultRef string
+			errors          []*ErrorData
+
+			md = svc.Method(e.Name())
 		)
 		{
 			if e.MethodExpr.Payload.Type != expr.Empty {
@@ -377,6 +382,9 @@ func (d ServicesData) analyze(gs *expr.GRPCServiceExpr) *ServiceData {
 			}
 			if e.MethodExpr.Result.Type != expr.Empty {
 				resultRef = svc.Scope.GoFullTypeRef(e.MethodExpr.Result, svc.PkgName)
+			}
+			if md.ViewedResult != nil {
+				viewedResultRef = md.ViewedResult.FullRef
 			}
 			errors = buildErrorsData(e, sd)
 		}
@@ -457,8 +465,6 @@ func (d ServicesData) analyze(gs *expr.GRPCServiceExpr) *ServiceData {
 		var (
 			msgSch []*service.SchemeData
 			metSch []*service.SchemeData
-
-			md = svc.Method(e.Name())
 		)
 		{
 			for _, req := range e.Requirements {
@@ -481,6 +487,7 @@ func (d ServicesData) analyze(gs *expr.GRPCServiceExpr) *ServiceData {
 			Method:          md,
 			PayloadRef:      payloadRef,
 			ResultRef:       resultRef,
+			ViewedResultRef: viewedResultRef,
 			Request:         request,
 			Response:        response,
 			MessageSchemes:  msgSch,
@@ -617,20 +624,31 @@ func buildResponseConvertData(e *expr.GRPCEndpointExpr, hdrs, trlrs []*MetadataD
 		return nil
 	}
 	var (
-		td *ConvertData
+		td        *ConvertData
+		result    *expr.AttributeExpr
+		resultPkg string
 
 		svc = sd.Service
+		md  = svc.Method(e.Name())
 	)
 	{
+		result = e.MethodExpr.Result
+		resultPkg = svc.PkgName
+		proj := ""
+		if md.ViewedResult != nil {
+			result = expr.AsObject(md.ViewedResult.Type).Attribute("projected")
+			resultPkg = md.ViewedResult.ViewsPkg
+			proj = "projected "
+		}
 		if svr {
 			fn := func(data *InitData) *InitData {
-				data.Description = fmt.Sprintf("%s builds the gRPC response type from the result of the %q endpoint of the %q service.", data.Name, e.Name(), svc.Name)
+				data.Description = fmt.Sprintf("%s builds the gRPC response type from the %sresult of the %q endpoint of the %q service.", data.Name, proj, e.Name(), svc.Name)
 				return data
 			}
-			td = buildConvertData(e.MethodExpr.Result, e.Response.Message, "res", "v", svc.PkgName, sd.PkgName, true, sd, fn)
+			td = buildConvertData(result, e.Response.Message, "res", "v", resultPkg, sd.PkgName, true, sd, fn)
 		} else {
 			fn := func(data *InitData) *InitData {
-				data.Description = fmt.Sprintf("%s builds the result type of the %q endpoint of the %q service from the gRPC response type.", data.Name, e.Name(), svc.Name)
+				data.Description = fmt.Sprintf("%s builds the %sresult type of the %q endpoint of the %q service from the gRPC response type.", data.Name, proj, e.Name(), svc.Name)
 				// pass header metadata as arguments to result constructor in client
 				for _, m := range hdrs {
 					data.Args = append(data.Args, &InitArgData{
@@ -659,7 +677,7 @@ func buildResponseConvertData(e *expr.GRPCEndpointExpr, hdrs, trlrs []*MetadataD
 				}
 				return data
 			}
-			td = buildConvertData(e.Response.Message, e.MethodExpr.Result, "resp", "v", sd.PkgName, svc.PkgName, false, sd, fn)
+			td = buildConvertData(e.Response.Message, result, "resp", "v", sd.PkgName, resultPkg, false, sd, fn)
 		}
 	}
 	return td

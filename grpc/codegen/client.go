@@ -31,10 +31,11 @@ func client(genpkg string, svc *expr.GRPCServiceExpr) *codegen.File {
 		codegen.Header(title, "client", []*codegen.ImportSpec{
 			{Path: "context"},
 			{Path: "google.golang.org/grpc"},
+			{Path: "google.golang.org/grpc/metadata"},
 			{Path: "goa.design/goa", Name: "goa"},
 			{Path: "goa.design/goa/grpc", Name: "goagrpc"},
-			{Path: genpkg + "/" + codegen.SnakeCase(svc.Name()), Name: data.Service.PkgName},
-			{Path: genpkg + "/grpc/" + codegen.SnakeCase(svc.Name()), Name: svc.Name() + "pb"},
+			{Path: filepath.Join(genpkg, codegen.SnakeCase(svc.Name())), Name: data.Service.PkgName},
+			{Path: filepath.Join(genpkg, "grpc", codegen.SnakeCase(svc.Name())), Name: svc.Name() + "pb"},
 		}),
 	}
 	sections = append(sections, &codegen.SectionTemplate{
@@ -116,8 +117,9 @@ func clientEncodeDecode(genpkg string, svc *expr.GRPCServiceExpr) *codegen.File 
 				{Path: "strconv"},
 				{Path: "google.golang.org/grpc/metadata"},
 				{Path: "goa.design/goa", Name: "goa"},
-				{Path: genpkg + "/" + codegen.SnakeCase(svc.Name()), Name: data.Service.PkgName},
-				{Path: genpkg + "/grpc/" + codegen.SnakeCase(svc.Name()), Name: svc.Name() + "pb"},
+				{Path: filepath.Join(genpkg, codegen.SnakeCase(svc.Name())), Name: data.Service.PkgName},
+				{Path: filepath.Join(genpkg, codegen.SnakeCase(svc.Name()), "views"), Name: data.Service.ViewsPkg},
+				{Path: filepath.Join(genpkg, "grpc", codegen.SnakeCase(svc.Name())), Name: svc.Name() + "pb"},
 			}),
 		}
 		fm := transTmplFuncs(svc)
@@ -190,27 +192,28 @@ func (c *{{ .ClientStruct }}) {{ .Method.VarName }}() goa.Endpoint {
     }
 		ctx{{ if not .Method.StreamingPayload }}, req :={{ else }} ={{ end }} Encode{{ .Method.VarName }}Request(ctx, p)
 	{{- end }}
-		{{- if and .Response.Headers .Response.Trailers }}
+		{{- if and (or .Response.Headers .ViewedResultRef) .Response.Trailers }}
 			var hdr, trlr metadata.MD
-		{{- else if .Response.Headers }}
+			c.opts = append(c.opts, grpc.Header(&hdr))
+			c.opts = append(c.opts, grpc.Trailer(&trlr))
+		{{- else if or .Response.Headers .ViewedResultRef }}
 			var hdr metadata.MD
+			c.opts = append(c.opts, grpc.Header(&hdr))
 		{{- else if .Response.Trailers }}
 			var trlr metadata.MD
+			c.opts = append(c.opts, grpc.Trailer(&trlr))
 		{{- end }}
 		{{ if .ClientStream }}stream
 		{{- else if .ResultRef }}resp
 		{{- else }}_
-		{{- end }}, err := c.grpccli.{{ .Method.VarName }}(ctx,
-			{{- if not .Method.StreamingPayload }}req, {{ end }}
-			{{- if .Response.Headers }}grpc.Header(&hdr), {{ end }}
-			{{- if .Response.Trailers }}grpc.Trailer(&trlr), {{ end }}c.opts...)
+		{{- end }}, err := c.grpccli.{{ .Method.VarName }}(ctx, {{- if not .Method.StreamingPayload }}req, {{ end }}c.opts...)
 		if err != nil {
 			return nil, err
 		}
 	{{- if .ClientStream }}
 		return &{{ .ClientStream.VarName }}{stream: stream}, nil
 	{{- else if .ResultRef }}
-		return Decode{{ .Method.VarName }}Response(ctx, resp{{ if .Response.Headers }}, hdr{{ end }}{{ if .Response.Trailers }}, trlr{{ end }})
+		return Decode{{ .Method.VarName }}Response(ctx, resp{{ if or .Response.Headers .ViewedResultRef }}, hdr{{ end }}{{ if .Response.Trailers }}, trlr{{ end }})
 	{{- else }}
 		return nil, nil
 	{{- end }}
@@ -220,7 +223,7 @@ func (c *{{ .ClientStruct }}) {{ .Method.VarName }}() goa.Endpoint {
 
 // input: EndpointData
 const responseDecoderT = `{{ printf "Decode%sResponse decodes responses from the %s %s endpoint." .Method.VarName .ServiceName .Method.Name | comment }}
-func Decode{{ .Method.VarName }}Response(ctx context.Context, resp {{ .Response.ServerConvert.TgtRef }}{{ if and .Response.Headers .Response.Trailers }}hdr, trlr metadata.MD{{ else if .Response.Headers }}hdr metadata.MD{{ else if .Response.Trailers }}trlr metadata.MD{{ end }}) ({{ .ResultRef }}, error) {
+func Decode{{ .Method.VarName }}Response(ctx context.Context, resp {{ .Response.ServerConvert.TgtRef }}, {{ if and (or .Response.Headers .ViewedResultRef) .Response.Trailers }}hdr, trlr metadata.MD{{ else if or .Response.Headers .ViewedResultRef }}hdr metadata.MD{{ else if .Response.Trailers }}trlr metadata.MD{{ end }}) ({{ .ResultRef }}, error) {
 {{- if .Response.ClientConvert.Init }}
 	{{- if or .Response.Headers .Response.Trailers }}
 		var (
@@ -244,11 +247,25 @@ func Decode{{ .Method.VarName }}Response(ctx context.Context, resp {{ .Response.
 			return nil, err
 		}
 	{{- end }}
+	{{- if .ViewedResultRef }}
+	var view string
+	{
+		if v := hdr.Get("goa-view"); len(v) > 0 {
+			view = v[0]
+		}
+	}
+	{{- end }}
 	res := {{ .Response.ClientConvert.Init.Name }}({{ range .Response.ClientConvert.Init.Args }}{{ .Name }}, {{ end }})
+	{{- if .ViewedResultRef }}
+		vres := &{{ .Method.ViewedResult.FullName }}{Projected: res, View: view}
+		return {{ .ServicePkgName }}.{{ .Method.ViewedResult.ResultInit.Name }}({{ range .Method.ViewedResult.ResultInit.Args}}{{ .Name }}, {{ end }}), nil
+	{{- else }}
+		return res, nil
+	{{- end }}
 {{- else }}
 	res := {{ convertType "resp.Field" . false }}
-{{- end }}
 	return res, nil
+{{- end }}
 }
 
 {{- define "metadata_decoder" }}
