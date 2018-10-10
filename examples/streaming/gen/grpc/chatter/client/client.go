@@ -16,6 +16,7 @@ import (
 	chatterpb "goa.design/goa/examples/streaming/gen/grpc/chatter"
 	goagrpc "goa.design/goa/grpc"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/metadata"
 )
 
 // Client lists the service endpoint gRPC clients.
@@ -59,16 +60,27 @@ func NewClient(cc *grpc.ClientConn, opts ...grpc.CallOption) *Client {
 // Login calls the "Login" function in chatterpb.ChatterClient interface.
 func (c *Client) Login() goa.Endpoint {
 	return func(ctx context.Context, v interface{}) (interface{}, error) {
+		er, err := EncodeLoginRequest(ctx, v)
+		if err != nil {
+			return nil, err
+		}
+		req := er.(*chatterpb.LoginRequest)
 		p, ok := v.(*chattersvc.LoginPayload)
 		if !ok {
 			return nil, goagrpc.ErrInvalidType("chatter", "login", "*chattersvc.LoginPayload", v)
 		}
-		ctx, req := EncodeLoginRequest(ctx, p)
+		ctx = metadata.AppendToOutgoingContext(ctx, "user", p.User)
+		ctx = metadata.AppendToOutgoingContext(ctx, "password", p.Password)
 		resp, err := c.grpccli.Login(ctx, req, c.opts...)
 		if err != nil {
 			return nil, err
 		}
-		return DecodeLoginResponse(ctx, resp)
+		r, err := DecodeLoginResponse(ctx, resp)
+		if err != nil {
+			return nil, err
+		}
+		res := r.(string)
+		return res, nil
 	}
 }
 
@@ -79,7 +91,7 @@ func (c *Client) Echoer() goa.Endpoint {
 		if !ok {
 			return nil, goagrpc.ErrInvalidType("chatter", "echoer", "*chattersvc.EchoerPayload", v)
 		}
-		ctx = EncodeEchoerRequest(ctx, p)
+		ctx = metadata.AppendToOutgoingContext(ctx, "authorization", p.Token)
 		stream, err := c.grpccli.Echoer(ctx, c.opts...)
 		if err != nil {
 			return nil, err
@@ -95,7 +107,7 @@ func (c *Client) Listener() goa.Endpoint {
 		if !ok {
 			return nil, goagrpc.ErrInvalidType("chatter", "listener", "*chattersvc.ListenerPayload", v)
 		}
-		ctx = EncodeListenerRequest(ctx, p)
+		ctx = metadata.AppendToOutgoingContext(ctx, "authorization", p.Token)
 		stream, err := c.grpccli.Listener(ctx, c.opts...)
 		if err != nil {
 			return nil, err
@@ -111,7 +123,9 @@ func (c *Client) Summary() goa.Endpoint {
 		if !ok {
 			return nil, goagrpc.ErrInvalidType("chatter", "summary", "*chattersvc.SummaryPayload", v)
 		}
-		ctx = EncodeSummaryRequest(ctx, p)
+		ctx = metadata.AppendToOutgoingContext(ctx, "authorization", p.Token)
+		var hdr metadata.MD
+		c.opts = append(c.opts, grpc.Header(&hdr))
 		stream, err := c.grpccli.Summary(ctx, c.opts...)
 		if err != nil {
 			return nil, err
@@ -123,11 +137,21 @@ func (c *Client) Summary() goa.Endpoint {
 // History calls the "History" function in chatterpb.ChatterClient interface.
 func (c *Client) History() goa.Endpoint {
 	return func(ctx context.Context, v interface{}) (interface{}, error) {
+		er, err := EncodeHistoryRequest(ctx, v)
+		if err != nil {
+			return nil, err
+		}
+		req := er.(*chatterpb.HistoryRequest)
 		p, ok := v.(*chattersvc.HistoryPayload)
 		if !ok {
 			return nil, goagrpc.ErrInvalidType("chatter", "history", "*chattersvc.HistoryPayload", v)
 		}
-		ctx, req := EncodeHistoryRequest(ctx, p)
+		if p.View != nil {
+			ctx = metadata.AppendToOutgoingContext(ctx, "view", *p.View)
+		}
+		ctx = metadata.AppendToOutgoingContext(ctx, "authorization", p.Token)
+		var hdr metadata.MD
+		c.opts = append(c.opts, grpc.Header(&hdr))
 		stream, err := c.grpccli.History(ctx, req, c.opts...)
 		if err != nil {
 			return nil, err

@@ -13,22 +13,30 @@ import (
 
 	calcsvc "goa.design/goa/examples/calc/gen/calc"
 	calcpb "goa.design/goa/examples/calc/gen/grpc/calc"
+	goagrpc "goa.design/goa/grpc"
 )
 
 // EncodeAddResponse encodes responses from the calc add endpoint.
-func EncodeAddResponse(ctx context.Context, v interface{}) *calcpb.AddResponse {
-	res := v.(int)
+func EncodeAddResponse(ctx context.Context, v interface{}) (interface{}, error) {
+	res, ok := v.(int)
+	if !ok {
+		return nil, goagrpc.ErrInvalidType("calc", "add", "int", v)
+	}
 	resp := NewAddResponse(res)
-	return resp
+	return resp, nil
 }
 
 // DecodeAddRequest decodes requests sent to calc add endpoint.
-func DecodeAddRequest(ctx context.Context, message *calcpb.AddRequest) (*calcsvc.AddPayload, error) {
+func DecodeAddRequest(ctx context.Context, v interface{}) (interface{}, error) {
 	var (
 		payload *calcsvc.AddPayload
 		err     error
 	)
 	{
+		message, ok := v.(*calcpb.AddRequest)
+		if !ok {
+			return nil, goagrpc.ErrInvalidType("calc", "add", "*calcpb.AddRequest", v)
+		}
 		payload = NewAddPayload(message)
 	}
 	return payload, err

@@ -13,30 +13,45 @@ import (
 
 	dividersvc "goa.design/goa/examples/error/gen/divider"
 	dividerpb "goa.design/goa/examples/error/gen/grpc/divider"
+	goagrpc "goa.design/goa/grpc"
 )
 
 // EncodeIntegerDivideRequest encodes requests sent to divider integer_divide
 // endpoint.
-func EncodeIntegerDivideRequest(ctx context.Context, p *dividersvc.IntOperands) (context.Context, *dividerpb.IntegerDivideRequest) {
-	req := NewIntegerDivideRequest(p)
-	return ctx, req
+func EncodeIntegerDivideRequest(ctx context.Context, v interface{}) (interface{}, error) {
+	p, ok := v.(*dividersvc.IntOperands)
+	if !ok {
+		return nil, goagrpc.ErrInvalidType("divider", "integer_divide", "*dividersvc.IntOperands", v)
+	}
+	return NewIntegerDivideRequest(p), nil
 }
 
 // DecodeIntegerDivideResponse decodes responses from the divider
 // integer_divide endpoint.
-func DecodeIntegerDivideResponse(ctx context.Context, resp *dividerpb.IntegerDivideResponse) (int, error) {
+func DecodeIntegerDivideResponse(ctx context.Context, v interface{}) (interface{}, error) {
+	resp, ok := v.(*dividerpb.IntegerDivideResponse)
+	if !ok {
+		return nil, goagrpc.ErrInvalidType("divider", "integer_divide", "*dividerpb.IntegerDivideResponse", v)
+	}
 	res := NewIntegerDivideResponse(resp)
 	return res, nil
 }
 
 // EncodeDivideRequest encodes requests sent to divider divide endpoint.
-func EncodeDivideRequest(ctx context.Context, p *dividersvc.FloatOperands) (context.Context, *dividerpb.DivideRequest) {
-	req := NewDivideRequest(p)
-	return ctx, req
+func EncodeDivideRequest(ctx context.Context, v interface{}) (interface{}, error) {
+	p, ok := v.(*dividersvc.FloatOperands)
+	if !ok {
+		return nil, goagrpc.ErrInvalidType("divider", "divide", "*dividersvc.FloatOperands", v)
+	}
+	return NewDivideRequest(p), nil
 }
 
 // DecodeDivideResponse decodes responses from the divider divide endpoint.
-func DecodeDivideResponse(ctx context.Context, resp *dividerpb.DivideResponse) (float64, error) {
+func DecodeDivideResponse(ctx context.Context, v interface{}) (interface{}, error) {
+	resp, ok := v.(*dividerpb.DivideResponse)
+	if !ok {
+		return nil, goagrpc.ErrInvalidType("divider", "divide", "*dividerpb.DivideResponse", v)
+	}
 	res := NewDivideResponse(resp)
 	return res, nil
 }

@@ -13,47 +13,33 @@ import (
 
 	chattersvc "goa.design/goa/examples/streaming/gen/chatter"
 	chatterpb "goa.design/goa/examples/streaming/gen/grpc/chatter"
-	"google.golang.org/grpc/metadata"
+	goagrpc "goa.design/goa/grpc"
 )
 
 // EncodeLoginRequest encodes requests sent to chatter login endpoint.
-func EncodeLoginRequest(ctx context.Context, p *chattersvc.LoginPayload) (context.Context, *chatterpb.LoginRequest) {
-	req := NewLoginRequest(p)
-	ctx = metadata.AppendToOutgoingContext(ctx, "user", p.User)
-	ctx = metadata.AppendToOutgoingContext(ctx, "password", p.Password)
-	return ctx, req
+func EncodeLoginRequest(ctx context.Context, v interface{}) (interface{}, error) {
+	p, ok := v.(*chattersvc.LoginPayload)
+	if !ok {
+		return nil, goagrpc.ErrInvalidType("chatter", "login", "*chattersvc.LoginPayload", v)
+	}
+	return NewLoginRequest(p), nil
 }
 
 // DecodeLoginResponse decodes responses from the chatter login endpoint.
-func DecodeLoginResponse(ctx context.Context, resp *chatterpb.LoginResponse) (string, error) {
+func DecodeLoginResponse(ctx context.Context, v interface{}) (interface{}, error) {
+	resp, ok := v.(*chatterpb.LoginResponse)
+	if !ok {
+		return nil, goagrpc.ErrInvalidType("chatter", "login", "*chatterpb.LoginResponse", v)
+	}
 	res := NewLoginResponse(resp)
 	return res, nil
 }
 
-// EncodeEchoerRequest encodes requests sent to chatter echoer endpoint.
-func EncodeEchoerRequest(ctx context.Context, p *chattersvc.EchoerPayload) context.Context {
-	ctx = metadata.AppendToOutgoingContext(ctx, "authorization", p.Token)
-	return ctx
-}
-
-// EncodeListenerRequest encodes requests sent to chatter listener endpoint.
-func EncodeListenerRequest(ctx context.Context, p *chattersvc.ListenerPayload) context.Context {
-	ctx = metadata.AppendToOutgoingContext(ctx, "authorization", p.Token)
-	return ctx
-}
-
-// EncodeSummaryRequest encodes requests sent to chatter summary endpoint.
-func EncodeSummaryRequest(ctx context.Context, p *chattersvc.SummaryPayload) context.Context {
-	ctx = metadata.AppendToOutgoingContext(ctx, "authorization", p.Token)
-	return ctx
-}
-
 // EncodeHistoryRequest encodes requests sent to chatter history endpoint.
-func EncodeHistoryRequest(ctx context.Context, p *chattersvc.HistoryPayload) (context.Context, *chatterpb.HistoryRequest) {
-	req := NewHistoryRequest(p)
-	if p.View != nil {
-		ctx = metadata.AppendToOutgoingContext(ctx, "view", *p.View)
+func EncodeHistoryRequest(ctx context.Context, v interface{}) (interface{}, error) {
+	p, ok := v.(*chattersvc.HistoryPayload)
+	if !ok {
+		return nil, goagrpc.ErrInvalidType("chatter", "history", "*chattersvc.HistoryPayload", v)
 	}
-	ctx = metadata.AppendToOutgoingContext(ctx, "authorization", p.Token)
-	return ctx, req
+	return NewHistoryRequest(p), nil
 }

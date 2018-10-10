@@ -15,19 +15,23 @@ import (
 	goa "goa.design/goa"
 	secured_servicepb "goa.design/goa/examples/security/gen/grpc/secured_service"
 	securedservice "goa.design/goa/examples/security/gen/secured_service"
+	goagrpc "goa.design/goa/grpc"
 	"google.golang.org/grpc/metadata"
 )
 
 // EncodeSigninResponse encodes responses from the secured_service signin
 // endpoint.
-func EncodeSigninResponse(ctx context.Context, v interface{}) *secured_servicepb.SigninResponse {
-	res := v.(*securedservice.Creds)
+func EncodeSigninResponse(ctx context.Context, v interface{}) (interface{}, error) {
+	res, ok := v.(*securedservice.Creds)
+	if !ok {
+		return nil, goagrpc.ErrInvalidType("secured_service", "signin", "*securedservice.Creds", v)
+	}
 	resp := NewSigninResponse(res)
-	return resp
+	return resp, nil
 }
 
 // DecodeSigninRequest decodes requests sent to secured_service signin endpoint.
-func DecodeSigninRequest(ctx context.Context, message *secured_servicepb.SigninRequest) (*securedservice.SigninPayload, error) {
+func DecodeSigninRequest(ctx context.Context, v interface{}) (interface{}, error) {
 	var (
 		payload *securedservice.SigninPayload
 		err     error
@@ -40,17 +44,21 @@ func DecodeSigninRequest(ctx context.Context, message *secured_servicepb.SigninR
 		{
 			md, ok := metadata.FromIncomingContext(ctx)
 			if ok {
-				if v := md.Get("username"); len(v) == 0 {
+				if vals := md.Get("username"); len(vals) == 0 {
 					err = goa.MergeErrors(err, goa.MissingFieldError("username", "metadata"))
 				} else {
-					username = v[0]
+					username = vals[0]
 				}
-				if v := md.Get("password"); len(v) == 0 {
+				if vals := md.Get("password"); len(vals) == 0 {
 					err = goa.MergeErrors(err, goa.MissingFieldError("password", "metadata"))
 				} else {
-					password = v[0]
+					password = vals[0]
 				}
 			}
+		}
+		message, ok := v.(*secured_servicepb.SigninRequest)
+		if !ok {
+			return nil, goagrpc.ErrInvalidType("secured_service", "signin", "*secured_servicepb.SigninRequest", v)
 		}
 		payload = NewSigninPayload(message, username, password)
 	}
@@ -59,14 +67,17 @@ func DecodeSigninRequest(ctx context.Context, message *secured_servicepb.SigninR
 
 // EncodeSecureResponse encodes responses from the secured_service secure
 // endpoint.
-func EncodeSecureResponse(ctx context.Context, v interface{}) *secured_servicepb.SecureResponse {
-	res := v.(string)
+func EncodeSecureResponse(ctx context.Context, v interface{}) (interface{}, error) {
+	res, ok := v.(string)
+	if !ok {
+		return nil, goagrpc.ErrInvalidType("secured_service", "secure", "string", v)
+	}
 	resp := NewSecureResponse(res)
-	return resp
+	return resp, nil
 }
 
 // DecodeSecureRequest decodes requests sent to secured_service secure endpoint.
-func DecodeSecureRequest(ctx context.Context, message *secured_servicepb.SecureRequest) (*securedservice.SecurePayload, error) {
+func DecodeSecureRequest(ctx context.Context, v interface{}) (interface{}, error) {
 	var (
 		payload *securedservice.SecurePayload
 		err     error
@@ -78,12 +89,16 @@ func DecodeSecureRequest(ctx context.Context, message *secured_servicepb.SecureR
 		{
 			md, ok := metadata.FromIncomingContext(ctx)
 			if ok {
-				if v := md.Get("authorization"); len(v) == 0 {
+				if vals := md.Get("authorization"); len(vals) == 0 {
 					err = goa.MergeErrors(err, goa.MissingFieldError("authorization", "metadata"))
 				} else {
-					token = v[0]
+					token = vals[0]
 				}
 			}
+		}
+		message, ok := v.(*secured_servicepb.SecureRequest)
+		if !ok {
+			return nil, goagrpc.ErrInvalidType("secured_service", "secure", "*secured_servicepb.SecureRequest", v)
 		}
 		payload = NewSecurePayload(message, token)
 		if strings.Contains(payload.Token, " ") {
@@ -97,15 +112,18 @@ func DecodeSecureRequest(ctx context.Context, message *secured_servicepb.SecureR
 
 // EncodeDoublySecureResponse encodes responses from the secured_service
 // doubly_secure endpoint.
-func EncodeDoublySecureResponse(ctx context.Context, v interface{}) *secured_servicepb.DoublySecureResponse {
-	res := v.(string)
+func EncodeDoublySecureResponse(ctx context.Context, v interface{}) (interface{}, error) {
+	res, ok := v.(string)
+	if !ok {
+		return nil, goagrpc.ErrInvalidType("secured_service", "doubly_secure", "string", v)
+	}
 	resp := NewDoublySecureResponse(res)
-	return resp
+	return resp, nil
 }
 
 // DecodeDoublySecureRequest decodes requests sent to secured_service
 // doubly_secure endpoint.
-func DecodeDoublySecureRequest(ctx context.Context, message *secured_servicepb.DoublySecureRequest) (*securedservice.DoublySecurePayload, error) {
+func DecodeDoublySecureRequest(ctx context.Context, v interface{}) (interface{}, error) {
 	var (
 		payload *securedservice.DoublySecurePayload
 		err     error
@@ -117,12 +135,16 @@ func DecodeDoublySecureRequest(ctx context.Context, message *secured_servicepb.D
 		{
 			md, ok := metadata.FromIncomingContext(ctx)
 			if ok {
-				if v := md.Get("authorization"); len(v) == 0 {
+				if vals := md.Get("authorization"); len(vals) == 0 {
 					err = goa.MergeErrors(err, goa.MissingFieldError("authorization", "metadata"))
 				} else {
-					token = v[0]
+					token = vals[0]
 				}
 			}
+		}
+		message, ok := v.(*secured_servicepb.DoublySecureRequest)
+		if !ok {
+			return nil, goagrpc.ErrInvalidType("secured_service", "doubly_secure", "*secured_servicepb.DoublySecureRequest", v)
 		}
 		payload = NewDoublySecurePayload(message, token)
 		if strings.Contains(payload.Token, " ") {
@@ -136,15 +158,18 @@ func DecodeDoublySecureRequest(ctx context.Context, message *secured_servicepb.D
 
 // EncodeAlsoDoublySecureResponse encodes responses from the secured_service
 // also_doubly_secure endpoint.
-func EncodeAlsoDoublySecureResponse(ctx context.Context, v interface{}) *secured_servicepb.AlsoDoublySecureResponse {
-	res := v.(string)
+func EncodeAlsoDoublySecureResponse(ctx context.Context, v interface{}) (interface{}, error) {
+	res, ok := v.(string)
+	if !ok {
+		return nil, goagrpc.ErrInvalidType("secured_service", "also_doubly_secure", "string", v)
+	}
 	resp := NewAlsoDoublySecureResponse(res)
-	return resp
+	return resp, nil
 }
 
 // DecodeAlsoDoublySecureRequest decodes requests sent to secured_service
 // also_doubly_secure endpoint.
-func DecodeAlsoDoublySecureRequest(ctx context.Context, message *secured_servicepb.AlsoDoublySecureRequest) (*securedservice.AlsoDoublySecurePayload, error) {
+func DecodeAlsoDoublySecureRequest(ctx context.Context, v interface{}) (interface{}, error) {
 	var (
 		payload *securedservice.AlsoDoublySecurePayload
 		err     error
@@ -157,13 +182,17 @@ func DecodeAlsoDoublySecureRequest(ctx context.Context, message *secured_service
 		{
 			md, ok := metadata.FromIncomingContext(ctx)
 			if ok {
-				if v := md.Get("oauth"); len(v) > 0 {
-					oauthToken = v[0]
+				if vals := md.Get("oauth"); len(vals) > 0 {
+					oauthToken = vals[0]
 				}
-				if v := md.Get("authorization"); len(v) > 0 {
-					token = v[0]
+				if vals := md.Get("authorization"); len(vals) > 0 {
+					token = vals[0]
 				}
 			}
+		}
+		message, ok := v.(*secured_servicepb.AlsoDoublySecureRequest)
+		if !ok {
+			return nil, goagrpc.ErrInvalidType("secured_service", "also_doubly_secure", "*secured_servicepb.AlsoDoublySecureRequest", v)
 		}
 		payload = NewAlsoDoublySecurePayload(message, oauthToken, token)
 		if payload.Token != nil {

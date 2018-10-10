@@ -54,7 +54,6 @@ func TestProtoBufTypeTransform(t *testing.T) {
 		{"nested-array-to-protobuf", nestedArray, true, nestedArrayToProtoCode},
 		{"array-of-map-to-protobuf", arrayMap, true, arrayOfMapToProtoCode},
 		{"nested-map-to-protobuf", nestedMap, true, nestedMapToProtoCode},
-		//{"primitive-to-protobuf", primitive, true, primitiveToProtoCode},
 
 		// test cases to transform protocol buffer type to goa type
 		{"obj-no-required-no-default-to-goa", objNoRequiredNoDefault, false, objNoRequiredNoDefaultToGoaCode},
@@ -68,7 +67,6 @@ func TestProtoBufTypeTransform(t *testing.T) {
 		{"nested-array-to-goa", nestedArray, false, nestedArrayToGoaCode},
 		{"array-of-map-to-goa", arrayMap, false, arrayOfMapToGoaCode},
 		{"nested-map-to-goa", nestedMap, false, nestedMapToGoaCode},
-		//{"primitive-to-goa", primitive, false, primitiveToGoaCode},
 	}
 	for _, c := range cases {
 		t.Run(c.Name, func(t *testing.T) {

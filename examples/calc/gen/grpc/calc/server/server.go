@@ -35,13 +35,18 @@ func New(e *calcsvc.Endpoints) *Server {
 
 // Add implements the "Add" method in calcpb.CalcServer interface.
 func (s *Server) Add(ctx context.Context, message *calcpb.AddRequest) (*calcpb.AddResponse, error) {
-	payload, err := DecodeAddRequest(ctx, message)
+	p, err := DecodeAddRequest(ctx, message)
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
+	payload := p.(*calcsvc.AddPayload)
 	v, err := s.endpoints.Add(ctx, payload)
 	if err != nil {
 		return nil, err
 	}
-	return EncodeAddResponse(ctx, v), nil
+	r, err := EncodeAddResponse(ctx, v)
+	if err != nil {
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+	return r.(*calcpb.AddResponse), nil
 }

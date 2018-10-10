@@ -12,9 +12,7 @@ import (
 	"context"
 
 	goa "goa.design/goa"
-	calcsvc "goa.design/goa/examples/calc/gen/calc"
 	calcpb "goa.design/goa/examples/calc/gen/grpc/calc"
-	goagrpc "goa.design/goa/grpc"
 	"google.golang.org/grpc"
 )
 
@@ -35,15 +33,20 @@ func NewClient(cc *grpc.ClientConn, opts ...grpc.CallOption) *Client {
 // Add calls the "Add" function in calcpb.CalcClient interface.
 func (c *Client) Add() goa.Endpoint {
 	return func(ctx context.Context, v interface{}) (interface{}, error) {
-		p, ok := v.(*calcsvc.AddPayload)
-		if !ok {
-			return nil, goagrpc.ErrInvalidType("calc", "add", "*calcsvc.AddPayload", v)
+		er, err := EncodeAddRequest(ctx, v)
+		if err != nil {
+			return nil, err
 		}
-		ctx, req := EncodeAddRequest(ctx, p)
+		req := er.(*calcpb.AddRequest)
 		resp, err := c.grpccli.Add(ctx, req, c.opts...)
 		if err != nil {
 			return nil, err
 		}
-		return DecodeAddResponse(ctx, resp)
+		r, err := DecodeAddResponse(ctx, resp)
+		if err != nil {
+			return nil, err
+		}
+		res := r.(int)
+		return res, nil
 	}
 }

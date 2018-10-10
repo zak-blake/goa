@@ -330,19 +330,34 @@ func (p *protoTransformer) transformObject(source, target *expr.AttributeExpr, s
 				//
 				// We need to check for a nil source if it holds a reference
 				// (pointer to primitive or an object, array or map) and is not
-				// required. We also want to always check when unmarshaling is
-				// the attribute type is not a primitive: either it's a user
-				// type and we want to avoid calling transform helper functions
-				// with nil value (if unmarshaling then requiredness has been
-				// validated) or it's an object, map or array and we need to
-				// check for nil to avoid making empty arrays and maps and to
-				// avoid derefencing nil.
+				// required. If source is a protocol buffer generated Go type,
+				// the attributes of primitive type are always non-pointers (even if
+				// not required). We don't have to check for nil in that case.
 				var checkNil bool
 				{
 					checkNil = !expr.IsPrimitive(srcAtt.Type) && !src.IsRequired(n) || src.IsPrimitivePointer(n, true) && !p.proto
 				}
 				if code != "" && checkNil {
 					code = fmt.Sprintf("if %s != nil {\n\t%s}\n", srcVar, code)
+				}
+
+				// Default value handling.
+				// proto3 does not support non-zero default values. It is impossible to
+				// find out from the protocol buffer type whether the primitive fields
+				// (always non-pointers) are set to zero values as default or by the
+				// application itself.
+				if tgt.HasDefaultValue(n) {
+					if p.proto {
+						if src.IsPrimitivePointer(n, true) || !expr.IsPrimitive(srcAtt.Type) {
+							code += fmt.Sprintf("if %s == nil {\n\t", srcVar)
+							code += fmt.Sprintf("%s = %#v\n", tgtVar, tgtAtt.DefaultValue)
+							code += "}\n"
+						}
+					} else if !expr.IsPrimitive(srcAtt.Type) {
+						code += fmt.Sprintf("if %s == nil {\n\t", srcVar)
+						code += fmt.Sprintf("%s = %#v\n", tgtVar, tgtAtt.DefaultValue)
+						code += "}\n"
+					}
 				}
 			}
 			buffer.WriteString(code)

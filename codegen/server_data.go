@@ -1,7 +1,7 @@
 package codegen
 
 import (
-	"net/url"
+	"strings"
 
 	"goa.design/goa/expr"
 )
@@ -152,20 +152,39 @@ func buildHostData(host *expr.HostExpr) *HostData {
 	{
 		uris = make([]*URIData, len(host.URIs))
 		for i, uv := range host.URIs {
-			var t Transport
-			u, err := url.Parse(string(uv))
-			if err != nil {
-				panic(err) // bug. URLs must have been validated.
-			}
-			switch u.Scheme {
-			case "http", "https":
-				t = TransportHTTP
-			case "grpc", "grpcs":
-				t = TransportGRPC
+			var (
+				t      Transport
+				scheme string
+
+				ustr = string(uv)
+			)
+			{
+				// Did not use url package to find scheme because the url may
+				// contain params (i.e. http://{version}.example.com) which needs
+				// substition for url.Parse to succeed. Also URIs in host must have
+				// a scheme otherwise validations would have failed.
+				switch {
+				case strings.HasPrefix(ustr, "https"):
+					scheme = "https"
+					t = TransportHTTP
+				case strings.HasPrefix(ustr, "http"):
+					scheme = "http"
+					t = TransportHTTP
+				case strings.HasPrefix(ustr, "grpcs"):
+					scheme = "grpcs"
+					t = TransportGRPC
+				case strings.HasPrefix(ustr, "grpc"):
+					scheme = "grpc"
+					t = TransportGRPC
+
+					// No need for default case here because we only support the above
+					// possibilites for the scheme. Invalid scheme would have failed
+					// validations in the first place.
+				}
 			}
 			uris[i] = &URIData{
-				Scheme:    u.Scheme,
-				URL:       string(uv),
+				Scheme:    scheme,
+				URL:       ustr,
 				Transport: t,
 			}
 		}

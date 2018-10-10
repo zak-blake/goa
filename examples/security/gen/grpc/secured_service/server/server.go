@@ -37,10 +37,11 @@ func New(e *securedservice.Endpoints) *Server {
 // Signin implements the "Signin" method in
 // secured_servicepb.SecuredServiceServer interface.
 func (s *Server) Signin(ctx context.Context, message *secured_servicepb.SigninRequest) (*secured_servicepb.SigninResponse, error) {
-	payload, err := DecodeSigninRequest(ctx, message)
+	p, err := DecodeSigninRequest(ctx, message)
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
+	payload := p.(*securedservice.SigninPayload)
 	v, err := s.endpoints.Signin(ctx, payload)
 	if err != nil {
 		en, ok := err.(ErrorNamer)
@@ -52,16 +53,21 @@ func (s *Server) Signin(ctx context.Context, message *secured_servicepb.SigninRe
 			return nil, status.Error(codes.Unauthenticated, err.Error())
 		}
 	}
-	return EncodeSigninResponse(ctx, v), nil
+	r, err := EncodeSigninResponse(ctx, v)
+	if err != nil {
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+	return r.(*secured_servicepb.SigninResponse), nil
 }
 
 // Secure implements the "Secure" method in
 // secured_servicepb.SecuredServiceServer interface.
 func (s *Server) Secure(ctx context.Context, message *secured_servicepb.SecureRequest) (*secured_servicepb.SecureResponse, error) {
-	payload, err := DecodeSecureRequest(ctx, message)
+	p, err := DecodeSecureRequest(ctx, message)
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
+	payload := p.(*securedservice.SecurePayload)
 	v, err := s.endpoints.Secure(ctx, payload)
 	if err != nil {
 		en, ok := err.(ErrorNamer)
@@ -75,16 +81,21 @@ func (s *Server) Secure(ctx context.Context, message *secured_servicepb.SecureRe
 			return nil, status.Error(codes.Unauthenticated, err.Error())
 		}
 	}
-	return EncodeSecureResponse(ctx, v), nil
+	r, err := EncodeSecureResponse(ctx, v)
+	if err != nil {
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+	return r.(*secured_servicepb.SecureResponse), nil
 }
 
 // DoublySecure implements the "DoublySecure" method in
 // secured_servicepb.SecuredServiceServer interface.
 func (s *Server) DoublySecure(ctx context.Context, message *secured_servicepb.DoublySecureRequest) (*secured_servicepb.DoublySecureResponse, error) {
-	payload, err := DecodeDoublySecureRequest(ctx, message)
+	p, err := DecodeDoublySecureRequest(ctx, message)
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
+	payload := p.(*securedservice.DoublySecurePayload)
 	v, err := s.endpoints.DoublySecure(ctx, payload)
 	if err != nil {
 		en, ok := err.(ErrorNamer)
@@ -98,16 +109,21 @@ func (s *Server) DoublySecure(ctx context.Context, message *secured_servicepb.Do
 			return nil, status.Error(codes.Unauthenticated, err.Error())
 		}
 	}
-	return EncodeDoublySecureResponse(ctx, v), nil
+	r, err := EncodeDoublySecureResponse(ctx, v)
+	if err != nil {
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+	return r.(*secured_servicepb.DoublySecureResponse), nil
 }
 
 // AlsoDoublySecure implements the "AlsoDoublySecure" method in
 // secured_servicepb.SecuredServiceServer interface.
 func (s *Server) AlsoDoublySecure(ctx context.Context, message *secured_servicepb.AlsoDoublySecureRequest) (*secured_servicepb.AlsoDoublySecureResponse, error) {
-	payload, err := DecodeAlsoDoublySecureRequest(ctx, message)
+	p, err := DecodeAlsoDoublySecureRequest(ctx, message)
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
+	payload := p.(*securedservice.AlsoDoublySecurePayload)
 	v, err := s.endpoints.AlsoDoublySecure(ctx, payload)
 	if err != nil {
 		en, ok := err.(ErrorNamer)
@@ -121,5 +137,9 @@ func (s *Server) AlsoDoublySecure(ctx context.Context, message *secured_servicep
 			return nil, status.Error(codes.Unauthenticated, err.Error())
 		}
 	}
-	return EncodeAlsoDoublySecureResponse(ctx, v), nil
+	r, err := EncodeAlsoDoublySecureResponse(ctx, v)
+	if err != nil {
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+	return r.(*secured_servicepb.AlsoDoublySecureResponse), nil
 }

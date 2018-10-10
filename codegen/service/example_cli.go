@@ -54,7 +54,7 @@ func exampleCLIMain(genpkg string, root *expr.RootExpr, svr *expr.ServerExpr) *c
 			},
 		},
 	}
-	return &codegen.File{Path: path, SectionTemplates: sections}
+	return &codegen.File{Path: path, SectionTemplates: sections, SkipExist: true}
 }
 
 // defaultTransport returns the default transport. If multiple transports

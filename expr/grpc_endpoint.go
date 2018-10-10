@@ -183,25 +183,25 @@ func (e *GRPCEndpointExpr) Validate() error {
 // Finalize ensures the request and response attributes are initialized.
 func (e *GRPCEndpointExpr) Finalize() {
 	if pobj := AsObject(e.MethodExpr.Payload.Type); pobj != nil {
+		// addToMetadata adds the given field to metadata. tName maps the attribute
+		// name to the given transport name.
+		addToMetadata := func(field string, tName string) {
+			attr := pobj.Attribute(field)
+			e.Metadata.Type.(*Object).Set(field, attr)
+			if tName != "" {
+				e.Metadata.Map(tName, field)
+			}
+			if e.MethodExpr.Payload.IsRequired(field) {
+				if e.Metadata.Validation == nil {
+					e.Metadata.Validation = &ValidationExpr{}
+				}
+				e.Metadata.Validation.AddRequired(field)
+			}
+		}
+
 		// Initialize any security attributes in request metadata unless it is
 		// specified explicitly in the request message via the DSL.
 		if reqLen := len(e.MethodExpr.Requirements); reqLen > 0 {
-			// addToMetadata adds the given field to metadata. tName maps the attribute
-			// name to the given transport name.
-			addToMetadata := func(field string, tName string) {
-				attr := pobj.Attribute(field)
-				e.Metadata.Type.(*Object).Set(field, attr)
-				if tName != "" {
-					e.Metadata.Map(tName, field)
-				}
-				if e.MethodExpr.Payload.IsRequired(field) {
-					if e.Metadata.Validation == nil {
-						e.Metadata.Validation = &ValidationExpr{}
-					}
-					e.Metadata.Validation.AddRequired(field)
-				}
-			}
-
 			e.Requirements = make([]*SecurityExpr, 0, reqLen)
 			for _, req := range e.MethodExpr.Requirements {
 				dupReq := DupRequirement(req)
@@ -236,6 +236,14 @@ func (e *GRPCEndpointExpr) Finalize() {
 					}
 				}
 				e.Requirements = append(e.Requirements, dupReq)
+			}
+		}
+
+		// If endpoint defines streaming payload, then add the attributes in method
+		// payload type to request metadata.
+		if e.MethodExpr.StreamingPayload.Type != Empty {
+			for _, nat := range *pobj {
+				addToMetadata(nat.Name, "")
 			}
 		}
 
@@ -276,14 +284,16 @@ func (e *GRPCEndpointExpr) Finalize() {
 		}
 	} else {
 		// method payload is not an object type. Initialize request metadata if
-		// defined or else initialize request message.
-		if !e.Metadata.IsEmpty() {
+		// defined or if endpoint defines streaming payload. Else initialize
+		// request message.
+		if !e.Metadata.IsEmpty() || e.MethodExpr.StreamingPayload.Type != Empty {
 			initAttrFromDesign(e.Metadata.AttributeExpr, e.MethodExpr.Payload)
 		} else {
 			initAttrFromDesign(e.Request, e.MethodExpr.Payload)
 		}
 	}
 
+	// Finalize streaming payload type if defined
 	if e.MethodExpr.StreamingPayload.Type != Empty {
 		initAttrFromDesign(e.StreamingRequest, e.MethodExpr.StreamingPayload)
 	}

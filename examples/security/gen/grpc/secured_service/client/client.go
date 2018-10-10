@@ -16,6 +16,7 @@ import (
 	securedservice "goa.design/goa/examples/security/gen/secured_service"
 	goagrpc "goa.design/goa/grpc"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/metadata"
 )
 
 // Client lists the service endpoint gRPC clients.
@@ -37,16 +38,27 @@ func NewClient(cc *grpc.ClientConn, opts ...grpc.CallOption) *Client {
 // interface.
 func (c *Client) Signin() goa.Endpoint {
 	return func(ctx context.Context, v interface{}) (interface{}, error) {
+		er, err := EncodeSigninRequest(ctx, v)
+		if err != nil {
+			return nil, err
+		}
+		req := er.(*secured_servicepb.SigninRequest)
 		p, ok := v.(*securedservice.SigninPayload)
 		if !ok {
 			return nil, goagrpc.ErrInvalidType("secured_service", "signin", "*securedservice.SigninPayload", v)
 		}
-		ctx, req := EncodeSigninRequest(ctx, p)
+		ctx = metadata.AppendToOutgoingContext(ctx, "username", p.Username)
+		ctx = metadata.AppendToOutgoingContext(ctx, "password", p.Password)
 		resp, err := c.grpccli.Signin(ctx, req, c.opts...)
 		if err != nil {
 			return nil, err
 		}
-		return DecodeSigninResponse(ctx, resp)
+		r, err := DecodeSigninResponse(ctx, resp)
+		if err != nil {
+			return nil, err
+		}
+		res := r.(*securedservice.Creds)
+		return res, nil
 	}
 }
 
@@ -54,16 +66,26 @@ func (c *Client) Signin() goa.Endpoint {
 // interface.
 func (c *Client) Secure() goa.Endpoint {
 	return func(ctx context.Context, v interface{}) (interface{}, error) {
+		er, err := EncodeSecureRequest(ctx, v)
+		if err != nil {
+			return nil, err
+		}
+		req := er.(*secured_servicepb.SecureRequest)
 		p, ok := v.(*securedservice.SecurePayload)
 		if !ok {
 			return nil, goagrpc.ErrInvalidType("secured_service", "secure", "*securedservice.SecurePayload", v)
 		}
-		ctx, req := EncodeSecureRequest(ctx, p)
+		ctx = metadata.AppendToOutgoingContext(ctx, "authorization", p.Token)
 		resp, err := c.grpccli.Secure(ctx, req, c.opts...)
 		if err != nil {
 			return nil, err
 		}
-		return DecodeSecureResponse(ctx, resp)
+		r, err := DecodeSecureResponse(ctx, resp)
+		if err != nil {
+			return nil, err
+		}
+		res := r.(string)
+		return res, nil
 	}
 }
 
@@ -71,16 +93,26 @@ func (c *Client) Secure() goa.Endpoint {
 // secured_servicepb.SecuredServiceClient interface.
 func (c *Client) DoublySecure() goa.Endpoint {
 	return func(ctx context.Context, v interface{}) (interface{}, error) {
+		er, err := EncodeDoublySecureRequest(ctx, v)
+		if err != nil {
+			return nil, err
+		}
+		req := er.(*secured_servicepb.DoublySecureRequest)
 		p, ok := v.(*securedservice.DoublySecurePayload)
 		if !ok {
 			return nil, goagrpc.ErrInvalidType("secured_service", "doubly_secure", "*securedservice.DoublySecurePayload", v)
 		}
-		ctx, req := EncodeDoublySecureRequest(ctx, p)
+		ctx = metadata.AppendToOutgoingContext(ctx, "authorization", p.Token)
 		resp, err := c.grpccli.DoublySecure(ctx, req, c.opts...)
 		if err != nil {
 			return nil, err
 		}
-		return DecodeDoublySecureResponse(ctx, resp)
+		r, err := DecodeDoublySecureResponse(ctx, resp)
+		if err != nil {
+			return nil, err
+		}
+		res := r.(string)
+		return res, nil
 	}
 }
 
@@ -88,15 +120,30 @@ func (c *Client) DoublySecure() goa.Endpoint {
 // secured_servicepb.SecuredServiceClient interface.
 func (c *Client) AlsoDoublySecure() goa.Endpoint {
 	return func(ctx context.Context, v interface{}) (interface{}, error) {
+		er, err := EncodeAlsoDoublySecureRequest(ctx, v)
+		if err != nil {
+			return nil, err
+		}
+		req := er.(*secured_servicepb.AlsoDoublySecureRequest)
 		p, ok := v.(*securedservice.AlsoDoublySecurePayload)
 		if !ok {
 			return nil, goagrpc.ErrInvalidType("secured_service", "also_doubly_secure", "*securedservice.AlsoDoublySecurePayload", v)
 		}
-		ctx, req := EncodeAlsoDoublySecureRequest(ctx, p)
+		if p.OauthToken != nil {
+			ctx = metadata.AppendToOutgoingContext(ctx, "oauth", *p.OauthToken)
+		}
+		if p.Token != nil {
+			ctx = metadata.AppendToOutgoingContext(ctx, "authorization", *p.Token)
+		}
 		resp, err := c.grpccli.AlsoDoublySecure(ctx, req, c.opts...)
 		if err != nil {
 			return nil, err
 		}
-		return DecodeAlsoDoublySecureResponse(ctx, resp)
+		r, err := DecodeAlsoDoublySecureResponse(ctx, resp)
+		if err != nil {
+			return nil, err
+		}
+		res := r.(string)
+		return res, nil
 	}
 }

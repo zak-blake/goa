@@ -447,8 +447,12 @@ func (d ServicesData) analyze(gs *expr.GRPCServiceExpr) *ServiceData {
 			trlrs    []*MetadataData
 		)
 		{
-			hdrs = extractMetadata(e.Response.Headers, e.MethodExpr.Result, svc.Scope)
-			trlrs = extractMetadata(e.Response.Trailers, e.MethodExpr.Result, svc.Scope)
+			result := e.MethodExpr.Result
+			if md.ViewedResult != nil {
+				result = expr.AsObject(md.ViewedResult.Type).Attribute("projected")
+			}
+			hdrs = extractMetadata(e.Response.Headers, result, svc.Scope)
+			trlrs = extractMetadata(e.Response.Trailers, result, svc.Scope)
 			response = &ResponseData{
 				StatusCode:    statusCodeToGRPCConst(e.Response.StatusCode),
 				Description:   e.Response.Description,
@@ -542,20 +546,16 @@ func collectMessages(at *expr.AttributeExpr, seen map[string]struct{}, sd *Servi
 // requests.
 //	* server side - converts generated gRPC request type in *.pb.go and the
 //									gRPC metadata to method payload type.
-//	* client side - converts method payload type to  generated gRPC request
+//	* client side - converts method payload type to generated gRPC request
 //									type in *.pb.go.
 //
 // svr param indicates that the convert data is generated for server side.
 func buildRequestConvertData(e *expr.GRPCEndpointExpr, md []*MetadataData, sd *ServiceData, svr bool) *ConvertData {
-	if len(*expr.AsObject(e.Request.Type)) == 0 && len(md) == 0 && e.MethodExpr.IsStreaming() {
-		// No need to initialize empty request type for streaming endpoints.
-		// For unary endpoints, we must initialize request type even if empty so
-		// that we can generate server-side methods to satisfy the gRPC server
-		// interface.
-		return nil
-	}
-
+	// Server-side: No need to build convert data if method payload is empty
+	// since server doesn't need to convert incoming message/metadata to payload.
 	if (svr && !needInit(e.MethodExpr.Payload.Type)) ||
+		// Client-side: No need to build convert data if streaming payload since
+		// all attributes in method payload is encoded into request metadata.
 		(!svr && e.MethodExpr.IsPayloadStreaming()) {
 		return nil
 	}
@@ -614,13 +614,7 @@ func buildRequestConvertData(e *expr.GRPCEndpointExpr, md []*MetadataData, sd *S
 //
 // svr param indicates that the convert data is generated for server side.
 func buildResponseConvertData(e *expr.GRPCEndpointExpr, hdrs, trlrs []*MetadataData, sd *ServiceData, svr bool) *ConvertData {
-	if e.MethodExpr.IsStreaming() ||
-		// No need to initialize response type for streaming endpoints.
-		// For unary endpoints, we must initialize response type even if empty so
-		// that we can generate server-side methods to satisfy the gRPC server
-		// interface.
-		(!svr && !needInit(e.MethodExpr.Result.Type)) ||
-		(svr && e.MethodExpr.Result.Type == expr.Empty) {
+	if e.MethodExpr.IsStreaming() || !needInit(e.MethodExpr.Result.Type) {
 		return nil
 	}
 	var (
@@ -649,32 +643,6 @@ func buildResponseConvertData(e *expr.GRPCEndpointExpr, hdrs, trlrs []*MetadataD
 		} else {
 			fn := func(data *InitData) *InitData {
 				data.Description = fmt.Sprintf("%s builds the %sresult type of the %q endpoint of the %q service from the gRPC response type.", data.Name, proj, e.Name(), svc.Name)
-				// pass header metadata as arguments to result constructor in client
-				for _, m := range hdrs {
-					data.Args = append(data.Args, &InitArgData{
-						Name:      m.VarName,
-						Ref:       m.VarName,
-						FieldName: m.FieldName,
-						TypeName:  m.TypeName,
-						TypeRef:   m.TypeRef,
-						Pointer:   m.Pointer,
-						Required:  m.Required,
-						Example:   m.Example,
-					})
-				}
-				// pass trailer metadata as arguments to result constructor in client
-				for _, m := range trlrs {
-					data.Args = append(data.Args, &InitArgData{
-						Name:      m.VarName,
-						Ref:       m.VarName,
-						FieldName: m.FieldName,
-						TypeName:  m.TypeName,
-						TypeRef:   m.TypeRef,
-						Pointer:   m.Pointer,
-						Required:  m.Required,
-						Example:   m.Example,
-					})
-				}
 				return data
 			}
 			td = buildConvertData(e.Response.Message, result, "resp", "v", sd.PkgName, resultPkg, false, sd, fn)
@@ -904,8 +872,7 @@ func extractMetadata(a *expr.MappedAttributeExpr, serviceType *expr.AttributeExp
 	return metadata
 }
 
-// needInit returns true if and only if the given type is or makes use of user
-// types.
+// needInit returns false if given type is empty.
 func needInit(dt expr.DataType) bool {
 	if dt == expr.Empty {
 		return false

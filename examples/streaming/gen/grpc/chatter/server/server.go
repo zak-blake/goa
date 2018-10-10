@@ -59,10 +59,11 @@ func New(e *chattersvc.Endpoints) *Server {
 
 // Login implements the "Login" method in chatterpb.ChatterServer interface.
 func (s *Server) Login(ctx context.Context, message *chatterpb.LoginRequest) (*chatterpb.LoginResponse, error) {
-	payload, err := DecodeLoginRequest(ctx, message)
+	p, err := DecodeLoginRequest(ctx, message)
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
+	payload := p.(*chattersvc.LoginPayload)
 	v, err := s.endpoints.Login(ctx, payload)
 	if err != nil {
 		en, ok := err.(ErrorNamer)
@@ -74,15 +75,20 @@ func (s *Server) Login(ctx context.Context, message *chatterpb.LoginRequest) (*c
 			return nil, status.Error(codes.Unauthenticated, err.Error())
 		}
 	}
-	return EncodeLoginResponse(ctx, v), nil
+	r, err := EncodeLoginResponse(ctx, v)
+	if err != nil {
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+	return r.(*chatterpb.LoginResponse), nil
 }
 
 // Echoer implements the "Echoer" method in chatterpb.ChatterServer interface.
 func (s *Server) Echoer(stream chatterpb.Chatter_EchoerServer) error {
-	payload, err := DecodeEchoerRequest(stream)
+	p, err := DecodeEchoerRequest(stream.Context(), nil)
 	if err != nil {
 		return status.Error(codes.InvalidArgument, err.Error())
 	}
+	payload := p.(*chattersvc.EchoerPayload)
 	ep := &chattersvc.EchoerEndpointInput{
 		Stream:  &echoerServerStream{stream: stream},
 		Payload: payload,
@@ -106,10 +112,11 @@ func (s *Server) Echoer(stream chatterpb.Chatter_EchoerServer) error {
 // Listener implements the "Listener" method in chatterpb.ChatterServer
 // interface.
 func (s *Server) Listener(stream chatterpb.Chatter_ListenerServer) error {
-	payload, err := DecodeListenerRequest(stream)
+	p, err := DecodeListenerRequest(stream.Context(), nil)
 	if err != nil {
 		return status.Error(codes.InvalidArgument, err.Error())
 	}
+	payload := p.(*chattersvc.ListenerPayload)
 	ep := &chattersvc.ListenerEndpointInput{
 		Stream:  &listenerServerStream{stream: stream},
 		Payload: payload,
@@ -132,10 +139,11 @@ func (s *Server) Listener(stream chatterpb.Chatter_ListenerServer) error {
 
 // Summary implements the "Summary" method in chatterpb.ChatterServer interface.
 func (s *Server) Summary(stream chatterpb.Chatter_SummaryServer) error {
-	payload, err := DecodeSummaryRequest(stream)
+	p, err := DecodeSummaryRequest(stream.Context(), nil)
 	if err != nil {
 		return status.Error(codes.InvalidArgument, err.Error())
 	}
+	payload := p.(*chattersvc.SummaryPayload)
 	ep := &chattersvc.SummaryEndpointInput{
 		Stream:  &summaryServerStream{stream: stream},
 		Payload: payload,
@@ -158,10 +166,11 @@ func (s *Server) Summary(stream chatterpb.Chatter_SummaryServer) error {
 
 // History implements the "History" method in chatterpb.ChatterServer interface.
 func (s *Server) History(message *chatterpb.HistoryRequest, stream chatterpb.Chatter_HistoryServer) error {
-	payload, err := DecodeHistoryRequest(stream, message)
+	p, err := DecodeHistoryRequest(stream.Context(), message)
 	if err != nil {
 		return status.Error(codes.InvalidArgument, err.Error())
 	}
+	payload := p.(*chattersvc.HistoryPayload)
 	ep := &chattersvc.HistoryEndpointInput{
 		Stream:  &historyServerStream{stream: stream},
 		Payload: payload,

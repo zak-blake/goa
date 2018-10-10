@@ -12,9 +12,7 @@ import (
 	"context"
 
 	goa "goa.design/goa"
-	dividersvc "goa.design/goa/examples/error/gen/divider"
 	dividerpb "goa.design/goa/examples/error/gen/grpc/divider"
-	goagrpc "goa.design/goa/grpc"
 	"google.golang.org/grpc"
 )
 
@@ -36,31 +34,41 @@ func NewClient(cc *grpc.ClientConn, opts ...grpc.CallOption) *Client {
 // interface.
 func (c *Client) IntegerDivide() goa.Endpoint {
 	return func(ctx context.Context, v interface{}) (interface{}, error) {
-		p, ok := v.(*dividersvc.IntOperands)
-		if !ok {
-			return nil, goagrpc.ErrInvalidType("divider", "integer_divide", "*dividersvc.IntOperands", v)
+		er, err := EncodeIntegerDivideRequest(ctx, v)
+		if err != nil {
+			return nil, err
 		}
-		ctx, req := EncodeIntegerDivideRequest(ctx, p)
+		req := er.(*dividerpb.IntegerDivideRequest)
 		resp, err := c.grpccli.IntegerDivide(ctx, req, c.opts...)
 		if err != nil {
 			return nil, err
 		}
-		return DecodeIntegerDivideResponse(ctx, resp)
+		r, err := DecodeIntegerDivideResponse(ctx, resp)
+		if err != nil {
+			return nil, err
+		}
+		res := r.(int)
+		return res, nil
 	}
 }
 
 // Divide calls the "Divide" function in dividerpb.DividerClient interface.
 func (c *Client) Divide() goa.Endpoint {
 	return func(ctx context.Context, v interface{}) (interface{}, error) {
-		p, ok := v.(*dividersvc.FloatOperands)
-		if !ok {
-			return nil, goagrpc.ErrInvalidType("divider", "divide", "*dividersvc.FloatOperands", v)
+		er, err := EncodeDivideRequest(ctx, v)
+		if err != nil {
+			return nil, err
 		}
-		ctx, req := EncodeDivideRequest(ctx, p)
+		req := er.(*dividerpb.DivideRequest)
 		resp, err := c.grpccli.Divide(ctx, req, c.opts...)
 		if err != nil {
 			return nil, err
 		}
-		return DecodeDivideResponse(ctx, resp)
+		r, err := DecodeDivideResponse(ctx, resp)
+		if err != nil {
+			return nil, err
+		}
+		res := r.(float64)
+		return res, nil
 	}
 }
