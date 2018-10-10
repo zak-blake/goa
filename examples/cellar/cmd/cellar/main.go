@@ -22,6 +22,18 @@ import (
 	"goa.design/goa/http/middleware"
 )
 
+// Server provides the means to start and stop a server.
+type Server interface {
+	// Start starts a server and sends any errors to the error channel.
+	Start(errc chan error)
+	// Stop stops a server.
+	Stop() error
+	// Addr returns the listen address.
+	Addr() string
+	// Type returns the server type (HTTP or gRPC)
+	Type() string
+}
+
 func main() {
 	// Define command line flags, add any other flag required to configure
 	// the service.
