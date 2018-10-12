@@ -9,12 +9,15 @@
 package cli
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"os"
 
 	goa "goa.design/goa"
+	calcpb "goa.design/goa/examples/calc/gen/grpc/calc"
 	calcsvcc "goa.design/goa/examples/calc/gen/grpc/calc/client"
+	goagrpc "goa.design/goa/grpc"
 	grpc "google.golang.org/grpc"
 )
 
@@ -35,7 +38,7 @@ func UsageExamples() string {
 
 // ParseEndpoint returns the endpoint and payload as specified on the command
 // line.
-func ParseEndpoint(cc *grpc.ClientConn, opts ...grpc.CallOption) (goa.Endpoint, interface{}, error) {
+func ParseEndpoint(cc *grpc.ClientConn, doer goagrpc.UnaryDoer, cliopts ...grpc.CallOption) (goa.Endpoint, interface{}, error) {
 	var (
 		calcFlags = flag.NewFlagSet("calc", flag.ContinueOnError)
 
@@ -103,12 +106,23 @@ func ParseEndpoint(cc *grpc.ClientConn, opts ...grpc.CallOption) (goa.Endpoint, 
 		err      error
 	)
 	{
+		grpccli := calcpb.NewCalcClient(cc)
 		switch svcn {
 		case "calc":
-			c := calcsvcc.NewClient(cc, opts...)
+			c := calcsvcc.NewClient()
 			switch epn {
 			case "add":
-				endpoint = c.Add()
+				if doer == nil {
+					fn := func(ctx context.Context, pb interface{}, opts ...grpc.CallOption) (interface{}, error) {
+						reqpb := pb.(*calcpb.AddRequest)
+						for _, opt := range cliopts {
+							opts = append(opts, opt)
+						}
+						return grpccli.Add(ctx, reqpb, opts...)
+					}
+					doer = goagrpc.NewUnaryDoer(calcsvcc.DecodeAddResponse, calcsvcc.EncodeAddRequest, fn)
+				}
+				endpoint = c.Add(doer)
 				data, err = calcsvcc.BuildAddPayload(*calcAddMessageFlag)
 			}
 		}

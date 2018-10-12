@@ -14,7 +14,7 @@ func doGRPC(scheme, host string, timeout int, debug bool) (goa.Endpoint, interfa
 	if err != nil {
 		fmt.Fprintln(os.Stderr, fmt.Sprintf("could not connect to GRPC server at %s: %v", host, err))
 	}
-	return cli.ParseEndpoint(conn)
+	return cli.ParseEndpoint(conn, nil, nil)
 }
 
 func grpcUsageCommands() string {

@@ -37,7 +37,7 @@ func newGRPCServer(scheme, host string, calcEndpoints *calcsvc.Endpoints, logger
 		calcServer *calcsvcsvr.Server
 	)
 	{
-		calcServer = calcsvcsvr.New(calcEndpoints)
+		calcServer = calcsvcsvr.New(calcEndpoints, nil)
 	}
 
 	// Initialize gRPC server with the middleware.

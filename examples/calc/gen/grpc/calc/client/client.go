@@ -12,41 +12,21 @@ import (
 	"context"
 
 	goa "goa.design/goa"
-	calcpb "goa.design/goa/examples/calc/gen/grpc/calc"
-	"google.golang.org/grpc"
+	goagrpc "goa.design/goa/grpc"
 )
 
 // Client lists the service endpoint gRPC clients.
 type Client struct {
-	grpccli calcpb.CalcClient
-	opts    []grpc.CallOption
 }
 
 // NewClient instantiates gRPC client for all the calc service servers.
-func NewClient(cc *grpc.ClientConn, opts ...grpc.CallOption) *Client {
-	return &Client{
-		grpccli: calcpb.NewCalcClient(cc),
-		opts:    opts,
-	}
+func NewClient() *Client {
+	return &Client{}
 }
 
 // Add calls the "Add" function in calcpb.CalcClient interface.
-func (c *Client) Add() goa.Endpoint {
+func (c *Client) Add(doer goagrpc.UnaryDoer) goa.Endpoint {
 	return func(ctx context.Context, v interface{}) (interface{}, error) {
-		er, err := EncodeAddRequest(ctx, v)
-		if err != nil {
-			return nil, err
-		}
-		req := er.(*calcpb.AddRequest)
-		resp, err := c.grpccli.Add(ctx, req, c.opts...)
-		if err != nil {
-			return nil, err
-		}
-		r, err := DecodeAddResponse(ctx, resp)
-		if err != nil {
-			return nil, err
-		}
-		res := r.(int)
-		return res, nil
+		return doer.Invoke(ctx, v)
 	}
 }
