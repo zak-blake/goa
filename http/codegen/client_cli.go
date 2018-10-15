@@ -369,7 +369,7 @@ func buildSubcommandData(svc *ServiceData, e *EndpointData) *subcommandData {
 }
 
 func generateExample(sub *subcommandData, svc string) {
-	ex := "--transport=http " + codegen.KebabCase(svc) + " " + codegen.KebabCase(sub.Name)
+	ex := codegen.KebabCase(svc) + " " + codegen.KebabCase(sub.Name)
 	for _, f := range sub.Flags {
 		ex += " --" + f.Name + " " + f.Example
 	}

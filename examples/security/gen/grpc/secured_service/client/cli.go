@@ -12,7 +12,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	secured_servicepb "goa.design/goa/examples/security/gen/grpc/secured_service"
+	"goa.design/goa/examples/security/gen/grpc/secured_service/pb"
 	securedservice "goa.design/goa/examples/security/gen/secured_service"
 )
 
@@ -37,12 +37,12 @@ func BuildSigninPayload(securedServiceSigninUsername string, securedServiceSigni
 // endpoint from CLI flags.
 func BuildSecurePayload(securedServiceSecureMessage string, securedServiceSecureToken string) (*securedservice.SecurePayload, error) {
 	var err error
-	var message secured_servicepb.SecureRequest
+	var message pb.SecureRequest
 	{
 		if securedServiceSecureMessage != "" {
 			err = json.Unmarshal([]byte(securedServiceSecureMessage), &message)
 			if err != nil {
-				return nil, fmt.Errorf("invalid JSON for message, example of valid JSON:\n%s", "null")
+				return nil, fmt.Errorf("invalid JSON for message, example of valid JSON:\n%s", "'{\n      \"fail\": true\n   }'")
 			}
 		}
 	}
@@ -64,12 +64,12 @@ func BuildSecurePayload(securedServiceSecureMessage string, securedServiceSecure
 // doubly_secure endpoint from CLI flags.
 func BuildDoublySecurePayload(securedServiceDoublySecureMessage string, securedServiceDoublySecureToken string) (*securedservice.DoublySecurePayload, error) {
 	var err error
-	var message secured_servicepb.DoublySecureRequest
+	var message pb.DoublySecureRequest
 	{
 		if securedServiceDoublySecureMessage != "" {
 			err = json.Unmarshal([]byte(securedServiceDoublySecureMessage), &message)
 			if err != nil {
-				return nil, fmt.Errorf("invalid JSON for message, example of valid JSON:\n%s", "null")
+				return nil, fmt.Errorf("invalid JSON for message, example of valid JSON:\n%s", "'{\n      \"key\": \"abcdef12345\"\n   }'")
 			}
 		}
 	}
@@ -91,12 +91,12 @@ func BuildDoublySecurePayload(securedServiceDoublySecureMessage string, securedS
 // also_doubly_secure endpoint from CLI flags.
 func BuildAlsoDoublySecurePayload(securedServiceAlsoDoublySecureMessage string, securedServiceAlsoDoublySecureOauthToken string, securedServiceAlsoDoublySecureToken string) (*securedservice.AlsoDoublySecurePayload, error) {
 	var err error
-	var message secured_servicepb.AlsoDoublySecureRequest
+	var message pb.AlsoDoublySecureRequest
 	{
 		if securedServiceAlsoDoublySecureMessage != "" {
 			err = json.Unmarshal([]byte(securedServiceAlsoDoublySecureMessage), &message)
 			if err != nil {
-				return nil, fmt.Errorf("invalid JSON for message, example of valid JSON:\n%s", "null")
+				return nil, fmt.Errorf("invalid JSON for message, example of valid JSON:\n%s", "'{\n      \"key\": \"abcdef12345\",\n      \"password\": \"password\",\n      \"username\": \"user\"\n   }'")
 			}
 		}
 	}

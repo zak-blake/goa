@@ -13,19 +13,19 @@ import (
 	"fmt"
 
 	dividersvc "goa.design/goa/examples/error/gen/divider"
-	dividerpb "goa.design/goa/examples/error/gen/grpc/divider"
+	"goa.design/goa/examples/error/gen/grpc/divider/pb"
 )
 
 // BuildIntegerDividePayload builds the payload for the divider integer_divide
 // endpoint from CLI flags.
 func BuildIntegerDividePayload(dividerIntegerDivideMessage string) (*dividersvc.IntOperands, error) {
 	var err error
-	var message dividerpb.IntegerDivideRequest
+	var message pb.IntegerDivideRequest
 	{
 		if dividerIntegerDivideMessage != "" {
 			err = json.Unmarshal([]byte(dividerIntegerDivideMessage), &message)
 			if err != nil {
-				return nil, fmt.Errorf("invalid JSON for message, example of valid JSON:\n%s", "null")
+				return nil, fmt.Errorf("invalid JSON for message, example of valid JSON:\n%s", "'{\n      \"a\": 1338266005399228665,\n      \"b\": 7245195139064803075\n   }'")
 			}
 		}
 	}
@@ -43,12 +43,12 @@ func BuildIntegerDividePayload(dividerIntegerDivideMessage string) (*dividersvc.
 // CLI flags.
 func BuildDividePayload(dividerDivideMessage string) (*dividersvc.FloatOperands, error) {
 	var err error
-	var message dividerpb.DivideRequest
+	var message pb.DivideRequest
 	{
 		if dividerDivideMessage != "" {
 			err = json.Unmarshal([]byte(dividerDivideMessage), &message)
 			if err != nil {
-				return nil, fmt.Errorf("invalid JSON for message, example of valid JSON:\n%s", "null")
+				return nil, fmt.Errorf("invalid JSON for message, example of valid JSON:\n%s", "'{\n      \"a\": 0.7822693555171186,\n      \"b\": 0.5749246657891343\n   }'")
 			}
 		}
 	}

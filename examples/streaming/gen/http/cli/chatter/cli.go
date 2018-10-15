@@ -30,7 +30,7 @@ func UsageCommands() string {
 
 // UsageExamples produces an example of a valid invocation of the CLI tool.
 func UsageExamples() string {
-	return os.Args[0] + ` --transport=http chatter login --user "username" --password "password"` + "\n" +
+	return os.Args[0] + ` chatter login --user "username" --password "password"` + "\n" +
 		""
 }
 
@@ -196,7 +196,7 @@ Creates a valid JWT token for auth to chat.
     -password STRING: 
 
 Example:
-    `+os.Args[0]+` --transport=http chatter login --user "username" --password "password"
+    `+os.Args[0]+` chatter login --user "username" --password "password"
 `, os.Args[0])
 }
 
@@ -207,7 +207,7 @@ Echoes the message sent by the client.
     -token STRING: 
 
 Example:
-    `+os.Args[0]+` --transport=http chatter echoer --token "Recusandae voluptatem recusandae qui aut omnis est."
+    `+os.Args[0]+` chatter echoer --token "Recusandae voluptatem recusandae qui aut omnis est."
 `, os.Args[0])
 }
 
@@ -218,7 +218,7 @@ Listens to the messages sent by the client.
     -token STRING: 
 
 Example:
-    `+os.Args[0]+` --transport=http chatter listener --token "Sit tempore soluta rerum iste."
+    `+os.Args[0]+` chatter listener --token "Sit tempore soluta rerum iste."
 `, os.Args[0])
 }
 
@@ -229,7 +229,7 @@ Summarizes the chat messages sent by the client.
     -token STRING: 
 
 Example:
-    `+os.Args[0]+` --transport=http chatter summary --token "Saepe nesciunt eum officiis voluptatem."
+    `+os.Args[0]+` chatter summary --token "Saepe nesciunt eum officiis voluptatem."
 `, os.Args[0])
 }
 
@@ -241,6 +241,6 @@ Returns the chat messages sent to the server.
     -token STRING: 
 
 Example:
-    `+os.Args[0]+` --transport=http chatter history --view "Quas soluta rerum voluptatum." --token "Quidem et sint cupiditate at aut."
+    `+os.Args[0]+` chatter history --view "Quas soluta rerum voluptatum." --token "Quidem et sint cupiditate at aut."
 `, os.Args[0])
 }

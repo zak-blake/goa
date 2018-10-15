@@ -12,63 +12,44 @@ import (
 	"context"
 
 	goa "goa.design/goa"
-	dividerpb "goa.design/goa/examples/error/gen/grpc/divider"
+	"goa.design/goa/examples/error/gen/grpc/divider/pb"
+	goagrpc "goa.design/goa/grpc"
 	"google.golang.org/grpc"
 )
 
 // Client lists the service endpoint gRPC clients.
 type Client struct {
-	grpccli dividerpb.DividerClient
+	grpccli pb.DividerClient
 	opts    []grpc.CallOption
 }
 
 // NewClient instantiates gRPC client for all the divider service servers.
 func NewClient(cc *grpc.ClientConn, opts ...grpc.CallOption) *Client {
 	return &Client{
-		grpccli: dividerpb.NewDividerClient(cc),
+		grpccli: pb.NewDividerClient(cc),
 		opts:    opts,
 	}
 }
 
-// IntegerDivide calls the "IntegerDivide" function in dividerpb.DividerClient
+// IntegerDivide calls the "IntegerDivide" function in pb.DividerClient
 // interface.
 func (c *Client) IntegerDivide() goa.Endpoint {
 	return func(ctx context.Context, v interface{}) (interface{}, error) {
-		er, err := EncodeIntegerDivideRequest(ctx, v)
-		if err != nil {
-			return nil, err
-		}
-		req := er.(*dividerpb.IntegerDivideRequest)
-		resp, err := c.grpccli.IntegerDivide(ctx, req, c.opts...)
-		if err != nil {
-			return nil, err
-		}
-		r, err := DecodeIntegerDivideResponse(ctx, resp)
-		if err != nil {
-			return nil, err
-		}
-		res := r.(int)
-		return res, nil
+		inv := goagrpc.NewInvoker(
+			BuildIntegerDivideFunc(c.grpccli, c.opts...),
+			EncodeIntegerDivideRequest,
+			DecodeIntegerDivideResponse)
+		return inv.Invoke(ctx, v)
 	}
 }
 
-// Divide calls the "Divide" function in dividerpb.DividerClient interface.
+// Divide calls the "Divide" function in pb.DividerClient interface.
 func (c *Client) Divide() goa.Endpoint {
 	return func(ctx context.Context, v interface{}) (interface{}, error) {
-		er, err := EncodeDivideRequest(ctx, v)
-		if err != nil {
-			return nil, err
-		}
-		req := er.(*dividerpb.DivideRequest)
-		resp, err := c.grpccli.Divide(ctx, req, c.opts...)
-		if err != nil {
-			return nil, err
-		}
-		r, err := DecodeDivideResponse(ctx, resp)
-		if err != nil {
-			return nil, err
-		}
-		res := r.(float64)
-		return res, nil
+		inv := goagrpc.NewInvoker(
+			BuildDivideFunc(c.grpccli, c.opts...),
+			EncodeDivideRequest,
+			DecodeDivideResponse)
+		return inv.Invoke(ctx, v)
 	}
 }

@@ -37,7 +37,7 @@ const (
 
 syntax = {{ printf "%q" .ProtoVersion }};
 
-package {{ .Pkg }};
+package pb;
 
 {{ range .Imports }}
 import {{ .Code }};

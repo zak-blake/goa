@@ -5,7 +5,7 @@ import (
 	"os"
 
 	"goa.design/goa"
-	"goa.design/goa/examples/security/gen/grpc/cli"
+	cli "goa.design/goa/examples/security/gen/grpc/cli/multiauth"
 	"google.golang.org/grpc"
 )
 

@@ -30,7 +30,7 @@ func UsageCommands() string {
 
 // UsageExamples produces an example of a valid invocation of the CLI tool.
 func UsageExamples() string {
-	return os.Args[0] + ` --transport=http secured-service signin --username "user" --password "password"` + "\n" +
+	return os.Args[0] + ` secured-service signin --username "user" --password "password"` + "\n" +
 		""
 }
 
@@ -189,7 +189,7 @@ Creates a valid JWT after authenticating using basic_auth scheme.
     -password STRING: Password used to perform signin
 
 Example:
-    `+os.Args[0]+` --transport=http secured-service signin --username "user" --password "password"
+    `+os.Args[0]+` secured-service signin --username "user" --password "password"
 `, os.Args[0])
 }
 
@@ -201,7 +201,7 @@ This action is secured with the jwt scheme
     -token STRING: 
 
 Example:
-    `+os.Args[0]+` --transport=http secured-service secure --fail false --token "Atque iure pariatur."
+    `+os.Args[0]+` secured-service secure --fail false --token "Atque iure pariatur."
 `, os.Args[0])
 }
 
@@ -213,7 +213,7 @@ This action is secured with the jwt scheme and also requires an API key query st
     -token STRING: 
 
 Example:
-    `+os.Args[0]+` --transport=http secured-service doubly-secure --key "abcdef12345" --token "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiYWRtaW4iOnRydWV9.TJVA95OrM7E2cBab30RMHrHDcEfxjoYZgeFONFh7HgQ"
+    `+os.Args[0]+` secured-service doubly-secure --key "abcdef12345" --token "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiYWRtaW4iOnRydWV9.TJVA95OrM7E2cBab30RMHrHDcEfxjoYZgeFONFh7HgQ"
 `, os.Args[0])
 }
 
@@ -228,6 +228,6 @@ This action is secured with the jwt scheme and an API key header or username/pas
     -password STRING: Password used to perform signin
 
 Example:
-    `+os.Args[0]+` --transport=http secured-service also-doubly-secure --key "abcdef12345" --oauth-token "Blanditiis quis rem odit enim voluptatem." --token "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiYWRtaW4iOnRydWV9.TJVA95OrM7E2cBab30RMHrHDcEfxjoYZgeFONFh7HgQ" --username "user" --password "password"
+    `+os.Args[0]+` secured-service also-doubly-secure --key "abcdef12345" --oauth-token "Blanditiis quis rem odit enim voluptatem." --token "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiYWRtaW4iOnRydWV9.TJVA95OrM7E2cBab30RMHrHDcEfxjoYZgeFONFh7HgQ" --username "user" --password "password"
 `, os.Args[0])
 }

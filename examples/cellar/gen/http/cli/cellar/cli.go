@@ -33,7 +33,7 @@ storage (list|show|add|remove|rate|multi-add|multi-update)
 
 // UsageExamples produces an example of a valid invocation of the CLI tool.
 func UsageExamples() string {
-	return os.Args[0] + ` --transport=http sommelier pick --body '{
+	return os.Args[0] + ` sommelier pick --body '{
       "name": "Blue\'s Cuvee",
       "varietal": [
          "pinot noir",
@@ -42,7 +42,7 @@ func UsageExamples() string {
       ],
       "winery": "longoria"
    }'` + "\n" +
-		os.Args[0] + ` --transport=http storage list` + "\n" +
+		os.Args[0] + ` storage list` + "\n" +
 		""
 }
 
@@ -253,7 +253,7 @@ Pick implements pick.
     -body JSON: 
 
 Example:
-    `+os.Args[0]+` --transport=http sommelier pick --body '{
+    `+os.Args[0]+` sommelier pick --body '{
       "name": "Blue\'s Cuvee",
       "varietal": [
          "pinot noir",
@@ -290,7 +290,7 @@ func storageListUsage() {
 List all stored bottles
 
 Example:
-    `+os.Args[0]+` --transport=http storage list
+    `+os.Args[0]+` storage list
 `, os.Args[0])
 }
 
@@ -302,7 +302,7 @@ Show bottle by ID
     -view STRING: 
 
 Example:
-    `+os.Args[0]+` --transport=http storage show --id "Dignissimos sunt ut accusamus soluta." --view "tiny"
+    `+os.Args[0]+` storage show --id "Dignissimos sunt ut accusamus soluta." --view "tiny"
 `, os.Args[0])
 }
 
@@ -313,7 +313,7 @@ Add new bottle and return its ID.
     -body JSON: 
 
 Example:
-    `+os.Args[0]+` --transport=http storage add --body '{
+    `+os.Args[0]+` storage add --body '{
       "composition": [
          {
             "percentage": 49,
@@ -349,7 +349,7 @@ Remove bottle from storage
     -id STRING: ID of bottle to remove
 
 Example:
-    `+os.Args[0]+` --transport=http storage remove --id "Et recusandae quam qui."
+    `+os.Args[0]+` storage remove --id "Et recusandae quam qui."
 `, os.Args[0])
 }
 
@@ -360,7 +360,7 @@ Rate bottles by IDs
     -p JSON: map[uint32][]string is the payload type of the storage service rate method.
 
 Example:
-    `+os.Args[0]+` --transport=http storage rate --p '{
+    `+os.Args[0]+` storage rate --p '{
       "1619338135": [
          "Laboriosam consequatur delectus doloribus.",
          "Est mollitia.",
@@ -382,7 +382,7 @@ Add n number of bottles and return their IDs. This is a multipart request and ea
     -body JSON: 
 
 Example:
-    `+os.Args[0]+` --transport=http storage multi-add --body '[
+    `+os.Args[0]+` storage multi-add --body '[
       {
          "composition": [
             {
@@ -483,7 +483,7 @@ Update bottles with the given IDs. This is a multipart request and each part has
     -ids JSON: 
 
 Example:
-    `+os.Args[0]+` --transport=http storage multi-update --body '{
+    `+os.Args[0]+` storage multi-update --body '{
       "bottles": [
          {
             "composition": [

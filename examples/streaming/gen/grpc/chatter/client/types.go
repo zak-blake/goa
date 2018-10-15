@@ -10,72 +10,73 @@ package client
 
 import (
 	chattersvc "goa.design/goa/examples/streaming/gen/chatter"
-	chatterpb "goa.design/goa/examples/streaming/gen/grpc/chatter"
+	chattersvcviews "goa.design/goa/examples/streaming/gen/chatter/views"
+	"goa.design/goa/examples/streaming/gen/grpc/chatter/pb"
 )
 
 // NewLoginRequest builds the gRPC request type from the payload of the "login"
 // endpoint of the "chatter" service.
-func NewLoginRequest(p *chattersvc.LoginPayload) *chatterpb.LoginRequest {
-	v := &chatterpb.LoginRequest{}
+func NewLoginRequest(p *chattersvc.LoginPayload) *pb.LoginRequest {
+	v := &pb.LoginRequest{}
 	return v
 }
 
 // NewLoginResponse builds the result type of the "login" endpoint of the
 // "chatter" service from the gRPC response type.
-func NewLoginResponse(resp *chatterpb.LoginResponse) string {
+func NewLoginResponse(resp *pb.LoginResponse) string {
 	v := resp.Field
 	return v
 }
 
-func NewEchoerResponse(v *chatterpb.EchoerResponse) string {
+func NewEchoerResponse(v *pb.EchoerResponse) string {
 	res := v.Field
 	return res
 }
 
-func NewEchoerStreamingRequest(res string) *chatterpb.EchoerStreamingRequest {
-	v := &chatterpb.EchoerStreamingRequest{}
+func NewEchoerStreamingRequest(res string) *pb.EchoerStreamingRequest {
+	v := &pb.EchoerStreamingRequest{}
 	v.Field = res
 	return v
 }
 
-func NewListenerStreamingRequest(res string) *chatterpb.ListenerStreamingRequest {
-	v := &chatterpb.ListenerStreamingRequest{}
+func NewListenerStreamingRequest(res string) *pb.ListenerStreamingRequest {
+	v := &pb.ListenerStreamingRequest{}
 	v.Field = res
 	return v
 }
 
-func NewChatSummaryCollection(v *chatterpb.ChatSummaryCollection) chattersvc.ChatSummaryCollection {
-	res := make([]*chattersvc.ChatSummary, len(v.Field))
+func NewChatSummaryCollectionView(v *pb.ChatSummaryCollection) chattersvcviews.ChatSummaryCollectionView {
+	vres := make([]*chattersvcviews.ChatSummaryView, len(v.Field))
 	for i, val := range v.Field {
-		res[i] = &chattersvc.ChatSummary{
-			Message: val.Message_,
+		vres[i] = &chattersvcviews.ChatSummaryView{
+			Message: &val.Message_,
 			SentAt:  &val.SentAt,
 		}
 		lengthptr := int(val.Length)
-		res[i].Length = &lengthptr
+		vres[i].Length = &lengthptr
 	}
-	return res
+	return vres
 }
 
-func NewSummaryStreamingRequest(res string) *chatterpb.SummaryStreamingRequest {
-	v := &chatterpb.SummaryStreamingRequest{}
+func NewSummaryStreamingRequest(res string) *pb.SummaryStreamingRequest {
+	v := &pb.SummaryStreamingRequest{}
 	v.Field = res
 	return v
 }
 
 // NewHistoryRequest builds the gRPC request type from the payload of the
 // "history" endpoint of the "chatter" service.
-func NewHistoryRequest(p *chattersvc.HistoryPayload) *chatterpb.HistoryRequest {
-	v := &chatterpb.HistoryRequest{}
+func NewHistoryRequest(p *chattersvc.HistoryPayload) *pb.HistoryRequest {
+	v := &pb.HistoryRequest{}
 	return v
 }
 
-func NewChatSummary(v *chatterpb.HistoryResponse) *chattersvc.ChatSummary {
-	res := &chattersvc.ChatSummary{
-		Message: v.Message_,
+func NewChatSummaryView(v *pb.HistoryResponse) *chattersvcviews.ChatSummaryView {
+	vres := &chattersvcviews.ChatSummaryView{
+		Message: &v.Message_,
 		SentAt:  &v.SentAt,
 	}
 	lengthptr := int(v.Length)
-	res.Length = &lengthptr
-	return res
+	vres.Length = &lengthptr
+	return vres
 }

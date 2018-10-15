@@ -10,13 +10,13 @@ package client
 
 import (
 	calcsvc "goa.design/goa/examples/calc/gen/calc"
-	calcpb "goa.design/goa/examples/calc/gen/grpc/calc"
+	"goa.design/goa/examples/calc/gen/grpc/calc/pb"
 )
 
 // NewAddRequest builds the gRPC request type from the payload of the "add"
 // endpoint of the "calc" service.
-func NewAddRequest(p *calcsvc.AddPayload) *calcpb.AddRequest {
-	v := &calcpb.AddRequest{
+func NewAddRequest(p *calcsvc.AddPayload) *pb.AddRequest {
+	v := &pb.AddRequest{
 		A: int32(p.A),
 		B: int32(p.B),
 	}
@@ -25,7 +25,7 @@ func NewAddRequest(p *calcsvc.AddPayload) *calcpb.AddRequest {
 
 // NewAddResponse builds the result type of the "add" endpoint of the "calc"
 // service from the gRPC response type.
-func NewAddResponse(resp *calcpb.AddResponse) int {
+func NewAddResponse(resp *pb.AddResponse) int {
 	v := int(resp.Field)
 	return v
 }

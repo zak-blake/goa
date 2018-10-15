@@ -273,14 +273,21 @@ type (
 	StreamData struct {
 		// VarName is the name of the struct type.
 		VarName string
+		// Type is the stream type (client or server).
+		Type string
 		// ServiceInterface is the service interface that the struct implements.
 		ServiceInterface string
 		// Interface is the stream interface in *.pb.go stored in the struct.
 		Interface string
+		// Endpoint is the streaming endpoint data.
+		Endpoint *EndpointData
 		// SendName is the name of the send function.
 		SendName string
 		// SendDesc is the description for the send function.
 		SendDesc string
+		// SendRef is the fully	qualified reference to the type sent across the
+		// stream.
+		SendRef string
 		// SendConvert is the type sent through the stream. It contains the
 		// constructor to convert the service send type to the type expected by
 		// the gRPC send type (in *.pb.go)
@@ -293,6 +300,9 @@ type (
 		RecvName string
 		// RecvDesc is the description for the recv function.
 		RecvDesc string
+		// RecvRef is the fully	qualified reference to the type received from the
+		// stream.
+		RecvRef string
 		// MustClose indicates whether to generate the Close() function
 		// for the stream.
 		MustClose bool
@@ -325,6 +335,27 @@ func (sd *ServiceData) Endpoint(name string) *EndpointData {
 	return nil
 }
 
+// HasUnaryEndpoint returns true if the service has at least one unary endpoint.
+func (sd *ServiceData) HasUnaryEndpoint() bool {
+	for _, ed := range sd.Endpoints {
+		if ed.ServerStream == nil {
+			return true
+		}
+	}
+	return false
+}
+
+// HasStreamingEndpoint returns true if the service has at least one streaming
+// endpoint.
+func (sd *ServiceData) HasStreamingEndpoint() bool {
+	for _, ed := range sd.Endpoints {
+		if ed.ServerStream != nil {
+			return true
+		}
+	}
+	return false
+}
+
 // analyze creates the data necessary to render the code of the given service.
 func (d ServicesData) analyze(gs *expr.GRPCServiceExpr) *ServiceData {
 	var (
@@ -337,12 +368,12 @@ func (d ServicesData) analyze(gs *expr.GRPCServiceExpr) *ServiceData {
 	)
 	{
 		svcVarN = codegen.Goify(svc.Name, true)
-		pkgName = svc.Name + "pb"
+		pkgName = "pb"
 		sd = &ServiceData{
 			Service:             svc,
 			Name:                svc.Name,
 			Description:         svc.Description,
-			PkgName:             svc.Name + "pb",
+			PkgName:             pkgName,
 			ServerStruct:        "Server",
 			ClientStruct:        "Client",
 			ServerInit:          "New",
@@ -390,17 +421,6 @@ func (d ServicesData) analyze(gs *expr.GRPCServiceExpr) *ServiceData {
 		}
 
 		var (
-			svrStream *StreamData
-			cliStream *StreamData
-		)
-		{
-			if e.MethodExpr.IsStreaming() {
-				svrStream = buildStreamData(e, sd, true)
-				cliStream = buildStreamData(e, sd, false)
-			}
-		}
-
-		var (
 			request *RequestData
 			reqMD   []*MetadataData
 		)
@@ -419,6 +439,7 @@ func (d ServicesData) analyze(gs *expr.GRPCServiceExpr) *ServiceData {
 					Ref:      "message",
 					TypeName: svc.Scope.GoFullTypeName(e.Request, sd.PkgName),
 					TypeRef:  svc.Scope.GoFullTypeRef(e.Request, sd.PkgName),
+					Example:  e.Request.Example(expr.Root.API.Random()),
 				})
 			}
 			// pass the metadata as arguments to client CLI args
@@ -484,7 +505,7 @@ func (d ServicesData) analyze(gs *expr.GRPCServiceExpr) *ServiceData {
 				}
 			}
 		}
-		sd.Endpoints = append(sd.Endpoints, &EndpointData{
+		ed := &EndpointData{
 			ServiceName:     svc.Name,
 			PkgName:         sd.PkgName,
 			ServicePkgName:  svc.PkgName,
@@ -499,11 +520,14 @@ func (d ServicesData) analyze(gs *expr.GRPCServiceExpr) *ServiceData {
 			Errors:          errors,
 			ServerStruct:    sd.ServerStruct,
 			ServerInterface: sd.ServerInterface,
-			ServerStream:    svrStream,
 			ClientStruct:    sd.ClientStruct,
 			ClientInterface: sd.ClientInterface,
-			ClientStream:    cliStream,
-		})
+		}
+		sd.Endpoints = append(sd.Endpoints, ed)
+		if e.MethodExpr.IsStreaming() {
+			ed.ServerStream = buildStreamData(e, sd, true)
+			ed.ClientStream = buildStreamData(e, sd, false)
+		}
 	}
 	return sd
 }
@@ -643,6 +667,32 @@ func buildResponseConvertData(e *expr.GRPCEndpointExpr, hdrs, trlrs []*MetadataD
 		} else {
 			fn := func(data *InitData) *InitData {
 				data.Description = fmt.Sprintf("%s builds the %sresult type of the %q endpoint of the %q service from the gRPC response type.", data.Name, proj, e.Name(), svc.Name)
+				for _, m := range hdrs {
+					// pass the headers as arguments to result constructor in client
+					data.Args = append(data.Args, &InitArgData{
+						Name:      m.VarName,
+						Ref:       m.VarName,
+						FieldName: m.FieldName,
+						TypeName:  m.TypeName,
+						TypeRef:   m.TypeRef,
+						Pointer:   m.Pointer,
+						Required:  m.Required,
+						Example:   m.Example,
+					})
+				}
+				for _, m := range trlrs {
+					// pass the trailers as arguments to result constructor in client
+					data.Args = append(data.Args, &InitArgData{
+						Name:      m.VarName,
+						Ref:       m.VarName,
+						FieldName: m.FieldName,
+						TypeName:  m.TypeName,
+						TypeRef:   m.TypeRef,
+						Pointer:   m.Pointer,
+						Required:  m.Required,
+						Example:   m.Example,
+					})
+				}
 				return data
 			}
 			td = buildConvertData(e.Response.Message, result, "resp", "v", sd.PkgName, resultPkg, false, sd, fn)
@@ -708,6 +758,7 @@ func buildConvertData(src, tgt *expr.AttributeExpr, srcVar, tgtVar, srcPkg, tgtP
 					Ref:      srcVar,
 					TypeName: srcName,
 					TypeRef:  srcRef,
+					Example:  src.Example(expr.Root.API.Random()),
 				},
 			}
 		}
@@ -769,45 +820,63 @@ func buildStreamData(e *expr.GRPCEndpointExpr, sd *ServiceData, svr bool) *Strea
 		svcInt    string
 		sendName  string
 		sendDesc  string
+		sendRef   string
 		sendType  *ConvertData
 		recvName  string
 		recvDesc  string
+		recvRef   string
 		recvType  *ConvertData
 		mustClose bool
+		typ       string
 
 		svc = sd.Service
-		md  = svc.Method(e.Name())
+		ed  = sd.Endpoint(e.Name())
+		md  = ed.Method
 	)
 	{
+		result := e.MethodExpr.Result
+		resVar := "res"
+		resPkg := svc.PkgName
+		if md.ViewedResult != nil {
+			result = expr.AsObject(md.ViewedResult.Type).Attribute("projected")
+			resVar = "vres"
+			resPkg = md.ViewedResult.ViewsPkg
+		}
 		if svr {
+			typ = "server"
 			varn = md.ServerStream.VarName
 			intName = fmt.Sprintf("%s.%s_%sServer", sd.PkgName, svc.StructName, md.VarName)
 			svcInt = fmt.Sprintf("%s.%s", svc.PkgName, md.ServerStream.Interface)
-			if e.MethodExpr.Result.Type != expr.Empty {
+			if result.Type != expr.Empty {
 				sendName = md.ServerStream.SendName
-				sendType = buildConvertData(e.MethodExpr.Result, e.Response.Message, "res", "v", svc.PkgName, sd.PkgName, true, sd, nil)
+				sendRef = ed.ResultRef
+				sendType = buildConvertData(result, e.Response.Message, resVar, "v", resPkg, sd.PkgName, true, sd, nil)
 			}
 			if e.MethodExpr.StreamingPayload.Type != expr.Empty {
 				recvName = md.ServerStream.RecvName
+				recvRef = svc.Scope.GoFullTypeRef(e.MethodExpr.StreamingPayload, svc.PkgName)
 				recvType = buildConvertData(e.StreamingRequest, e.MethodExpr.StreamingPayload, "v", "p", sd.PkgName, svc.PkgName, false, sd, nil)
 			}
 			mustClose = md.ServerStream.MustClose
 		} else {
+			typ = "client"
 			varn = md.ClientStream.VarName
 			intName = fmt.Sprintf("%s.%s_%sClient", sd.PkgName, svc.StructName, md.VarName)
 			svcInt = fmt.Sprintf("%s.%s", svc.PkgName, md.ClientStream.Interface)
 			if e.MethodExpr.StreamingPayload.Type != expr.Empty {
 				sendName = md.ClientStream.SendName
+				sendRef = svc.Scope.GoFullTypeRef(e.MethodExpr.StreamingPayload, svc.PkgName)
 				sendType = buildConvertData(e.MethodExpr.StreamingPayload, e.StreamingRequest, "res", "v", svc.PkgName, sd.PkgName, true, sd, nil)
 			}
-			if e.MethodExpr.Result.Type != expr.Empty {
+			if result.Type != expr.Empty {
 				recvName = md.ClientStream.RecvName
-				recvType = buildConvertData(e.Response.Message, e.MethodExpr.Result, "v", "res", sd.PkgName, svc.PkgName, false, sd, nil)
+				recvRef = ed.ResultRef
+				recvType = buildConvertData(e.Response.Message, result, "v", resVar, sd.PkgName, resPkg, false, sd, nil)
 			}
 			mustClose = md.ClientStream.MustClose
 		}
 		if sendType != nil {
-			sendDesc = fmt.Sprintf("%s streams instances of %q to the %q endpoint gRPC stream.", sendName, sendType.SrcName, md.Name)
+			sendDesc = fmt.Sprintf("%s streams instances of %q to the %q endpoint gRPC stream.", sendName, sendType.TgtName, md.Name)
 		}
 		if recvType != nil {
 			recvDesc = fmt.Sprintf("%s reads instances of %q from the %q endpoint gRPC stream.", recvName, recvType.SrcName, md.Name)
@@ -815,13 +884,17 @@ func buildStreamData(e *expr.GRPCEndpointExpr, sd *ServiceData, svr bool) *Strea
 	}
 	return &StreamData{
 		VarName:          varn,
+		Type:             typ,
 		Interface:        intName,
 		ServiceInterface: svcInt,
+		Endpoint:         ed,
 		SendName:         sendName,
 		SendDesc:         sendDesc,
+		SendRef:          sendRef,
 		SendConvert:      sendType,
 		RecvName:         recvName,
 		RecvDesc:         recvDesc,
+		RecvRef:          recvRef,
 		RecvConvert:      recvType,
 		MustClose:        mustClose,
 	}
@@ -882,3 +955,59 @@ func needInit(dt expr.DataType) bool {
 	}
 	return true
 }
+
+// streamSendT renders the function implementing the Send method in
+// stream interface.
+// input: StreamData
+const streamSendT = `{{ comment .SendDesc }}
+func (s *{{ .VarName }}) {{ .SendName }}(res {{ .SendRef }}) error {
+{{- if and .Endpoint.Method.ViewedResult (eq .Type "server") }}
+	{{- if .Endpoint.Method.ViewedResult.ViewName }}
+		vres := {{ .Endpoint.ServicePkgName }}.{{ .Endpoint.Method.ViewedResult.Init.Name }}(res, {{ printf "%q" .Endpoint.Method.ViewedResult.ViewName }})
+	{{- else }}
+		vres := {{ .Endpoint.ServicePkgName }}.{{ .Endpoint.Method.ViewedResult.Init.Name }}(res, s.view)
+	{{- end }}
+{{- end }}
+	v := {{ .SendConvert.Init.Name }}({{ if and .Endpoint.Method.ViewedResult (eq .Type "server") }}vres.Projected{{ else }}res{{ end }})
+	return s.stream.{{ .SendName }}(v)
+}
+`
+
+// streamRecvT renders the function implementing the Recv method in
+// stream interface.
+// input: StreamData
+const streamRecvT = `{{ comment .RecvDesc }}
+func (s *{{ .VarName }}) {{ .RecvName }}() ({{ .RecvRef }}, error) {
+	var res {{ .RecvRef }}
+	v, err := s.stream.{{ .RecvName }}()
+	if err != nil {
+		return res, err
+	}
+{{- if and .Endpoint.Method.ViewedResult (eq .Type "client") }}
+	proj := {{ .RecvConvert.Init.Name }}({{ range .RecvConvert.Init.Args }}{{ .Name }}, {{ end }})
+	vres := {{ if not .Endpoint.Method.ViewedResult.IsCollection }}&{{ end }}{{ .Endpoint.Method.ViewedResult.FullName }}{Projected: proj, View: s.view}
+	return {{ .Endpoint.ServicePkgName }}.{{ .Endpoint.Method.ViewedResult.ResultInit.Name }}(vres), nil
+{{- else }}
+	return {{ .RecvConvert.Init.Name }}({{ range .RecvConvert.Init.Args }}{{ .Name }}, {{ end }}), nil
+{{- end }}
+}
+`
+
+// streamCloseT renders the function implementing the Close method in
+// stream interface.
+// input: StreamData
+const streamCloseT = `
+func (s *{{ .VarName }}) Close() error {
+	{{ comment "nothing to do here" }}
+	return nil
+}
+`
+
+// streamSetViewT renders the function implementing the SetView method in
+// server stream interface.
+// input: StreamData
+const streamSetViewT = `{{ printf "SetView sets the view." | comment }}
+func (s *{{ .VarName }}) SetView(view string) {
+	s.view = view
+}
+`

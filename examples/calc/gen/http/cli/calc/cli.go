@@ -30,7 +30,7 @@ func UsageCommands() string {
 
 // UsageExamples produces an example of a valid invocation of the CLI tool.
 func UsageExamples() string {
-	return os.Args[0] + ` --transport=http calc add --a 5952269320165453119 --b 1828520165265779840` + "\n" +
+	return os.Args[0] + ` calc add --a 5952269320165453119 --b 1828520165265779840` + "\n" +
 		""
 }
 
@@ -149,6 +149,6 @@ Add implements add.
     -b INT: Right operand
 
 Example:
-    `+os.Args[0]+` --transport=http calc add --a 5952269320165453119 --b 1828520165265779840
+    `+os.Args[0]+` calc add --a 5952269320165453119 --b 1828520165265779840
 `, os.Args[0])
 }

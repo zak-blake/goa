@@ -6,7 +6,7 @@ import (
 
 	grpcmiddleware "github.com/grpc-ecosystem/go-grpc-middleware"
 	dividersvc "goa.design/goa/examples/error/gen/divider"
-	dividerpb "goa.design/goa/examples/error/gen/grpc/divider"
+	"goa.design/goa/examples/error/gen/grpc/divider/pb"
 	dividersvcsvr "goa.design/goa/examples/error/gen/grpc/divider/server"
 	"goa.design/goa/grpc/middleware"
 	"google.golang.org/grpc"
@@ -37,7 +37,7 @@ func newGRPCServer(scheme, host string, dividerEndpoints *dividersvc.Endpoints, 
 		dividerServer *dividersvcsvr.Server
 	)
 	{
-		dividerServer = dividersvcsvr.New(dividerEndpoints)
+		dividerServer = dividersvcsvr.New(dividerEndpoints, nil)
 	}
 
 	// Initialize gRPC server with the middleware.
@@ -49,7 +49,7 @@ func newGRPCServer(scheme, host string, dividerEndpoints *dividersvc.Endpoints, 
 	)
 
 	// Register the servers.
-	dividerpb.RegisterDividerServer(srv, dividerServer)
+	pb.RegisterDividerServer(srv, dividerServer)
 
 	return &grpcsvr{svr: srv, addr: host}
 }

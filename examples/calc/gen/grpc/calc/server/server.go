@@ -13,15 +13,14 @@ import (
 
 	"goa.design/goa"
 	calcsvc "goa.design/goa/examples/calc/gen/calc"
-	calcpb "goa.design/goa/examples/calc/gen/grpc/calc"
+	"goa.design/goa/examples/calc/gen/grpc/calc/pb"
 	goagrpc "goa.design/goa/grpc"
-	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
 
-// Server implements the calcpb.CalcServer interface.
+// Server implements the pb.CalcServer interface.
 type Server struct {
-	add goagrpc.UnaryHandler
+	AddH goagrpc.UnaryHandler
 }
 
 // ErrorNamer is an interface implemented by generated error structs that
@@ -31,19 +30,10 @@ type ErrorNamer interface {
 }
 
 // New instantiates the server struct with the calc service endpoints.
-func New(e *calcsvc.Endpoints, h goagrpc.UnaryHandler) *Server {
+func New(e *calcsvc.Endpoints, uh goagrpc.UnaryHandler) *Server {
 	return &Server{
-		add: NewAddHandler(e.Add, h),
+		AddH: NewAddHandler(e.Add, uh),
 	}
-}
-
-// Add implements the "Add" method in calcpb.CalcServer interface.
-func (s *Server) Add(ctx context.Context, message *calcpb.AddRequest) (*calcpb.AddResponse, error) {
-	resp, err := s.add.Serve(ctx, message)
-	if err != nil {
-		return nil, status.Error(codes.Internal, err.Error())
-	}
-	return resp.(*calcpb.AddResponse), nil
 }
 
 // NewAddHandler creates a gRPC handler which serves the "calc" service "add"
@@ -53,4 +43,17 @@ func NewAddHandler(endpoint goa.Endpoint, h goagrpc.UnaryHandler) goagrpc.UnaryH
 		h = goagrpc.NewUnaryHandler(endpoint, DecodeAddRequest, EncodeAddResponse)
 	}
 	return h
+}
+
+// Add implements the "Add" method in pb.CalcServer interface.
+func (s *Server) Add(ctx context.Context, message *pb.AddRequest) (*pb.AddResponse, error) {
+	resp, err := s.AddH.Handle(ctx, message)
+	if err != nil {
+		sts, ok := status.FromError(err)
+		if ok {
+			return nil, err
+		}
+		return nil, sts.Err()
+	}
+	return resp.(*pb.AddResponse), nil
 }

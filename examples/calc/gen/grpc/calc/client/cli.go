@@ -13,18 +13,18 @@ import (
 	"fmt"
 
 	calcsvc "goa.design/goa/examples/calc/gen/calc"
-	calcpb "goa.design/goa/examples/calc/gen/grpc/calc"
+	"goa.design/goa/examples/calc/gen/grpc/calc/pb"
 )
 
 // BuildAddPayload builds the payload for the calc add endpoint from CLI flags.
 func BuildAddPayload(calcAddMessage string) (*calcsvc.AddPayload, error) {
 	var err error
-	var message calcpb.AddRequest
+	var message pb.AddRequest
 	{
 		if calcAddMessage != "" {
 			err = json.Unmarshal([]byte(calcAddMessage), &message)
 			if err != nil {
-				return nil, fmt.Errorf("invalid JSON for message, example of valid JSON:\n%s", "null")
+				return nil, fmt.Errorf("invalid JSON for message, example of valid JSON:\n%s", "'{\n      \"a\": 8399553735696626949,\n      \"b\": 360622074634248926\n   }'")
 			}
 		}
 	}

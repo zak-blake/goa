@@ -9,20 +9,20 @@
 package client
 
 import (
-	secured_servicepb "goa.design/goa/examples/security/gen/grpc/secured_service"
+	"goa.design/goa/examples/security/gen/grpc/secured_service/pb"
 	securedservice "goa.design/goa/examples/security/gen/secured_service"
 )
 
 // NewSigninRequest builds the gRPC request type from the payload of the
 // "signin" endpoint of the "secured_service" service.
-func NewSigninRequest(p *securedservice.SigninPayload) *secured_servicepb.SigninRequest {
-	v := &secured_servicepb.SigninRequest{}
+func NewSigninRequest(p *securedservice.SigninPayload) *pb.SigninRequest {
+	v := &pb.SigninRequest{}
 	return v
 }
 
 // NewCreds builds the result type of the "signin" endpoint of the
 // "secured_service" service from the gRPC response type.
-func NewCreds(resp *secured_servicepb.SigninResponse) *securedservice.Creds {
+func NewCreds(resp *pb.SigninResponse) *securedservice.Creds {
 	v := &securedservice.Creds{
 		JWT:        resp.Jwt,
 		APIKey:     resp.ApiKey,
@@ -33,8 +33,8 @@ func NewCreds(resp *secured_servicepb.SigninResponse) *securedservice.Creds {
 
 // NewSecureRequest builds the gRPC request type from the payload of the
 // "secure" endpoint of the "secured_service" service.
-func NewSecureRequest(p *securedservice.SecurePayload) *secured_servicepb.SecureRequest {
-	v := &secured_servicepb.SecureRequest{}
+func NewSecureRequest(p *securedservice.SecurePayload) *pb.SecureRequest {
+	v := &pb.SecureRequest{}
 	if p.Fail != nil {
 		v.Fail = *p.Fail
 	}
@@ -43,15 +43,15 @@ func NewSecureRequest(p *securedservice.SecurePayload) *secured_servicepb.Secure
 
 // NewSecureResponse builds the result type of the "secure" endpoint of the
 // "secured_service" service from the gRPC response type.
-func NewSecureResponse(resp *secured_servicepb.SecureResponse) string {
+func NewSecureResponse(resp *pb.SecureResponse) string {
 	v := resp.Field
 	return v
 }
 
 // NewDoublySecureRequest builds the gRPC request type from the payload of the
 // "doubly_secure" endpoint of the "secured_service" service.
-func NewDoublySecureRequest(p *securedservice.DoublySecurePayload) *secured_servicepb.DoublySecureRequest {
-	v := &secured_servicepb.DoublySecureRequest{
+func NewDoublySecureRequest(p *securedservice.DoublySecurePayload) *pb.DoublySecureRequest {
+	v := &pb.DoublySecureRequest{
 		Key: p.Key,
 	}
 	return v
@@ -59,15 +59,15 @@ func NewDoublySecureRequest(p *securedservice.DoublySecurePayload) *secured_serv
 
 // NewDoublySecureResponse builds the result type of the "doubly_secure"
 // endpoint of the "secured_service" service from the gRPC response type.
-func NewDoublySecureResponse(resp *secured_servicepb.DoublySecureResponse) string {
+func NewDoublySecureResponse(resp *pb.DoublySecureResponse) string {
 	v := resp.Field
 	return v
 }
 
 // NewAlsoDoublySecureRequest builds the gRPC request type from the payload of
 // the "also_doubly_secure" endpoint of the "secured_service" service.
-func NewAlsoDoublySecureRequest(p *securedservice.AlsoDoublySecurePayload) *secured_servicepb.AlsoDoublySecureRequest {
-	v := &secured_servicepb.AlsoDoublySecureRequest{}
+func NewAlsoDoublySecureRequest(p *securedservice.AlsoDoublySecurePayload) *pb.AlsoDoublySecureRequest {
+	v := &pb.AlsoDoublySecureRequest{}
 	if p.Username != nil {
 		v.Username = *p.Username
 	}
@@ -83,7 +83,7 @@ func NewAlsoDoublySecureRequest(p *securedservice.AlsoDoublySecurePayload) *secu
 // NewAlsoDoublySecureResponse builds the result type of the
 // "also_doubly_secure" endpoint of the "secured_service" service from the gRPC
 // response type.
-func NewAlsoDoublySecureResponse(resp *secured_servicepb.AlsoDoublySecureResponse) string {
+func NewAlsoDoublySecureResponse(resp *pb.AlsoDoublySecureResponse) string {
 	v := resp.Field
 	return v
 }

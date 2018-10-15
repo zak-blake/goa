@@ -12,12 +12,12 @@ import (
 	"context"
 
 	calcsvc "goa.design/goa/examples/calc/gen/calc"
-	calcpb "goa.design/goa/examples/calc/gen/grpc/calc"
+	"goa.design/goa/examples/calc/gen/grpc/calc/pb"
 	goagrpc "goa.design/goa/grpc"
 	"google.golang.org/grpc/metadata"
 )
 
-// EncodeAddResponse encodes responses from the calc add endpoint.
+// EncodeAddResponse encodes responses from the "calc" service "add" endpoint.
 func EncodeAddResponse(ctx context.Context, v interface{}, hdr, trlr *metadata.MD) (interface{}, error) {
 	res, ok := v.(int)
 	if !ok {
@@ -27,17 +27,22 @@ func EncodeAddResponse(ctx context.Context, v interface{}, hdr, trlr *metadata.M
 	return resp, nil
 }
 
-// DecodeAddRequest decodes requests sent to calc add endpoint.
+// DecodeAddRequest decodes requests sent to "calc" service "add" endpoint.
 func DecodeAddRequest(ctx context.Context, v interface{}, md metadata.MD) (interface{}, error) {
+	var (
+		message *pb.AddRequest
+		ok      bool
+	)
+	{
+		if message, ok = v.(*pb.AddRequest); !ok {
+			return nil, goagrpc.ErrInvalidType("calc", "add", "*pb.AddRequest", v)
+		}
+	}
 	var (
 		payload *calcsvc.AddPayload
 		err     error
 	)
 	{
-		message, ok := v.(*calcpb.AddRequest)
-		if !ok {
-			return nil, goagrpc.ErrInvalidType("calc", "add", "*calcpb.AddRequest", v)
-		}
 		payload = NewAddPayload(message)
 	}
 	return payload, err

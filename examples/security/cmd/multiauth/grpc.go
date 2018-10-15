@@ -5,7 +5,7 @@ import (
 	"net"
 
 	grpcmiddleware "github.com/grpc-ecosystem/go-grpc-middleware"
-	secured_servicepb "goa.design/goa/examples/security/gen/grpc/secured_service"
+	"goa.design/goa/examples/security/gen/grpc/secured_service/pb"
 	securedservicesvr "goa.design/goa/examples/security/gen/grpc/secured_service/server"
 	securedservice "goa.design/goa/examples/security/gen/secured_service"
 	"goa.design/goa/grpc/middleware"
@@ -37,7 +37,7 @@ func newGRPCServer(scheme, host string, securedServiceEndpoints *securedservice.
 		securedServiceServer *securedservicesvr.Server
 	)
 	{
-		securedServiceServer = securedservicesvr.New(securedServiceEndpoints)
+		securedServiceServer = securedservicesvr.New(securedServiceEndpoints, nil)
 	}
 
 	// Initialize gRPC server with the middleware.
@@ -49,7 +49,7 @@ func newGRPCServer(scheme, host string, securedServiceEndpoints *securedservice.
 	)
 
 	// Register the servers.
-	secured_servicepb.RegisterSecuredServiceServer(srv, securedServiceServer)
+	pb.RegisterSecuredServiceServer(srv, securedServiceServer)
 
 	return &grpcsvr{svr: srv, addr: host}
 }

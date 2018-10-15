@@ -13,166 +13,120 @@ import (
 
 	goa "goa.design/goa"
 	chattersvc "goa.design/goa/examples/streaming/gen/chatter"
-	chatterpb "goa.design/goa/examples/streaming/gen/grpc/chatter"
+	chattersvcviews "goa.design/goa/examples/streaming/gen/chatter/views"
+	"goa.design/goa/examples/streaming/gen/grpc/chatter/pb"
 	goagrpc "goa.design/goa/grpc"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/metadata"
 )
 
 // Client lists the service endpoint gRPC clients.
 type Client struct {
-	grpccli chatterpb.ChatterClient
+	grpccli pb.ChatterClient
 	opts    []grpc.CallOption
 }
 
 // echoerClientStream implements the chattersvc.EchoerClientStream.%!s(MISSING)
 // interface.
 type echoerClientStream struct {
-	stream chatterpb.Chatter_EchoerClient
+	stream pb.Chatter_EchoerClient
 }
 
 // listenerClientStream implements the
 // chattersvc.ListenerClientStream.%!s(MISSING) interface.
 type listenerClientStream struct {
-	stream chatterpb.Chatter_ListenerClient
+	stream pb.Chatter_ListenerClient
 }
 
 // summaryClientStream implements the
 // chattersvc.SummaryClientStream.%!s(MISSING) interface.
 type summaryClientStream struct {
-	stream chatterpb.Chatter_SummaryClient
+	stream pb.Chatter_SummaryClient
+	view   string
 }
 
 // historyClientStream implements the
 // chattersvc.HistoryClientStream.%!s(MISSING) interface.
 type historyClientStream struct {
-	stream chatterpb.Chatter_HistoryClient
+	stream pb.Chatter_HistoryClient
+	view   string
 }
 
 // NewClient instantiates gRPC client for all the chatter service servers.
 func NewClient(cc *grpc.ClientConn, opts ...grpc.CallOption) *Client {
 	return &Client{
-		grpccli: chatterpb.NewChatterClient(cc),
+		grpccli: pb.NewChatterClient(cc),
 		opts:    opts,
 	}
 }
 
-// Login calls the "Login" function in chatterpb.ChatterClient interface.
+// Login calls the "Login" function in pb.ChatterClient interface.
 func (c *Client) Login() goa.Endpoint {
 	return func(ctx context.Context, v interface{}) (interface{}, error) {
-		er, err := EncodeLoginRequest(ctx, v)
-		if err != nil {
-			return nil, err
-		}
-		req := er.(*chatterpb.LoginRequest)
-		p, ok := v.(*chattersvc.LoginPayload)
-		if !ok {
-			return nil, goagrpc.ErrInvalidType("chatter", "login", "*chattersvc.LoginPayload", v)
-		}
-		ctx = metadata.AppendToOutgoingContext(ctx, "user", p.User)
-		ctx = metadata.AppendToOutgoingContext(ctx, "password", p.Password)
-		resp, err := c.grpccli.Login(ctx, req, c.opts...)
-		if err != nil {
-			return nil, err
-		}
-		r, err := DecodeLoginResponse(ctx, resp)
-		if err != nil {
-			return nil, err
-		}
-		res := r.(string)
-		return res, nil
+		inv := goagrpc.NewInvoker(
+			BuildLoginFunc(c.grpccli, c.opts...),
+			EncodeLoginRequest,
+			DecodeLoginResponse)
+		return inv.Invoke(ctx, v)
 	}
 }
 
-// Echoer calls the "Echoer" function in chatterpb.ChatterClient interface.
+// Echoer calls the "Echoer" function in pb.ChatterClient interface.
 func (c *Client) Echoer() goa.Endpoint {
 	return func(ctx context.Context, v interface{}) (interface{}, error) {
-		p, ok := v.(*chattersvc.EchoerPayload)
-		if !ok {
-			return nil, goagrpc.ErrInvalidType("chatter", "echoer", "*chattersvc.EchoerPayload", v)
-		}
-		ctx = metadata.AppendToOutgoingContext(ctx, "authorization", p.Token)
-		stream, err := c.grpccli.Echoer(ctx, c.opts...)
-		if err != nil {
-			return nil, err
-		}
-		return &echoerClientStream{stream: stream}, nil
+		inv := goagrpc.NewInvoker(
+			BuildEchoerFunc(c.grpccli, c.opts...),
+			EncodeEchoerRequest,
+			DecodeEchoerResponse)
+		return inv.Invoke(ctx, v)
 	}
 }
 
-// Listener calls the "Listener" function in chatterpb.ChatterClient interface.
+// Listener calls the "Listener" function in pb.ChatterClient interface.
 func (c *Client) Listener() goa.Endpoint {
 	return func(ctx context.Context, v interface{}) (interface{}, error) {
-		p, ok := v.(*chattersvc.ListenerPayload)
-		if !ok {
-			return nil, goagrpc.ErrInvalidType("chatter", "listener", "*chattersvc.ListenerPayload", v)
-		}
-		ctx = metadata.AppendToOutgoingContext(ctx, "authorization", p.Token)
-		stream, err := c.grpccli.Listener(ctx, c.opts...)
-		if err != nil {
-			return nil, err
-		}
-		return &listenerClientStream{stream: stream}, nil
+		inv := goagrpc.NewInvoker(
+			BuildListenerFunc(c.grpccli, c.opts...),
+			EncodeListenerRequest,
+			nil)
+		return inv.Invoke(ctx, v)
 	}
 }
 
-// Summary calls the "Summary" function in chatterpb.ChatterClient interface.
+// Summary calls the "Summary" function in pb.ChatterClient interface.
 func (c *Client) Summary() goa.Endpoint {
 	return func(ctx context.Context, v interface{}) (interface{}, error) {
-		p, ok := v.(*chattersvc.SummaryPayload)
-		if !ok {
-			return nil, goagrpc.ErrInvalidType("chatter", "summary", "*chattersvc.SummaryPayload", v)
-		}
-		ctx = metadata.AppendToOutgoingContext(ctx, "authorization", p.Token)
-		var hdr metadata.MD
-		c.opts = append(c.opts, grpc.Header(&hdr))
-		stream, err := c.grpccli.Summary(ctx, c.opts...)
-		if err != nil {
-			return nil, err
-		}
-		return &summaryClientStream{stream: stream}, nil
+		inv := goagrpc.NewInvoker(
+			BuildSummaryFunc(c.grpccli, c.opts...),
+			EncodeSummaryRequest,
+			DecodeSummaryResponse)
+		return inv.Invoke(ctx, v)
 	}
 }
 
-// History calls the "History" function in chatterpb.ChatterClient interface.
+// History calls the "History" function in pb.ChatterClient interface.
 func (c *Client) History() goa.Endpoint {
 	return func(ctx context.Context, v interface{}) (interface{}, error) {
-		er, err := EncodeHistoryRequest(ctx, v)
-		if err != nil {
-			return nil, err
-		}
-		req := er.(*chatterpb.HistoryRequest)
-		p, ok := v.(*chattersvc.HistoryPayload)
-		if !ok {
-			return nil, goagrpc.ErrInvalidType("chatter", "history", "*chattersvc.HistoryPayload", v)
-		}
-		if p.View != nil {
-			ctx = metadata.AppendToOutgoingContext(ctx, "view", *p.View)
-		}
-		ctx = metadata.AppendToOutgoingContext(ctx, "authorization", p.Token)
-		var hdr metadata.MD
-		c.opts = append(c.opts, grpc.Header(&hdr))
-		stream, err := c.grpccli.History(ctx, req, c.opts...)
-		if err != nil {
-			return nil, err
-		}
-		return &historyClientStream{stream: stream}, nil
+		inv := goagrpc.NewInvoker(
+			BuildHistoryFunc(c.grpccli, c.opts...),
+			EncodeHistoryRequest,
+			DecodeHistoryResponse)
+		return inv.Invoke(ctx, v)
 	}
 }
 
-// Recv reads instances of "chatterpb.EchoerResponse" from the "echoer"
-// endpoint gRPC stream.
+// Recv reads instances of "pb.EchoerResponse" from the "echoer" endpoint gRPC
+// stream.
 func (s *echoerClientStream) Recv() (string, error) {
 	var res string
 	v, err := s.stream.Recv()
 	if err != nil {
 		return res, err
 	}
-	res = NewEchoerResponse(v)
-	return res, nil
+	return NewEchoerResponse(v), nil
 }
 
-// Send streams instances of "string" to the "echoer" endpoint gRPC stream.
+// Send streams instances of "pb.EchoerStreamingRequest" to the "echoer"
+// endpoint gRPC stream.
 func (s *echoerClientStream) Send(res string) error {
 	v := NewEchoerStreamingRequest(res)
 	return s.stream.Send(v)
@@ -183,7 +137,8 @@ func (s *echoerClientStream) Close() error {
 	return nil
 }
 
-// Send streams instances of "string" to the "listener" endpoint gRPC stream.
+// Send streams instances of "pb.ListenerStreamingRequest" to the "listener"
+// endpoint gRPC stream.
 func (s *listenerClientStream) Send(res string) error {
 	v := NewListenerStreamingRequest(res)
 	return s.stream.Send(v)
@@ -194,7 +149,7 @@ func (s *listenerClientStream) Close() error {
 	return nil
 }
 
-// CloseAndRecv reads instances of "chatterpb.ChatSummaryCollection" from the
+// CloseAndRecv reads instances of "pb.ChatSummaryCollection" from the
 // "summary" endpoint gRPC stream.
 func (s *summaryClientStream) CloseAndRecv() (chattersvc.ChatSummaryCollection, error) {
 	var res chattersvc.ChatSummaryCollection
@@ -202,26 +157,29 @@ func (s *summaryClientStream) CloseAndRecv() (chattersvc.ChatSummaryCollection, 
 	if err != nil {
 		return res, err
 	}
-	res = NewChatSummaryCollection(v)
-	return res, nil
+	proj := NewChatSummaryCollectionView(v)
+	vres := chattersvcviews.ChatSummaryCollection{Projected: proj, View: s.view}
+	return chattersvc.NewChatSummaryCollection(vres), nil
 }
 
-// Send streams instances of "string" to the "summary" endpoint gRPC stream.
+// Send streams instances of "pb.SummaryStreamingRequest" to the "summary"
+// endpoint gRPC stream.
 func (s *summaryClientStream) Send(res string) error {
 	v := NewSummaryStreamingRequest(res)
 	return s.stream.Send(v)
 }
 
-// Recv reads instances of "chatterpb.HistoryResponse" from the "history"
-// endpoint gRPC stream.
+// Recv reads instances of "pb.HistoryResponse" from the "history" endpoint
+// gRPC stream.
 func (s *historyClientStream) Recv() (*chattersvc.ChatSummary, error) {
 	var res *chattersvc.ChatSummary
 	v, err := s.stream.Recv()
 	if err != nil {
 		return res, err
 	}
-	res = NewChatSummary(v)
-	return res, nil
+	proj := NewChatSummaryView(v)
+	vres := &chattersvcviews.ChatSummary{Projected: proj, View: s.view}
+	return chattersvc.NewChatSummary(vres), nil
 }
 
 func (s *historyClientStream) Close() error {
@@ -231,4 +189,5 @@ func (s *historyClientStream) Close() error {
 
 // SetView sets the view.
 func (s *historyClientStream) SetView(view string) {
+	s.view = view
 }

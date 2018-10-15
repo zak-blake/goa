@@ -12,34 +12,162 @@ import (
 	"context"
 
 	chattersvc "goa.design/goa/examples/streaming/gen/chatter"
-	chatterpb "goa.design/goa/examples/streaming/gen/grpc/chatter"
+	"goa.design/goa/examples/streaming/gen/grpc/chatter/pb"
 	goagrpc "goa.design/goa/grpc"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/metadata"
 )
 
+// BuildLoginFunc builds the remote method to invoke for "chatter" service
+// "login" endpoint.
+func BuildLoginFunc(grpccli pb.ChatterClient, cliopts ...grpc.CallOption) goagrpc.RemoteFunc {
+	return func(ctx context.Context, reqpb interface{}, opts ...grpc.CallOption) (interface{}, error) {
+		for _, opt := range cliopts {
+			opts = append(opts, opt)
+		}
+		return grpccli.Login(ctx, reqpb.(*pb.LoginRequest), opts...)
+	}
+}
+
 // EncodeLoginRequest encodes requests sent to chatter login endpoint.
-func EncodeLoginRequest(ctx context.Context, v interface{}) (interface{}, error) {
+func EncodeLoginRequest(ctx context.Context, v interface{}, md *metadata.MD) (interface{}, error) {
 	p, ok := v.(*chattersvc.LoginPayload)
 	if !ok {
 		return nil, goagrpc.ErrInvalidType("chatter", "login", "*chattersvc.LoginPayload", v)
 	}
+	(*md).Append("user", p.User)
+	(*md).Append("password", p.Password)
 	return NewLoginRequest(p), nil
 }
 
 // DecodeLoginResponse decodes responses from the chatter login endpoint.
-func DecodeLoginResponse(ctx context.Context, v interface{}) (interface{}, error) {
-	resp, ok := v.(*chatterpb.LoginResponse)
+func DecodeLoginResponse(ctx context.Context, v interface{}, hdr, trlr metadata.MD) (interface{}, error) {
+	resp, ok := v.(*pb.LoginResponse)
 	if !ok {
-		return nil, goagrpc.ErrInvalidType("chatter", "login", "*chatterpb.LoginResponse", v)
+		return nil, goagrpc.ErrInvalidType("chatter", "login", "*pb.LoginResponse", v)
 	}
 	res := NewLoginResponse(resp)
 	return res, nil
 }
 
+// BuildEchoerFunc builds the remote method to invoke for "chatter" service
+// "echoer" endpoint.
+func BuildEchoerFunc(grpccli pb.ChatterClient, cliopts ...grpc.CallOption) goagrpc.RemoteFunc {
+	return func(ctx context.Context, reqpb interface{}, opts ...grpc.CallOption) (interface{}, error) {
+		for _, opt := range cliopts {
+			opts = append(opts, opt)
+		}
+		return grpccli.Echoer(ctx, opts...)
+	}
+}
+
+// EncodeEchoerRequest encodes requests sent to chatter echoer endpoint.
+func EncodeEchoerRequest(ctx context.Context, v interface{}, md *metadata.MD) (interface{}, error) {
+	p, ok := v.(*chattersvc.EchoerPayload)
+	if !ok {
+		return nil, goagrpc.ErrInvalidType("chatter", "echoer", "*chattersvc.EchoerPayload", v)
+	}
+	(*md).Append("authorization", p.Token)
+	return nil, nil
+}
+
+// DecodeEchoerResponse decodes responses from the chatter echoer endpoint.
+func DecodeEchoerResponse(ctx context.Context, v interface{}, hdr, trlr metadata.MD) (interface{}, error) {
+	return &echoerClientStream{
+		stream: v.(pb.Chatter_EchoerClient),
+	}, nil
+}
+
+// BuildListenerFunc builds the remote method to invoke for "chatter" service
+// "listener" endpoint.
+func BuildListenerFunc(grpccli pb.ChatterClient, cliopts ...grpc.CallOption) goagrpc.RemoteFunc {
+	return func(ctx context.Context, reqpb interface{}, opts ...grpc.CallOption) (interface{}, error) {
+		for _, opt := range cliopts {
+			opts = append(opts, opt)
+		}
+		return grpccli.Listener(ctx, opts...)
+	}
+}
+
+// EncodeListenerRequest encodes requests sent to chatter listener endpoint.
+func EncodeListenerRequest(ctx context.Context, v interface{}, md *metadata.MD) (interface{}, error) {
+	p, ok := v.(*chattersvc.ListenerPayload)
+	if !ok {
+		return nil, goagrpc.ErrInvalidType("chatter", "listener", "*chattersvc.ListenerPayload", v)
+	}
+	(*md).Append("authorization", p.Token)
+	return nil, nil
+}
+
+// BuildSummaryFunc builds the remote method to invoke for "chatter" service
+// "summary" endpoint.
+func BuildSummaryFunc(grpccli pb.ChatterClient, cliopts ...grpc.CallOption) goagrpc.RemoteFunc {
+	return func(ctx context.Context, reqpb interface{}, opts ...grpc.CallOption) (interface{}, error) {
+		for _, opt := range cliopts {
+			opts = append(opts, opt)
+		}
+		return grpccli.Summary(ctx, opts...)
+	}
+}
+
+// EncodeSummaryRequest encodes requests sent to chatter summary endpoint.
+func EncodeSummaryRequest(ctx context.Context, v interface{}, md *metadata.MD) (interface{}, error) {
+	p, ok := v.(*chattersvc.SummaryPayload)
+	if !ok {
+		return nil, goagrpc.ErrInvalidType("chatter", "summary", "*chattersvc.SummaryPayload", v)
+	}
+	(*md).Append("authorization", p.Token)
+	return nil, nil
+}
+
+// DecodeSummaryResponse decodes responses from the chatter summary endpoint.
+func DecodeSummaryResponse(ctx context.Context, v interface{}, hdr, trlr metadata.MD) (interface{}, error) {
+	var view string
+	{
+		if vals := hdr.Get("goa-view"); len(vals) > 0 {
+			view = vals[0]
+		}
+	}
+	return &summaryClientStream{
+		stream: v.(pb.Chatter_SummaryClient),
+		view:   view,
+	}, nil
+}
+
+// BuildHistoryFunc builds the remote method to invoke for "chatter" service
+// "history" endpoint.
+func BuildHistoryFunc(grpccli pb.ChatterClient, cliopts ...grpc.CallOption) goagrpc.RemoteFunc {
+	return func(ctx context.Context, reqpb interface{}, opts ...grpc.CallOption) (interface{}, error) {
+		for _, opt := range cliopts {
+			opts = append(opts, opt)
+		}
+		return grpccli.History(ctx, reqpb.(*pb.HistoryRequest), opts...)
+	}
+}
+
 // EncodeHistoryRequest encodes requests sent to chatter history endpoint.
-func EncodeHistoryRequest(ctx context.Context, v interface{}) (interface{}, error) {
+func EncodeHistoryRequest(ctx context.Context, v interface{}, md *metadata.MD) (interface{}, error) {
 	p, ok := v.(*chattersvc.HistoryPayload)
 	if !ok {
 		return nil, goagrpc.ErrInvalidType("chatter", "history", "*chattersvc.HistoryPayload", v)
 	}
+	if p.View != nil {
+		(*md).Append("view", *p.View)
+	}
+	(*md).Append("authorization", p.Token)
 	return NewHistoryRequest(p), nil
+}
+
+// DecodeHistoryResponse decodes responses from the chatter history endpoint.
+func DecodeHistoryResponse(ctx context.Context, v interface{}, hdr, trlr metadata.MD) (interface{}, error) {
+	var view string
+	{
+		if vals := hdr.Get("goa-view"); len(vals) > 0 {
+			view = vals[0]
+		}
+	}
+	return &historyClientStream{
+		stream: v.(pb.Chatter_HistoryClient),
+		view:   view,
+	}, nil
 }

@@ -35,7 +35,7 @@ func ExampleCLI(genpkg string, root *expr.RootExpr) []*codegen.File {
 			{Path: "goa.design/goa"},
 			{Path: "goa.design/goa/grpc", Name: "goagrpc"},
 			{Path: rootPath, Name: apiPkg},
-			{Path: genpkg + "/grpc/cli"},
+			{Path: filepath.Join(genpkg, "grpc", "cli", pkg), Name: "cli"},
 		}
 		data := map[string]interface{}{
 			"APIPkg":  apiPkg,

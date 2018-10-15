@@ -64,8 +64,7 @@ func exampleServer(genpkg string, root *expr.RootExpr, svr *expr.ServerExpr) *co
 				Name: pkgName,
 			})
 			specs = append(specs, &codegen.ImportSpec{
-				Path: filepath.Join(genpkg, "grpc", codegen.SnakeCase(svc.Name())),
-				Name: svc.Name() + "pb",
+				Path: filepath.Join(genpkg, "grpc", codegen.SnakeCase(svc.Name()), "pb"),
 			})
 		}
 	}
@@ -124,9 +123,9 @@ func newGRPCServer(scheme, host string{{ range .Services }}{{ if .Endpoints }}, 
 	{
 	{{- range .Services }}
 		{{- if .Endpoints }}
-		{{ .Service.VarName }}Server = {{ .Service.PkgName }}svr.New({{ .Service.VarName }}Endpoints)
+		{{ .Service.VarName }}Server = {{ .Service.PkgName }}svr.New({{ .Service.VarName }}Endpoints{{ if .HasUnaryEndpoint }}, nil{{ end }}{{ if .HasStreamingEndpoint }}, nil{{ end }})
 		{{-  else }}
-		{{ .Service.VarName }}Server = {{ .Service.PkgName }}svr.New(nil)
+		{{ .Service.VarName }}Server = {{ .Service.PkgName }}svr.New(nil{{ if .HasUnaryEndpoint }}, nil{{ end }}{{ if .HasStreamingEndpoint }}, nil{{ end }})
 		{{-  end }}
 	{{- end }}
 	}

@@ -11,15 +11,18 @@ package server
 import (
 	"context"
 
+	"goa.design/goa"
 	dividersvc "goa.design/goa/examples/error/gen/divider"
-	dividerpb "goa.design/goa/examples/error/gen/grpc/divider"
+	"goa.design/goa/examples/error/gen/grpc/divider/pb"
+	goagrpc "goa.design/goa/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
 
-// Server implements the dividerpb.DividerServer interface.
+// Server implements the pb.DividerServer interface.
 type Server struct {
-	endpoints *dividersvc.Endpoints
+	IntegerDivideH goagrpc.UnaryHandler
+	DivideH        goagrpc.UnaryHandler
 }
 
 // ErrorNamer is an interface implemented by generated error structs that
@@ -29,63 +32,70 @@ type ErrorNamer interface {
 }
 
 // New instantiates the server struct with the divider service endpoints.
-func New(e *dividersvc.Endpoints) *Server {
-	return &Server{e}
+func New(e *dividersvc.Endpoints, uh goagrpc.UnaryHandler) *Server {
+	return &Server{
+		IntegerDivideH: NewIntegerDivideHandler(e.IntegerDivide, uh),
+		DivideH:        NewDivideHandler(e.Divide, uh),
+	}
 }
 
-// IntegerDivide implements the "IntegerDivide" method in
-// dividerpb.DividerServer interface.
-func (s *Server) IntegerDivide(ctx context.Context, message *dividerpb.IntegerDivideRequest) (*dividerpb.IntegerDivideResponse, error) {
-	p, err := DecodeIntegerDivideRequest(ctx, message)
-	if err != nil {
-		return nil, status.Error(codes.InvalidArgument, err.Error())
+// NewIntegerDivideHandler creates a gRPC handler which serves the "divider"
+// service "integer_divide" endpoint.
+func NewIntegerDivideHandler(endpoint goa.Endpoint, h goagrpc.UnaryHandler) goagrpc.UnaryHandler {
+	if h == nil {
+		h = goagrpc.NewUnaryHandler(endpoint, DecodeIntegerDivideRequest, EncodeIntegerDivideResponse)
 	}
-	payload := p.(*dividersvc.IntOperands)
-	v, err := s.endpoints.IntegerDivide(ctx, payload)
-	if err != nil {
-		en, ok := err.(ErrorNamer)
-		if !ok {
-			return nil, err
-		}
-		switch en.ErrorName() {
-		case "has_remainder":
-			return nil, status.Error(codes.Unknown, err.Error())
-		case "div_by_zero":
-			return nil, status.Error(codes.InvalidArgument, err.Error())
-		case "timeout":
-			return nil, status.Error(codes.DeadlineExceeded, err.Error())
-		}
-	}
-	r, err := EncodeIntegerDivideResponse(ctx, v)
-	if err != nil {
-		return nil, status.Error(codes.Internal, err.Error())
-	}
-	return r.(*dividerpb.IntegerDivideResponse), nil
+	return h
 }
 
-// Divide implements the "Divide" method in dividerpb.DividerServer interface.
-func (s *Server) Divide(ctx context.Context, message *dividerpb.DivideRequest) (*dividerpb.DivideResponse, error) {
-	p, err := DecodeDivideRequest(ctx, message)
+// IntegerDivide implements the "IntegerDivide" method in pb.DividerServer
+// interface.
+func (s *Server) IntegerDivide(ctx context.Context, message *pb.IntegerDivideRequest) (*pb.IntegerDivideResponse, error) {
+	resp, err := s.IntegerDivideH.Handle(ctx, message)
 	if err != nil {
-		return nil, status.Error(codes.InvalidArgument, err.Error())
-	}
-	payload := p.(*dividersvc.FloatOperands)
-	v, err := s.endpoints.Divide(ctx, payload)
-	if err != nil {
-		en, ok := err.(ErrorNamer)
-		if !ok {
+		sts, ok := status.FromError(err)
+		if ok {
 			return nil, err
+		} else if en, ok := err.(ErrorNamer); ok {
+			switch en.ErrorName() {
+			case "has_remainder":
+				return nil, status.Error(codes.Unknown, err.Error())
+			case "div_by_zero":
+				return nil, status.Error(codes.InvalidArgument, err.Error())
+			case "timeout":
+				return nil, status.Error(codes.DeadlineExceeded, err.Error())
+			}
 		}
-		switch en.ErrorName() {
-		case "div_by_zero":
-			return nil, status.Error(codes.InvalidArgument, err.Error())
-		case "timeout":
-			return nil, status.Error(codes.DeadlineExceeded, err.Error())
-		}
+		return nil, sts.Err()
 	}
-	r, err := EncodeDivideResponse(ctx, v)
+	return resp.(*pb.IntegerDivideResponse), nil
+}
+
+// NewDivideHandler creates a gRPC handler which serves the "divider" service
+// "divide" endpoint.
+func NewDivideHandler(endpoint goa.Endpoint, h goagrpc.UnaryHandler) goagrpc.UnaryHandler {
+	if h == nil {
+		h = goagrpc.NewUnaryHandler(endpoint, DecodeDivideRequest, EncodeDivideResponse)
+	}
+	return h
+}
+
+// Divide implements the "Divide" method in pb.DividerServer interface.
+func (s *Server) Divide(ctx context.Context, message *pb.DivideRequest) (*pb.DivideResponse, error) {
+	resp, err := s.DivideH.Handle(ctx, message)
 	if err != nil {
-		return nil, status.Error(codes.Internal, err.Error())
+		sts, ok := status.FromError(err)
+		if ok {
+			return nil, err
+		} else if en, ok := err.(ErrorNamer); ok {
+			switch en.ErrorName() {
+			case "div_by_zero":
+				return nil, status.Error(codes.InvalidArgument, err.Error())
+			case "timeout":
+				return nil, status.Error(codes.DeadlineExceeded, err.Error())
+			}
+		}
+		return nil, sts.Err()
 	}
-	return r.(*dividerpb.DivideResponse), nil
+	return resp.(*pb.DivideResponse), nil
 }

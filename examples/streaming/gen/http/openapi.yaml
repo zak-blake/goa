@@ -176,22 +176,22 @@ definitions:
       length:
         type: integer
         description: Length of the message sent
-        example: 1377377358064110438
+        example: 5618411241164440223
         format: int64
       message:
         type: string
         description: Message sent to the server
-        example: Ullam quia neque quis qui quia optio.
+        example: Reprehenderit soluta.
       sent_at:
         type: string
         description: Time at which the message was sent
-        example: "1971-06-24T22:05:58Z"
+        example: "2004-02-07T12:45:10Z"
         format: date-time
     description: ChatSummaryResponseBody result type (default view)
     example:
-      length: 1404181907801947074
-      message: Minima ut unde aspernatur eos quod.
-      sent_at: "1986-05-06T02:15:04Z"
+      length: 6568591916136365225
+      message: Ea eos velit corporis mollitia.
+      sent_at: "1989-07-22T11:10:20Z"
     required:
     - message
   ChatterChatSummaryResponseBodyCollection:
@@ -208,6 +208,9 @@ definitions:
     - length: 3915772424247758741
       message: Sequi tenetur.
       sent_at: "2009-01-25T10:15:11Z"
+    - length: 3915772424247758741
+      message: Sequi tenetur.
+      sent_at: "2009-01-25T10:15:11Z"
   ChatterhistoryResponseBody:
     title: 'Mediatype identifier: application/vnd.goa.summary; view=default'
     type: object
@@ -215,61 +218,61 @@ definitions:
       length:
         type: integer
         description: Length of the message sent
-        example: 7428523086433375483
+        example: 4053077597143765637
         format: int64
       message:
         type: string
         description: Message sent to the server
-        example: Qui rerum aut dolor nihil autem ut.
+        example: Autem et omnis.
       sent_at:
         type: string
         description: Time at which the message was sent
-        example: "1975-11-18T05:59:21Z"
+        example: "1983-09-21T19:35:24Z"
         format: date-time
     description: historyResponseBody result type (default view)
     example:
-      length: 3740178797754545555
-      message: Aliquid in.
-      sent_at: "2013-06-14T08:32:31Z"
+      length: 1505825914969859032
+      message: Dolorum ullam.
+      sent_at: "1981-08-30T02:29:03Z"
     required:
     - message
   echoer_invalid-scopesResponseBody:
     title: echoer_invalid-scopesResponseBody
     type: string
-    example: Unde ea recusandae.
+    example: Quod eos quibusdam consequatur.
   echoer_unauthorizedResponseBody:
     title: echoer_unauthorizedResponseBody
     type: string
-    example: Libero ullam.
+    example: Ducimus consequatur sint eius.
   history_invalid-scopesResponseBody:
     title: history_invalid-scopesResponseBody
     type: string
-    example: Tempora repudiandae ipsa aut.
+    example: Ut cumque.
   history_unauthorizedResponseBody:
     title: history_unauthorizedResponseBody
     type: string
-    example: Suscipit officiis odit dolor dolorum reprehenderit dolorum.
+    example: Voluptatum quos hic blanditiis praesentium cum repellendus.
   listener_invalid-scopesResponseBody:
     title: listener_invalid-scopesResponseBody
     type: string
-    example: Quis eius delectus officiis necessitatibus a.
+    example: Pariatur consequatur voluptas et laboriosam ipsam iure.
   listener_unauthorizedResponseBody:
     title: listener_unauthorizedResponseBody
     type: string
-    example: Soluta voluptas.
+    example: Non fugit et id cum cum quisquam.
   login_unauthorizedResponseBody:
     title: login_unauthorizedResponseBody
     type: string
     description: Credentials are invalid
-    example: Nobis voluptatem dolorem expedita harum.
+    example: Commodi laudantium cupiditate aut tempore quae.
   summary_invalid-scopesResponseBody:
     title: summary_invalid-scopesResponseBody
     type: string
-    example: Deserunt quo molestiae officia ex.
+    example: Quibusdam dignissimos.
   summary_unauthorizedResponseBody:
     title: summary_unauthorizedResponseBody
     type: string
-    example: Fugiat reprehenderit soluta quos cum.
+    example: Nemo maxime.
 securityDefinitions:
   basic:
     type: basic

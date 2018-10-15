@@ -55,6 +55,38 @@ func ExampleServiceFiles(genpkg string, root *expr.RootExpr) []*codegen.File {
 	return fw
 }
 
+// DummyEndpointSection returns a section with a basic implementation for the
+// given method.
+func DummyEndpointSection(m *expr.MethodExpr, data *Data) *codegen.SectionTemplate {
+	md := data.Method(m.Name)
+	ed := &dummyEndpointData{
+		MethodData:     md,
+		ServiceVarName: data.VarName,
+	}
+	if m.Payload.Type != expr.Empty {
+		ed.PayloadFullRef = data.Scope.GoFullTypeRef(m.Payload, data.PkgName)
+	}
+	if m.Result.Type != expr.Empty {
+		ed.ResultFullName = data.Scope.GoFullTypeName(m.Result, data.PkgName)
+		ed.ResultFullRef = data.Scope.GoFullTypeRef(m.Result, data.PkgName)
+		ed.ResultIsStruct = expr.IsObject(m.Result.Type)
+		if md.ViewedResult != nil {
+			view := "default"
+			if m.Result.Meta != nil {
+				if v, ok := m.Result.Meta["view"]; ok {
+					view = v[0]
+				}
+			}
+			ed.ResultView = view
+		}
+	}
+	return &codegen.SectionTemplate{
+		Name:   "dummy-endpoint",
+		Source: dummyEndpointImplT,
+		Data:   ed,
+	}
+}
+
 // dummyServiceFile returns a dummy implementation of the given service.
 func dummyServiceFile(genpkg string, root *expr.RootExpr, svc *expr.ServiceExpr) *codegen.File {
 	path := codegen.SnakeCase(svc.Name) + ".go"
@@ -76,33 +108,7 @@ func dummyServiceFile(genpkg string, root *expr.RootExpr, svc *expr.ServiceExpr)
 		},
 	}
 	for _, m := range svc.Methods {
-		md := data.Method(m.Name)
-		ed := &dummyEndpointData{
-			MethodData:     md,
-			ServiceVarName: data.VarName,
-		}
-		if m.Payload.Type != expr.Empty {
-			ed.PayloadFullRef = data.Scope.GoFullTypeRef(m.Payload, data.PkgName)
-		}
-		if m.Result.Type != expr.Empty {
-			ed.ResultFullName = data.Scope.GoFullTypeName(m.Result, data.PkgName)
-			ed.ResultFullRef = data.Scope.GoFullTypeRef(m.Result, data.PkgName)
-			ed.ResultIsStruct = expr.IsObject(m.Result.Type)
-			if md.ViewedResult != nil {
-				view := "default"
-				if m.Result.Meta != nil {
-					if v, ok := m.Result.Meta["view"]; ok {
-						view = v[0]
-					}
-				}
-				ed.ResultView = view
-			}
-		}
-		sections = append(sections, &codegen.SectionTemplate{
-			Name:   "dummy-endpoint",
-			Source: dummyEndpointImplT,
-			Data:   ed,
-		})
+		sections = append(sections, DummyEndpointSection(m, data))
 	}
 
 	return &codegen.File{

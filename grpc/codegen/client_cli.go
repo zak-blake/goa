@@ -131,7 +131,10 @@ func ClientCLIFiles(genpkg string, root *expr.RootExpr) []*codegen.File {
 		return nil
 	}
 
-	files := []*codegen.File{endpointParser(genpkg, root, data)}
+	var files []*codegen.File
+	for _, svr := range root.API.Servers {
+		files = append(files, endpointParser(genpkg, root, svr, data))
+	}
 	for i, svc := range svcs {
 		files = append(files, payloadBuilders(genpkg, svc, data[i]))
 	}
@@ -140,14 +143,17 @@ func ClientCLIFiles(genpkg string, root *expr.RootExpr) []*codegen.File {
 
 // endpointParser returns the file that implements the command line parser that
 // builds the client endpoint and payload necessary to perform a request.
-func endpointParser(genpkg string, root *expr.RootExpr, data []*commandData) *codegen.File {
-	path := filepath.Join(codegen.Gendir, "grpc", "cli", "cli.go")
+func endpointParser(genpkg string, root *expr.RootExpr, svr *expr.ServerExpr, data []*commandData) *codegen.File {
+	pkg := codegen.SnakeCase(codegen.Goify(svr.Name, true))
+	path := filepath.Join(codegen.Gendir, "grpc", "cli", pkg, "cli.go")
 	title := fmt.Sprintf("%s gRPC client CLI support package", root.API.Name)
 	specs := []*codegen.ImportSpec{
+		{Path: "context"},
 		{Path: "flag"},
 		{Path: "fmt"},
 		{Path: "os"},
 		{Path: "goa.design/goa", Name: "goa"},
+		{Path: "goa.design/goa/grpc", Name: "goagrpc"},
 		{Path: "google.golang.org/grpc", Name: "grpc"},
 	}
 	for _, svc := range root.API.GRPC.Services {
@@ -155,6 +161,9 @@ func endpointParser(genpkg string, root *expr.RootExpr, data []*commandData) *co
 		specs = append(specs, &codegen.ImportSpec{
 			Path: filepath.Join(genpkg, "grpc", codegen.SnakeCase(sd.Service.Name), "client"),
 			Name: sd.Service.PkgName + "c",
+		})
+		specs = append(specs, &codegen.ImportSpec{
+			Path: filepath.Join(genpkg, "grpc", codegen.SnakeCase(sd.Service.Name), "pb"),
 		})
 	}
 	usages := make([]string, len(data))
@@ -213,7 +222,7 @@ func payloadBuilders(genpkg string, svc *expr.GRPCServiceExpr, data *commandData
 		{Path: "encoding/json"},
 		{Path: "fmt"},
 		{Path: filepath.Join(genpkg, codegen.SnakeCase(svc.Name())), Name: sd.Service.PkgName},
-		{Path: filepath.Join(genpkg, "grpc", codegen.SnakeCase(svc.Name())), Name: svc.Name() + "pb"},
+		{Path: filepath.Join(genpkg, "grpc", codegen.SnakeCase(svc.Name()), "pb")},
 	}
 	sections := []*codegen.SectionTemplate{
 		codegen.Header(title, "client", specs),
@@ -332,7 +341,7 @@ func buildSubcommandData(svc *ServiceData, e *EndpointData) *subcommandData {
 }
 
 func generateExample(sub *subcommandData, svc string) {
-	ex := "--transport=grpc " + codegen.KebabCase(svc) + " " + codegen.KebabCase(sub.Name)
+	ex := codegen.KebabCase(svc) + " " + codegen.KebabCase(sub.Name)
 	for _, f := range sub.Flags {
 		ex += " --" + f.Name + " " + f.Example
 	}

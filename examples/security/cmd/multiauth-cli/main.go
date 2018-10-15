@@ -36,7 +36,7 @@ func main() {
 			case "localhost":
 				addr = "http://localhost:80"
 			default:
-				fmt.Fprintf(os.Stderr, "invalid host argument: %q (valid hosts: localhost", *hostF)
+				fmt.Fprintln(os.Stderr, "invalid host argument: %q (valid hosts: localhost", *hostF)
 			}
 		}
 		timeout = *timeoutF
@@ -50,7 +50,7 @@ func main() {
 	{
 		u, err := url.Parse(addr)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "invalid URL %#v: %s", addr, err)
+			fmt.Fprintln(os.Stderr, "invalid URL %#v: %s", addr, err)
 			os.Exit(1)
 		}
 		scheme = u.Scheme
@@ -69,7 +69,7 @@ func main() {
 		case "grpc", "grpcs":
 			endpoint, payload, err = doGRPC(scheme, host, timeout, debug)
 		default:
-			fmt.Fprintf(os.Stderr, "invalid scheme: %q (valid schemes: grpc|http")
+			fmt.Fprintln(os.Stderr, "invalid scheme: %q (valid schemes: grpc|http)", scheme)
 			os.Exit(1)
 		}
 	}
@@ -108,6 +108,7 @@ Commands:
 %s
 Additional help:
     %s SERVICE [ENDPOINT] --help
+
 Example:
 %s
 `, os.Args[0], os.Args[0], indent(httpUsageCommands()), os.Args[0], indent(httpUsageExamples()))

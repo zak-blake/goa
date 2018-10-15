@@ -10,12 +10,24 @@ package client
 
 import (
 	"context"
-	"google.golang.org/grpc/metadata"
 
 	calcsvc "goa.design/goa/examples/calc/gen/calc"
-	calcpb "goa.design/goa/examples/calc/gen/grpc/calc"
+	"goa.design/goa/examples/calc/gen/grpc/calc/pb"
 	goagrpc "goa.design/goa/grpc"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/metadata"
 )
+
+// BuildAddFunc builds the remote method to invoke for "calc" service "add"
+// endpoint.
+func BuildAddFunc(grpccli pb.CalcClient, cliopts ...grpc.CallOption) goagrpc.RemoteFunc {
+	return func(ctx context.Context, reqpb interface{}, opts ...grpc.CallOption) (interface{}, error) {
+		for _, opt := range cliopts {
+			opts = append(opts, opt)
+		}
+		return grpccli.Add(ctx, reqpb.(*pb.AddRequest), opts...)
+	}
+}
 
 // EncodeAddRequest encodes requests sent to calc add endpoint.
 func EncodeAddRequest(ctx context.Context, v interface{}, md *metadata.MD) (interface{}, error) {
@@ -28,9 +40,9 @@ func EncodeAddRequest(ctx context.Context, v interface{}, md *metadata.MD) (inte
 
 // DecodeAddResponse decodes responses from the calc add endpoint.
 func DecodeAddResponse(ctx context.Context, v interface{}, hdr, trlr metadata.MD) (interface{}, error) {
-	resp, ok := v.(*calcpb.AddResponse)
+	resp, ok := v.(*pb.AddResponse)
 	if !ok {
-		return nil, goagrpc.ErrInvalidType("calc", "add", "*calcpb.AddResponse", v)
+		return nil, goagrpc.ErrInvalidType("calc", "add", "*pb.AddResponse", v)
 	}
 	res := NewAddResponse(resp)
 	return res, nil

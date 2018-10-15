@@ -8,7 +8,7 @@
 
 syntax = "proto3";
 
-package secured_service;
+package pb;
 
 // The secured service exposes endpoints that require valid authorization
 // credentials.

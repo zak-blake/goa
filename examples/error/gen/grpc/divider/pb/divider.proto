@@ -8,7 +8,7 @@
 
 syntax = "proto3";
 
-package divider;
+package pb;
 
 // Service is the divider service interface.
 service divider {

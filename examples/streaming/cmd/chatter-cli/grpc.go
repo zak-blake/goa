@@ -5,7 +5,7 @@ import (
 	"os"
 
 	"goa.design/goa"
-	"goa.design/goa/examples/streaming/gen/grpc/cli"
+	cli "goa.design/goa/examples/streaming/gen/grpc/cli/chatter"
 	"google.golang.org/grpc"
 )
 

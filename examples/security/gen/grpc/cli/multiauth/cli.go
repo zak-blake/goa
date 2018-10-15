@@ -29,7 +29,7 @@ func UsageCommands() string {
 
 // UsageExamples produces an example of a valid invocation of the CLI tool.
 func UsageExamples() string {
-	return os.Args[0] + ` --transport=grpc secured-service signin --username "user" --password "password"` + "\n" +
+	return os.Args[0] + ` secured-service signin --username "user" --password "password"` + "\n" +
 		""
 }
 
@@ -180,7 +180,7 @@ Creates a valid JWT after authenticating using basic_auth scheme.
     -password STRING: 
 
 Example:
-    `+os.Args[0]+` --transport=grpc secured-service signin --username "user" --password "password"
+    `+os.Args[0]+` secured-service signin --username "user" --password "password"
 `, os.Args[0])
 }
 
@@ -192,7 +192,9 @@ This action is secured with the jwt scheme
     -token STRING: 
 
 Example:
-    `+os.Args[0]+` --transport=grpc secured-service secure --message null --token "Voluptas quisquam et libero minima et culpa."
+    `+os.Args[0]+` secured-service secure --message '{
+      "fail": true
+   }' --token "Voluptas quisquam et libero minima et culpa."
 `, os.Args[0])
 }
 
@@ -204,7 +206,9 @@ This action is secured with the jwt scheme and also requires an API key query st
     -token STRING: 
 
 Example:
-    `+os.Args[0]+` --transport=grpc secured-service doubly-secure --message null --token "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiYWRtaW4iOnRydWV9.TJVA95OrM7E2cBab30RMHrHDcEfxjoYZgeFONFh7HgQ"
+    `+os.Args[0]+` secured-service doubly-secure --message '{
+      "key": "abcdef12345"
+   }' --token "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiYWRtaW4iOnRydWV9.TJVA95OrM7E2cBab30RMHrHDcEfxjoYZgeFONFh7HgQ"
 `, os.Args[0])
 }
 
@@ -217,6 +221,10 @@ This action is secured with the jwt scheme and an API key header or username/pas
     -token STRING: 
 
 Example:
-    `+os.Args[0]+` --transport=grpc secured-service also-doubly-secure --message null --oauth-token "Qui eum in quis." --token "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiYWRtaW4iOnRydWV9.TJVA95OrM7E2cBab30RMHrHDcEfxjoYZgeFONFh7HgQ"
+    `+os.Args[0]+` secured-service also-doubly-secure --message '{
+      "key": "abcdef12345",
+      "password": "password",
+      "username": "user"
+   }' --oauth-token "Suscipit voluptate est unde." --token "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiYWRtaW4iOnRydWV9.TJVA95OrM7E2cBab30RMHrHDcEfxjoYZgeFONFh7HgQ"
 `, os.Args[0])
 }

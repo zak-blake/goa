@@ -116,6 +116,7 @@ func main() {
 	)
 	switch *hostF {
 	case "localhost":
+
 		if httpAddr != "" {
 			addr = httpAddr
 		} else {
@@ -123,6 +124,7 @@ func main() {
 		}
 		u = parseAddr(addr)
 		svrs = append(svrs, newHTTPServer(u.Scheme, u.Host, dividerEndpoints, logger, *dbgF))
+
 		if grpcAddr != "" {
 			addr = grpcAddr
 		} else {
@@ -131,7 +133,7 @@ func main() {
 		u = parseAddr(addr)
 		svrs = append(svrs, newGRPCServer(u.Scheme, u.Host, dividerEndpoints, logger, *dbgF))
 	default:
-		fmt.Fprintf(os.Stderr, "invalid host argument: %q (valid hosts: localhost", *hostF)
+		fmt.Fprintf(os.Stderr, "invalid host argument: %q (valid hosts: localhost)", *hostF)
 		os.Exit(1)
 	}
 

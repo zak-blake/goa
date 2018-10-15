@@ -11,15 +11,20 @@ package server
 import (
 	"context"
 
-	secured_servicepb "goa.design/goa/examples/security/gen/grpc/secured_service"
+	"goa.design/goa"
+	"goa.design/goa/examples/security/gen/grpc/secured_service/pb"
 	securedservice "goa.design/goa/examples/security/gen/secured_service"
+	goagrpc "goa.design/goa/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
 
-// Server implements the secured_servicepb.SecuredServiceServer interface.
+// Server implements the pb.SecuredServiceServer interface.
 type Server struct {
-	endpoints *securedservice.Endpoints
+	SigninH           goagrpc.UnaryHandler
+	SecureH           goagrpc.UnaryHandler
+	DoublySecureH     goagrpc.UnaryHandler
+	AlsoDoublySecureH goagrpc.UnaryHandler
 }
 
 // ErrorNamer is an interface implemented by generated error structs that
@@ -30,116 +35,127 @@ type ErrorNamer interface {
 
 // New instantiates the server struct with the secured_service service
 // endpoints.
-func New(e *securedservice.Endpoints) *Server {
-	return &Server{e}
+func New(e *securedservice.Endpoints, uh goagrpc.UnaryHandler) *Server {
+	return &Server{
+		SigninH:           NewSigninHandler(e.Signin, uh),
+		SecureH:           NewSecureHandler(e.Secure, uh),
+		DoublySecureH:     NewDoublySecureHandler(e.DoublySecure, uh),
+		AlsoDoublySecureH: NewAlsoDoublySecureHandler(e.AlsoDoublySecure, uh),
+	}
 }
 
-// Signin implements the "Signin" method in
-// secured_servicepb.SecuredServiceServer interface.
-func (s *Server) Signin(ctx context.Context, message *secured_servicepb.SigninRequest) (*secured_servicepb.SigninResponse, error) {
-	p, err := DecodeSigninRequest(ctx, message)
-	if err != nil {
-		return nil, status.Error(codes.InvalidArgument, err.Error())
+// NewSigninHandler creates a gRPC handler which serves the "secured_service"
+// service "signin" endpoint.
+func NewSigninHandler(endpoint goa.Endpoint, h goagrpc.UnaryHandler) goagrpc.UnaryHandler {
+	if h == nil {
+		h = goagrpc.NewUnaryHandler(endpoint, DecodeSigninRequest, EncodeSigninResponse)
 	}
-	payload := p.(*securedservice.SigninPayload)
-	v, err := s.endpoints.Signin(ctx, payload)
-	if err != nil {
-		en, ok := err.(ErrorNamer)
-		if !ok {
-			return nil, err
-		}
-		switch en.ErrorName() {
-		case "unauthorized":
-			return nil, status.Error(codes.Unauthenticated, err.Error())
-		}
-	}
-	r, err := EncodeSigninResponse(ctx, v)
-	if err != nil {
-		return nil, status.Error(codes.Internal, err.Error())
-	}
-	return r.(*secured_servicepb.SigninResponse), nil
+	return h
 }
 
-// Secure implements the "Secure" method in
-// secured_servicepb.SecuredServiceServer interface.
-func (s *Server) Secure(ctx context.Context, message *secured_servicepb.SecureRequest) (*secured_servicepb.SecureResponse, error) {
-	p, err := DecodeSecureRequest(ctx, message)
+// Signin implements the "Signin" method in pb.SecuredServiceServer interface.
+func (s *Server) Signin(ctx context.Context, message *pb.SigninRequest) (*pb.SigninResponse, error) {
+	resp, err := s.SigninH.Handle(ctx, message)
 	if err != nil {
-		return nil, status.Error(codes.InvalidArgument, err.Error())
-	}
-	payload := p.(*securedservice.SecurePayload)
-	v, err := s.endpoints.Secure(ctx, payload)
-	if err != nil {
-		en, ok := err.(ErrorNamer)
-		if !ok {
+		sts, ok := status.FromError(err)
+		if ok {
 			return nil, err
+		} else if en, ok := err.(ErrorNamer); ok {
+			switch en.ErrorName() {
+			case "unauthorized":
+				return nil, status.Error(codes.Unauthenticated, err.Error())
+			}
 		}
-		switch en.ErrorName() {
-		case "invalid-scopes":
-			return nil, status.Error(codes.Unauthenticated, err.Error())
-		case "unauthorized":
-			return nil, status.Error(codes.Unauthenticated, err.Error())
-		}
+		return nil, sts.Err()
 	}
-	r, err := EncodeSecureResponse(ctx, v)
-	if err != nil {
-		return nil, status.Error(codes.Internal, err.Error())
-	}
-	return r.(*secured_servicepb.SecureResponse), nil
+	return resp.(*pb.SigninResponse), nil
 }
 
-// DoublySecure implements the "DoublySecure" method in
-// secured_servicepb.SecuredServiceServer interface.
-func (s *Server) DoublySecure(ctx context.Context, message *secured_servicepb.DoublySecureRequest) (*secured_servicepb.DoublySecureResponse, error) {
-	p, err := DecodeDoublySecureRequest(ctx, message)
-	if err != nil {
-		return nil, status.Error(codes.InvalidArgument, err.Error())
+// NewSecureHandler creates a gRPC handler which serves the "secured_service"
+// service "secure" endpoint.
+func NewSecureHandler(endpoint goa.Endpoint, h goagrpc.UnaryHandler) goagrpc.UnaryHandler {
+	if h == nil {
+		h = goagrpc.NewUnaryHandler(endpoint, DecodeSecureRequest, EncodeSecureResponse)
 	}
-	payload := p.(*securedservice.DoublySecurePayload)
-	v, err := s.endpoints.DoublySecure(ctx, payload)
+	return h
+}
+
+// Secure implements the "Secure" method in pb.SecuredServiceServer interface.
+func (s *Server) Secure(ctx context.Context, message *pb.SecureRequest) (*pb.SecureResponse, error) {
+	resp, err := s.SecureH.Handle(ctx, message)
 	if err != nil {
-		en, ok := err.(ErrorNamer)
-		if !ok {
+		sts, ok := status.FromError(err)
+		if ok {
 			return nil, err
+		} else if en, ok := err.(ErrorNamer); ok {
+			switch en.ErrorName() {
+			case "invalid-scopes":
+				return nil, status.Error(codes.Unauthenticated, err.Error())
+			case "unauthorized":
+				return nil, status.Error(codes.Unauthenticated, err.Error())
+			}
 		}
-		switch en.ErrorName() {
-		case "invalid-scopes":
-			return nil, status.Error(codes.Unauthenticated, err.Error())
-		case "unauthorized":
-			return nil, status.Error(codes.Unauthenticated, err.Error())
-		}
+		return nil, sts.Err()
 	}
-	r, err := EncodeDoublySecureResponse(ctx, v)
+	return resp.(*pb.SecureResponse), nil
+}
+
+// NewDoublySecureHandler creates a gRPC handler which serves the
+// "secured_service" service "doubly_secure" endpoint.
+func NewDoublySecureHandler(endpoint goa.Endpoint, h goagrpc.UnaryHandler) goagrpc.UnaryHandler {
+	if h == nil {
+		h = goagrpc.NewUnaryHandler(endpoint, DecodeDoublySecureRequest, EncodeDoublySecureResponse)
+	}
+	return h
+}
+
+// DoublySecure implements the "DoublySecure" method in pb.SecuredServiceServer
+// interface.
+func (s *Server) DoublySecure(ctx context.Context, message *pb.DoublySecureRequest) (*pb.DoublySecureResponse, error) {
+	resp, err := s.DoublySecureH.Handle(ctx, message)
 	if err != nil {
-		return nil, status.Error(codes.Internal, err.Error())
+		sts, ok := status.FromError(err)
+		if ok {
+			return nil, err
+		} else if en, ok := err.(ErrorNamer); ok {
+			switch en.ErrorName() {
+			case "invalid-scopes":
+				return nil, status.Error(codes.Unauthenticated, err.Error())
+			case "unauthorized":
+				return nil, status.Error(codes.Unauthenticated, err.Error())
+			}
+		}
+		return nil, sts.Err()
 	}
-	return r.(*secured_servicepb.DoublySecureResponse), nil
+	return resp.(*pb.DoublySecureResponse), nil
+}
+
+// NewAlsoDoublySecureHandler creates a gRPC handler which serves the
+// "secured_service" service "also_doubly_secure" endpoint.
+func NewAlsoDoublySecureHandler(endpoint goa.Endpoint, h goagrpc.UnaryHandler) goagrpc.UnaryHandler {
+	if h == nil {
+		h = goagrpc.NewUnaryHandler(endpoint, DecodeAlsoDoublySecureRequest, EncodeAlsoDoublySecureResponse)
+	}
+	return h
 }
 
 // AlsoDoublySecure implements the "AlsoDoublySecure" method in
-// secured_servicepb.SecuredServiceServer interface.
-func (s *Server) AlsoDoublySecure(ctx context.Context, message *secured_servicepb.AlsoDoublySecureRequest) (*secured_servicepb.AlsoDoublySecureResponse, error) {
-	p, err := DecodeAlsoDoublySecureRequest(ctx, message)
+// pb.SecuredServiceServer interface.
+func (s *Server) AlsoDoublySecure(ctx context.Context, message *pb.AlsoDoublySecureRequest) (*pb.AlsoDoublySecureResponse, error) {
+	resp, err := s.AlsoDoublySecureH.Handle(ctx, message)
 	if err != nil {
-		return nil, status.Error(codes.InvalidArgument, err.Error())
-	}
-	payload := p.(*securedservice.AlsoDoublySecurePayload)
-	v, err := s.endpoints.AlsoDoublySecure(ctx, payload)
-	if err != nil {
-		en, ok := err.(ErrorNamer)
-		if !ok {
+		sts, ok := status.FromError(err)
+		if ok {
 			return nil, err
+		} else if en, ok := err.(ErrorNamer); ok {
+			switch en.ErrorName() {
+			case "invalid-scopes":
+				return nil, status.Error(codes.Unauthenticated, err.Error())
+			case "unauthorized":
+				return nil, status.Error(codes.Unauthenticated, err.Error())
+			}
 		}
-		switch en.ErrorName() {
-		case "invalid-scopes":
-			return nil, status.Error(codes.Unauthenticated, err.Error())
-		case "unauthorized":
-			return nil, status.Error(codes.Unauthenticated, err.Error())
-		}
+		return nil, sts.Err()
 	}
-	r, err := EncodeAlsoDoublySecureResponse(ctx, v)
-	if err != nil {
-		return nil, status.Error(codes.Internal, err.Error())
-	}
-	return r.(*secured_servicepb.AlsoDoublySecureResponse), nil
+	return resp.(*pb.AlsoDoublySecureResponse), nil
 }

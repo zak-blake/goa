@@ -29,7 +29,10 @@ func UsageCommands() string {
 
 // UsageExamples produces an example of a valid invocation of the CLI tool.
 func UsageExamples() string {
-	return os.Args[0] + ` --transport=grpc divider integer-divide --message null` + "\n" +
+	return os.Args[0] + ` divider integer-divide --message '{
+      "a": 1338266005399228665,
+      "b": 7245195139064803075
+   }'` + "\n" +
 		""
 }
 
@@ -151,7 +154,10 @@ IntegerDivide implements integer_divide.
     -message JSON: 
 
 Example:
-    `+os.Args[0]+` --transport=grpc divider integer-divide --message null
+    `+os.Args[0]+` divider integer-divide --message '{
+      "a": 1338266005399228665,
+      "b": 7245195139064803075
+   }'
 `, os.Args[0])
 }
 
@@ -162,6 +168,9 @@ Divide implements divide.
     -message JSON: 
 
 Example:
-    `+os.Args[0]+` --transport=grpc divider divide --message null
+    `+os.Args[0]+` divider divide --message '{
+      "a": 0.7822693555171186,
+      "b": 0.5749246657891343
+   }'
 `, os.Args[0])
 }

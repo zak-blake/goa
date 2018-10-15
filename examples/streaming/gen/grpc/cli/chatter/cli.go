@@ -29,7 +29,7 @@ func UsageCommands() string {
 
 // UsageExamples produces an example of a valid invocation of the CLI tool.
 func UsageExamples() string {
-	return os.Args[0] + ` --transport=grpc chatter login --user "username" --password "password"` + "\n" +
+	return os.Args[0] + ` chatter login --user "username" --password "password"` + "\n" +
 		""
 }
 
@@ -187,7 +187,7 @@ Creates a valid JWT token for auth to chat.
     -password STRING: 
 
 Example:
-    `+os.Args[0]+` --transport=grpc chatter login --user "username" --password "password"
+    `+os.Args[0]+` chatter login --user "username" --password "password"
 `, os.Args[0])
 }
 
@@ -198,7 +198,7 @@ Echoes the message sent by the client.
     -token STRING: 
 
 Example:
-    `+os.Args[0]+` --transport=grpc chatter echoer --token "Maiores numquam voluptatibus voluptatem."
+    `+os.Args[0]+` chatter echoer --token "Laudantium est consectetur ut."
 `, os.Args[0])
 }
 
@@ -209,7 +209,7 @@ Listens to the messages sent by the client.
     -token STRING: 
 
 Example:
-    `+os.Args[0]+` --transport=grpc chatter listener --token "Nihil veniam nihil."
+    `+os.Args[0]+` chatter listener --token "Unde ea recusandae."
 `, os.Args[0])
 }
 
@@ -220,7 +220,7 @@ Summarizes the chat messages sent by the client.
     -token STRING: 
 
 Example:
-    `+os.Args[0]+` --transport=grpc chatter summary --token "Laudantium est consectetur ut."
+    `+os.Args[0]+` chatter summary --token "Ullam quia neque quis qui quia optio."
 `, os.Args[0])
 }
 
@@ -232,6 +232,6 @@ Returns the chat messages sent to the server.
     -token STRING: 
 
 Example:
-    `+os.Args[0]+` --transport=grpc chatter history --view "Qui voluptas accusantium est sequi vel nihil." --token "Aut est at molestiae."
+    `+os.Args[0]+` chatter history --view "Et tempora temporibus eligendi." --token "Excepturi quia soluta."
 `, os.Args[0])
 }

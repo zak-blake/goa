@@ -30,10 +30,13 @@ func server(genpkg string, svc *expr.GRPCServiceExpr) *codegen.File {
 	sections := []*codegen.SectionTemplate{
 		codegen.Header(title, "server", []*codegen.ImportSpec{
 			{Path: "context"},
+			{Path: "goa.design/goa"},
 			{Path: "google.golang.org/grpc/codes"},
 			{Path: "google.golang.org/grpc/status"},
+			{Path: "goa.design/goa/grpc", Name: "goagrpc"},
 			{Path: filepath.Join(genpkg, codegen.SnakeCase(svc.Name())), Name: data.Service.PkgName},
-			{Path: filepath.Join(genpkg, "grpc", codegen.SnakeCase(svc.Name())), Name: svc.Name() + "pb"},
+			{Path: filepath.Join(genpkg, codegen.SnakeCase(svc.Name()), "views"), Name: data.Service.ViewsPkg},
+			{Path: filepath.Join(genpkg, "grpc", codegen.SnakeCase(svc.Name()), "pb")},
 		}),
 	}
 
@@ -57,6 +60,11 @@ func server(genpkg string, svc *expr.GRPCServiceExpr) *codegen.File {
 		Data:   data,
 	})
 	for _, e := range data.Endpoints {
+		sections = append(sections, &codegen.SectionTemplate{
+			Name:   "handler-init",
+			Source: handlerInitT,
+			Data:   e,
+		})
 		sections = append(sections, &codegen.SectionTemplate{
 			Name:   "server-grpc-interface",
 			Source: serverGRPCInterfaceT,
@@ -115,7 +123,7 @@ func serverEncodeDecode(genpkg string, svc *expr.GRPCServiceExpr) *codegen.File 
 			{Path: "goa.design/goa/grpc", Name: "goagrpc"},
 			{Path: filepath.Join(genpkg, codegen.SnakeCase(svc.Name())), Name: data.Service.PkgName},
 			{Path: filepath.Join(genpkg, codegen.SnakeCase(svc.Name()), "views"), Name: data.Service.ViewsPkg},
-			{Path: filepath.Join(genpkg, "grpc", codegen.SnakeCase(svc.Name())), Name: svc.Name() + "pb"},
+			{Path: filepath.Join(genpkg, "grpc", codegen.SnakeCase(svc.Name()), "pb")},
 		}),
 	}
 
@@ -173,7 +181,9 @@ func metadataEncodeDecodeData(md *MetadataData, vname string) map[string]interfa
 // input: ServiceData
 const serverStructT = `{{ printf "%s implements the %s.%s interface." .ServerStruct .PkgName .ServerInterface | comment }}
 type {{ .ServerStruct }} struct {
-	endpoints *{{ .Service.PkgName }}.Endpoints
+{{- range .Endpoints }}
+	{{ .Method.VarName }}H {{ if .ServerStream }}goagrpc.StreamHandler{{ else }}goagrpc.UnaryHandler{{ end }}
+{{- end }}
 }
 
 // ErrorNamer is an interface implemented by generated error structs that
@@ -189,13 +199,30 @@ type ErrorNamer interface {
 const streamStructTypeT = `{{ printf "%s implements the %s.%s interface." .VarName .ServiceInterface | comment }}
 type {{ .VarName }} struct {
 	stream {{ .Interface }}
+{{- if .Endpoint.Method.ViewedResult }}
+	view string
+{{- end }}
 }
 `
 
 // input: ServiceData
 const serverInitT = `{{ printf "%s instantiates the server struct with the %s service endpoints." .ServerInit .Service.Name | comment }}
-func {{ .ServerInit }}(e *{{ .Service.PkgName }}.Endpoints) *{{ .ServerStruct }} {
-	return &{{ .ServerStruct }}{e}
+func {{ .ServerInit }}(e *{{ .Service.PkgName }}.Endpoints{{ if .HasUnaryEndpoint }}, uh goagrpc.UnaryHandler{{ end }}{{ if .HasStreamingEndpoint }}, sh goagrpc.StreamHandler{{ end }}) *{{ .ServerStruct }} {
+	return &{{ .ServerStruct }}{
+	{{- range .Endpoints }}
+		{{ .Method.VarName }}H: New{{ .Method.VarName }}Handler(e.{{ .Method.VarName }}{{ if .ServerStream }}, sh{{ else }}, uh{{ end }}),
+	{{- end }}
+	}
+}
+`
+
+// input: EndpointData
+const handlerInitT = `{{ printf "New%sHandler creates a gRPC handler which serves the %q service %q endpoint." .Method.VarName .ServiceName .Method.Name | comment }}
+func New{{ .Method.VarName }}Handler(endpoint goa.Endpoint, h goagrpc.{{ if .ServerStream }}Stream{{ else }}Unary{{ end }}Handler) goagrpc.{{ if .ServerStream }}Stream{{ else }}Unary{{ end }}Handler {
+	if h == nil {
+		h = goagrpc.New{{ if .ServerStream }}Stream{{ else }}Unary{{ end }}Handler(endpoint, Decode{{ .Method.VarName }}Request{{ if not .ServerStream }}, Encode{{ .Method.VarName }}Response{{ end }})
+	}
+	return h
 }
 `
 
@@ -205,138 +232,126 @@ func (s *{{ .ServerStruct }}) {{ .Method.VarName }}(
 	{{- if not .ServerStream }}ctx context.Context, {{ end }}
 	{{- if not .Method.StreamingPayload }}message {{ .Request.Message.Ref }},{{ end }}
 	{{- if .ServerStream }}stream {{ .ServerStream.Interface }}{{ end }}) {{ if .ServerStream }}error{{ else if .Response.Message }}({{ .Response.Message.Ref }},	error{{ if .Response.Message }}){{ end }}{{ end }} {
-{{- if .PayloadRef }}
-	p, err := Decode{{ .Method.VarName }}Request(
-		{{- if .ServerStream }}stream.Context(), {{ if not .Method.StreamingPayload }}message{{ else }}nil{{ end }},
-		{{- else }}ctx, message,
-		{{- end }})
-	if err != nil {
-		return {{ if not .ServerStream }}nil, {{ end }}status.Error(codes.InvalidArgument, err.Error())
-	}
-	payload := p.({{ .PayloadRef }})
-{{- end }}
 {{- if .ServerStream }}
+	p, err := s.{{ .Method.VarName }}H.Decode(stream.Context(), {{ if .Method.StreamingPayload }}nil{{ else }}message{{ end }})
+	{{- template "handle_error" . }}
 	ep := &{{ .ServicePkgName }}.{{ .Method.VarName }}EndpointInput{
 		Stream: &{{ .ServerStream.VarName }}{stream: stream},
 	{{- if .PayloadRef }}
-		Payload: payload,
+		Payload: p.({{ .PayloadRef }}),
 	{{- end }}
+	}
+	err = s.{{ .Method.VarName }}H.Handle(stream.Context(), ep)
+{{- else }}
+	resp, err := s.{{ .Method.VarName }}H.Handle(ctx, message)
+{{- end }}
+	{{- template "handle_error" . }}
+	return {{ if not $.ServerStream }}resp.({{ .Response.ServerConvert.TgtRef }}), {{ end }}nil
+}
+
+{{- define "handle_error" }}
+	if err != nil {
+		sts, ok := status.FromError(err)
+		if ok {
+			return {{ if not $.ServerStream }}nil, {{ end }}err
+	{{- if .Errors }}
+		} else if en, ok := err.(ErrorNamer); ok {
+			switch en.ErrorName() {
+		{{- range .Errors }}
+			case {{ printf "%q" .Name }}:
+				return {{ if not $.ServerStream }}nil, {{ end }}status.Error({{ .Response.StatusCode }}, err.Error())
+		{{- end }}
+			}
+	{{- end }}
+		}
+		return {{ if not $.ServerStream }}nil, {{ end }}sts.Err()
 	}
 {{- end }}
-	{{- $newVar := and .ResultRef (not .ServerStream) }}
-	{{ if $newVar }}v
-	{{- else }}_
-	{{- end }}, err {{ if and .PayloadRef (not $newVar) }}={{ else }}:={{ end }} s.endpoints.{{ .Method.VarName }}({{ if .ServerStream }}stream.Context(){{ else }}ctx{{ end }}, {{ if .ServerStream }}ep{{ else }}payload{{ end }})
-	if err != nil {
-	{{- if .Errors }}
-		en, ok := err.(ErrorNamer)
-		if !ok {
-			return {{ if not .ServerStream }}nil, {{ end }}err
-		}
-		switch en.ErrorName() {
-		{{- range .Errors }}
-		case {{ printf "%q" .Name }}:
-			return {{ if not $.ServerStream }}nil, {{ end }}status.Error({{ .Response.StatusCode }}, err.Error())
-		{{- end }}
-		}
-	{{- else }}
-		return {{ if not .ServerStream }}nil, {{ end }}err
-	{{- end }}
-	}
-	{{- if .ServerStream }}
-		return nil
-	{{- else }}
-		{{- if .Response.ServerConvert }}
-			r, err := Encode{{ .Method.VarName }}Response(ctx, v)
-			if err != nil {
-				return nil, status.Error(codes.Internal, err.Error())
-			}
-			return r.({{ .Response.ServerConvert.TgtRef }}), nil
-		{{- else }}
-			return nil, nil
-		{{- end }}
-	{{- end }}
-}
 `
 
 // input: EndpointData
-const requestDecoderT = `{{ printf "Decode%sRequest decodes requests sent to %s %s endpoint." .Method.VarName .ServiceName .Method.Name | comment }}
-func Decode{{ .Method.VarName }}Request(ctx context.Context, v interface{}) (interface{}, error) {
+const requestDecoderT = `{{ printf "Decode%sRequest decodes requests sent to %q service %q endpoint." .Method.VarName .ServiceName .Method.Name | comment }}
+func Decode{{ .Method.VarName }}Request(ctx context.Context, v interface{}, md metadata.MD) (interface{}, error) {
+{{- if .Request.Metadata }}
 	var (
-		payload {{ .PayloadRef }}
+	{{- range .Request.Metadata }}
+		{{ .VarName }} {{ .TypeRef }}
+	{{- end }}
 		err error
 	)
 	{
-{{- if .Request.Metadata }}
-		var (
-		{{- range .Request.Metadata }}
-			{{ .VarName }} {{ .TypeRef }}
-		{{- end }}
-		)
-		{
-			md, ok := metadata.FromIncomingContext(ctx)
-			if ok {
-		{{- range .Request.Metadata }}
-			{{- if or (eq .Type.Name "string") (eq .Type.Name "any") }}
-				{{- if .Required }}
-					if vals := md.Get({{ printf "%q" .Name }}); len(vals) == 0 {
-						err = goa.MergeErrors(err, goa.MissingFieldError({{ printf "%q" .Name }}, "metadata"))
-					} else {
-						{{ .VarName }} = vals[0]
-					}
-				{{- else }}
-					if vals := md.Get({{ printf "%q" .Name }}); len(vals) > 0 {
-						{{ .VarName }} = vals[0]
-					}
-				{{- end }}
-			{{- else if .StringSlice }}
-				{{- if .Required }}
-					if vals := md.Get({{ printf "%q" .Name }}); len(vals) == 0 {
-						err = goa.MergeErrors(err, goa.MissingFieldError({{ printf "%q" .Name }}, "metadata"))
-					} else {
-						{{ .VarName }} = vals
-					}
-				{{- else }}
-					{{ .VarName }} = md.Get({{ printf "%q" .Name }})
-				{{- end }}
-			{{- else if .Slice }}
-				{{- if .Required }}
-					if {{ .VarName }}Raw := md.Get({{ printf "%q" .Name }}); len({{ .VarName }}Raw) == 0 {
-						err = goa.MergeErrors(err, goa.MissingFieldError({{ printf "%q" .Name }}, "metadata"))
-					} else {
-						{{- template "slice_conversion" . }}
-					}
-				{{- else }}
-					if {{ .VarName }}Raw := md.Get({{ printf "%q" .Name }}); len({{ .VarName }}Raw) > 0 {
-						{{- template "slice_conversion" . }}
-					}
-				{{- end }}
+	{{- range .Request.Metadata }}
+		{{- if or (eq .Type.Name "string") (eq .Type.Name "any") }}
+			{{- if .Required }}
+				if vals := md.Get({{ printf "%q" .Name }}); len(vals) == 0 {
+					err = goa.MergeErrors(err, goa.MissingFieldError({{ printf "%q" .Name }}, "metadata"))
+				} else {
+					{{ .VarName }} = vals[0]
+				}
 			{{- else }}
-				{{- if .Required }}
-					if vals := md.Get({{ printf "%q" .Name }}); len(vals) == 0 {
-						err = goa.MergeErrors(err, goa.MissingFieldError({{ printf "%q" .Name }}, "metadata"))
-					} else {
-						{{ .VarName }}Raw = vals[0]
-						{{ template "type_conversion" . }}
-					}
-				{{- else }}
-					if vals := md.Get({{ printf "%q" .Name }}); len(vals) > 0 {
-						{{ .VarName }}Raw = vals[0]
-						{{ template "type_conversion" . }}
-					}
-				{{- end }}
+				if vals := md.Get({{ printf "%q" .Name }}); len(vals) > 0 {
+					{{ .VarName }} = vals[0]
+				}
+			{{- end }}
+		{{- else if .StringSlice }}
+			{{- if .Required }}
+				if vals := md.Get({{ printf "%q" .Name }}); len(vals) == 0 {
+					err = goa.MergeErrors(err, goa.MissingFieldError({{ printf "%q" .Name }}, "metadata"))
+				} else {
+					{{ .VarName }} = vals
+				}
+			{{- else }}
+				{{ .VarName }} = md.Get({{ printf "%q" .Name }})
+			{{- end }}
+		{{- else if .Slice }}
+			{{- if .Required }}
+				if {{ .VarName }}Raw := md.Get({{ printf "%q" .Name }}); len({{ .VarName }}Raw) == 0 {
+					err = goa.MergeErrors(err, goa.MissingFieldError({{ printf "%q" .Name }}, "metadata"))
+				} else {
+					{{- template "slice_conversion" . }}
+				}
+			{{- else }}
+				if {{ .VarName }}Raw := md.Get({{ printf "%q" .Name }}); len({{ .VarName }}Raw) > 0 {
+					{{- template "slice_conversion" . }}
+				}
+			{{- end }}
+		{{- else }}
+			{{- if .Required }}
+				if vals := md.Get({{ printf "%q" .Name }}); len(vals) == 0 {
+					err = goa.MergeErrors(err, goa.MissingFieldError({{ printf "%q" .Name }}, "metadata"))
+				} else {
+					{{ .VarName }}Raw = vals[0]
+					{{ template "type_conversion" . }}
+				}
+			{{- else }}
+				if vals := md.Get({{ printf "%q" .Name }}); len(vals) > 0 {
+					{{ .VarName }}Raw = vals[0]
+					{{ template "type_conversion" . }}
+				}
 			{{- end }}
 		{{- end }}
-			}
-		}
-{{- end }}
-{{- if not .Method.StreamingPayload }}
-	message, ok := v.({{ .Request.Message.Ref }})
-	if !ok {
-		return nil, goagrpc.ErrInvalidType("{{ .ServiceName }}", "{{ .Method.Name }}", "{{ .Request.Message.Ref }}", v)
+	{{- end }}
 	}
 {{- end }}
-	payload = {{ .Request.ServerConvert.Init.Name }}({{ range .Request.ServerConvert.Init.Args }}{{ .Name }}, {{ end }})
+{{- if not .Method.StreamingPayload }}
+	var (
+		message {{ .Request.Message.Ref }}
+		ok bool
+	)
+	{
+		if message, ok = v.({{ .Request.Message.Ref }}); !ok {
+			return nil, goagrpc.ErrInvalidType("{{ .ServiceName }}", "{{ .Method.Name }}", "{{ .Request.Message.Ref }}", v)
+		}
+	}
+{{- end }}
+	var (
+		payload {{ .PayloadRef }}
+	{{- if not .Request.Metadata }}
+		err error
+	{{- end }}
+	)
+	{
+		payload = {{ .Request.ServerConvert.Init.Name }}({{ range .Request.ServerConvert.Init.Args }}{{ .Name }}, {{ end }})
 {{- range .MetadataSchemes }}
 	{{- if ne .Type "Basic" }}
 		{{- if not .CredRequired }}
@@ -358,14 +373,15 @@ func Decode{{ .Method.VarName }}Request(ctx context.Context, v interface{}) (int
 ` + convertStringToTypeT
 
 // input: EndpointData
-const responseEncoderT = `{{ printf "Encode%sResponse encodes responses from the %s %s endpoint." .Method.VarName .ServiceName .Method.Name | comment }}
-func Encode{{ .Method.VarName }}Response(ctx context.Context, v interface{}) (interface{}, error) {
+const responseEncoderT = `{{ printf "Encode%sResponse encodes responses from the %q service %q endpoint." .Method.VarName .ServiceName .Method.Name | comment }}
+func Encode{{ .Method.VarName }}Response(ctx context.Context, v interface{}, hdr, trlr *metadata.MD) (interface{}, error) {
 {{- if .ViewedResultRef }}
 	vres, ok := v.({{ .ViewedResultRef }})
 	if !ok {
 		return nil, goagrpc.ErrInvalidType("{{ .ServiceName }}", "{{ .Method.Name }}", "{{ .ViewedResultRef }}", v)
 	}
 	res := vres.Projected
+	*hdr.Append("goa-view", vres.View)
 {{- else }}
 	res, ok := v.({{ .ResultRef }})
 	if !ok {
@@ -373,24 +389,13 @@ func Encode{{ .Method.VarName }}Response(ctx context.Context, v interface{}) (in
 	}
 {{- end }}
 	resp := {{ .Response.ServerConvert.Init.Name }}({{ range .Response.ServerConvert.Init.Args }}{{ .Name }}, {{ end }})
-{{- if or .Response.Headers .ViewedResultRef }}
-	hdr := metadata.New(map[string]string{})
-	{{- range .Response.Headers }}
-		{{ template "metadata_encoder" (metadataEncodeDecodeData . "hdr") }}
-	{{- end }}
-	{{- if .ViewedResultRef }}
-		hdr.Append("goa-view", vres.View)
-	{{- end }}
-	grpc.SendHeader(ctx, hdr)
+{{- range .Response.Headers }}
+	{{ template "metadata_encoder" (metadataEncodeDecodeData . "*hdr") }}
 {{- end }}
-{{- if .Response.Trailers }}
-	trlr := metadata.New(map[string]string{})
-	{{- range .Response.Trailers }}
-		{{ template "metadata_encoder" (metadataEncodeDecodeData . "trlr") }}
-	{{- end }}
-	grpc.SendTrailer(ctx, trlr)
+{{- range .Response.Trailers }}
+	{{ template "metadata_encoder" (metadataEncodeDecodeData . "*trlr") }}
 {{- end }}
-	return resp, nil
+	return {{ if .ResultRef }}resp{{ else }}nil{{ end }}, nil
 }
 
 {{- define "metadata_encoder" }}
@@ -611,47 +616,4 @@ const convertTypeToStringT = `{{- define "string_conversion" }}
 		// unsupported type {{ .Type.Name }} for field {{ .FieldName }}
 	{{- end }}
 {{- end }}
-`
-
-// streamSendT renders the function implementing the Send method in
-// stream interface.
-// input: StreamData
-const streamSendT = `{{ comment .SendDesc }}
-func (s *{{ .VarName }}) {{ .SendName }}(res {{ .SendConvert.SrcRef }}) error {
-	v := {{ .SendConvert.Init.Name }}({{ range .SendConvert.Init.Args }}{{ .Name }}, {{ end }})
-	return s.stream.{{ .SendName }}(v)
-}
-`
-
-// streamRecvT renders the function implementing the Recv method in
-// stream interface.
-// input: StreamData
-const streamRecvT = `{{ comment .RecvDesc }}
-func (s *{{ .VarName }}) {{ .RecvName }}() ({{ .RecvConvert.TgtRef }}, error) {
-	var res {{ .RecvConvert.TgtRef }}
-	v, err := s.stream.{{ .RecvName }}()
-	if err != nil {
-		return res, err
-	}
-	res = {{ .RecvConvert.Init.Name }}({{ range .RecvConvert.Init.Args }}{{ .Name }}, {{ end }})
-	return res, nil
-}
-`
-
-// streamCloseT renders the function implementing the Close method in
-// stream interface.
-// input: StreamData
-const streamCloseT = `
-func (s *{{ .VarName }}) Close() error {
-	{{ comment "nothing to do here" }}
-	return nil
-}
-`
-
-// streamSetViewT renders the function implementing the SetView method in
-// server stream interface.
-// input: StreamData
-const streamSetViewT = `{{ printf "SetView sets the view." | comment }}
-func (s *{{ .VarName }}) SetView(view string) {
-}
 `

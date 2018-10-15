@@ -8,7 +8,7 @@
 
 syntax = "proto3";
 
-package chatter;
+package pb;
 
 // The chatter service implements a simple client and server chat.
 service chatter {

@@ -6,7 +6,7 @@ import (
 
 	grpcmiddleware "github.com/grpc-ecosystem/go-grpc-middleware"
 	chattersvc "goa.design/goa/examples/streaming/gen/chatter"
-	chatterpb "goa.design/goa/examples/streaming/gen/grpc/chatter"
+	"goa.design/goa/examples/streaming/gen/grpc/chatter/pb"
 	chattersvcsvr "goa.design/goa/examples/streaming/gen/grpc/chatter/server"
 	"goa.design/goa/grpc/middleware"
 	"google.golang.org/grpc"
@@ -37,7 +37,7 @@ func newGRPCServer(scheme, host string, chatterEndpoints *chattersvc.Endpoints, 
 		chatterServer *chattersvcsvr.Server
 	)
 	{
-		chatterServer = chattersvcsvr.New(chatterEndpoints)
+		chatterServer = chattersvcsvr.New(chatterEndpoints, nil, nil)
 	}
 
 	// Initialize gRPC server with the middleware.
@@ -49,7 +49,7 @@ func newGRPCServer(scheme, host string, chatterEndpoints *chattersvc.Endpoints, 
 	)
 
 	// Register the servers.
-	chatterpb.RegisterChatterServer(srv, chatterServer)
+	pb.RegisterChatterServer(srv, chatterServer)
 
 	return &grpcsvr{svr: srv, addr: host}
 }

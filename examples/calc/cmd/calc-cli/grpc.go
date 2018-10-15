@@ -5,7 +5,7 @@ import (
 	"os"
 
 	"goa.design/goa"
-	"goa.design/goa/examples/calc/gen/grpc/cli"
+	"goa.design/goa/examples/calc/gen/grpc/cli/calc"
 	"google.golang.org/grpc"
 )
 
@@ -14,7 +14,7 @@ func doGRPC(scheme, host string, timeout int, debug bool) (goa.Endpoint, interfa
 	if err != nil {
 		fmt.Fprintln(os.Stderr, fmt.Sprintf("could not connect to GRPC server at %s: %v", host, err))
 	}
-	return cli.ParseEndpoint(conn, nil, nil)
+	return cli.ParseEndpoint(conn)
 }
 
 func grpcUsageCommands() string {

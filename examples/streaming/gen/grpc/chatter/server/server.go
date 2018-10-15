@@ -11,15 +11,21 @@ package server
 import (
 	"context"
 
+	"goa.design/goa"
 	chattersvc "goa.design/goa/examples/streaming/gen/chatter"
-	chatterpb "goa.design/goa/examples/streaming/gen/grpc/chatter"
+	"goa.design/goa/examples/streaming/gen/grpc/chatter/pb"
+	goagrpc "goa.design/goa/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
 
-// Server implements the chatterpb.ChatterServer interface.
+// Server implements the pb.ChatterServer interface.
 type Server struct {
-	endpoints *chattersvc.Endpoints
+	LoginH    goagrpc.UnaryHandler
+	EchoerH   goagrpc.StreamHandler
+	ListenerH goagrpc.StreamHandler
+	SummaryH  goagrpc.StreamHandler
+	HistoryH  goagrpc.StreamHandler
 }
 
 // ErrorNamer is an interface implemented by generated error structs that
@@ -31,173 +37,267 @@ type ErrorNamer interface {
 // echoerServerStream implements the chattersvc.EchoerServerStream.%!s(MISSING)
 // interface.
 type echoerServerStream struct {
-	stream chatterpb.Chatter_EchoerServer
+	stream pb.Chatter_EchoerServer
 }
 
 // listenerServerStream implements the
 // chattersvc.ListenerServerStream.%!s(MISSING) interface.
 type listenerServerStream struct {
-	stream chatterpb.Chatter_ListenerServer
+	stream pb.Chatter_ListenerServer
 }
 
 // summaryServerStream implements the
 // chattersvc.SummaryServerStream.%!s(MISSING) interface.
 type summaryServerStream struct {
-	stream chatterpb.Chatter_SummaryServer
+	stream pb.Chatter_SummaryServer
+	view   string
 }
 
 // historyServerStream implements the
 // chattersvc.HistoryServerStream.%!s(MISSING) interface.
 type historyServerStream struct {
-	stream chatterpb.Chatter_HistoryServer
+	stream pb.Chatter_HistoryServer
+	view   string
 }
 
 // New instantiates the server struct with the chatter service endpoints.
-func New(e *chattersvc.Endpoints) *Server {
-	return &Server{e}
+func New(e *chattersvc.Endpoints, uh goagrpc.UnaryHandler, sh goagrpc.StreamHandler) *Server {
+	return &Server{
+		LoginH:    NewLoginHandler(e.Login, uh),
+		EchoerH:   NewEchoerHandler(e.Echoer, sh),
+		ListenerH: NewListenerHandler(e.Listener, sh),
+		SummaryH:  NewSummaryHandler(e.Summary, sh),
+		HistoryH:  NewHistoryHandler(e.History, sh),
+	}
 }
 
-// Login implements the "Login" method in chatterpb.ChatterServer interface.
-func (s *Server) Login(ctx context.Context, message *chatterpb.LoginRequest) (*chatterpb.LoginResponse, error) {
-	p, err := DecodeLoginRequest(ctx, message)
-	if err != nil {
-		return nil, status.Error(codes.InvalidArgument, err.Error())
+// NewLoginHandler creates a gRPC handler which serves the "chatter" service
+// "login" endpoint.
+func NewLoginHandler(endpoint goa.Endpoint, h goagrpc.UnaryHandler) goagrpc.UnaryHandler {
+	if h == nil {
+		h = goagrpc.NewUnaryHandler(endpoint, DecodeLoginRequest, EncodeLoginResponse)
 	}
-	payload := p.(*chattersvc.LoginPayload)
-	v, err := s.endpoints.Login(ctx, payload)
+	return h
+}
+
+// Login implements the "Login" method in pb.ChatterServer interface.
+func (s *Server) Login(ctx context.Context, message *pb.LoginRequest) (*pb.LoginResponse, error) {
+	resp, err := s.LoginH.Handle(ctx, message)
 	if err != nil {
-		en, ok := err.(ErrorNamer)
-		if !ok {
+		sts, ok := status.FromError(err)
+		if ok {
 			return nil, err
+		} else if en, ok := err.(ErrorNamer); ok {
+			switch en.ErrorName() {
+			case "unauthorized":
+				return nil, status.Error(codes.Unauthenticated, err.Error())
+			}
 		}
-		switch en.ErrorName() {
-		case "unauthorized":
-			return nil, status.Error(codes.Unauthenticated, err.Error())
-		}
+		return nil, sts.Err()
 	}
-	r, err := EncodeLoginResponse(ctx, v)
-	if err != nil {
-		return nil, status.Error(codes.Internal, err.Error())
-	}
-	return r.(*chatterpb.LoginResponse), nil
+	return resp.(*pb.LoginResponse), nil
 }
 
-// Echoer implements the "Echoer" method in chatterpb.ChatterServer interface.
-func (s *Server) Echoer(stream chatterpb.Chatter_EchoerServer) error {
-	p, err := DecodeEchoerRequest(stream.Context(), nil)
-	if err != nil {
-		return status.Error(codes.InvalidArgument, err.Error())
+// NewEchoerHandler creates a gRPC handler which serves the "chatter" service
+// "echoer" endpoint.
+func NewEchoerHandler(endpoint goa.Endpoint, h goagrpc.StreamHandler) goagrpc.StreamHandler {
+	if h == nil {
+		h = goagrpc.NewStreamHandler(endpoint, DecodeEchoerRequest)
 	}
-	payload := p.(*chattersvc.EchoerPayload)
+	return h
+}
+
+// Echoer implements the "Echoer" method in pb.ChatterServer interface.
+func (s *Server) Echoer(stream pb.Chatter_EchoerServer) error {
+	p, err := s.EchoerH.Decode(stream.Context(), nil)
+	if err != nil {
+		sts, ok := status.FromError(err)
+		if ok {
+			return err
+		} else if en, ok := err.(ErrorNamer); ok {
+			switch en.ErrorName() {
+			case "unauthorized":
+				return status.Error(codes.Unauthenticated, err.Error())
+			case "invalid-scopes":
+				return status.Error(codes.Unauthenticated, err.Error())
+			}
+		}
+		return sts.Err()
+	}
 	ep := &chattersvc.EchoerEndpointInput{
 		Stream:  &echoerServerStream{stream: stream},
-		Payload: payload,
+		Payload: p.(*chattersvc.EchoerPayload),
 	}
-	_, err = s.endpoints.Echoer(stream.Context(), ep)
+	err = s.EchoerH.Handle(stream.Context(), ep)
 	if err != nil {
-		en, ok := err.(ErrorNamer)
-		if !ok {
+		sts, ok := status.FromError(err)
+		if ok {
 			return err
+		} else if en, ok := err.(ErrorNamer); ok {
+			switch en.ErrorName() {
+			case "unauthorized":
+				return status.Error(codes.Unauthenticated, err.Error())
+			case "invalid-scopes":
+				return status.Error(codes.Unauthenticated, err.Error())
+			}
 		}
-		switch en.ErrorName() {
-		case "unauthorized":
-			return status.Error(codes.Unauthenticated, err.Error())
-		case "invalid-scopes":
-			return status.Error(codes.Unauthenticated, err.Error())
-		}
+		return sts.Err()
 	}
 	return nil
 }
 
-// Listener implements the "Listener" method in chatterpb.ChatterServer
-// interface.
-func (s *Server) Listener(stream chatterpb.Chatter_ListenerServer) error {
-	p, err := DecodeListenerRequest(stream.Context(), nil)
-	if err != nil {
-		return status.Error(codes.InvalidArgument, err.Error())
+// NewListenerHandler creates a gRPC handler which serves the "chatter" service
+// "listener" endpoint.
+func NewListenerHandler(endpoint goa.Endpoint, h goagrpc.StreamHandler) goagrpc.StreamHandler {
+	if h == nil {
+		h = goagrpc.NewStreamHandler(endpoint, DecodeListenerRequest)
 	}
-	payload := p.(*chattersvc.ListenerPayload)
+	return h
+}
+
+// Listener implements the "Listener" method in pb.ChatterServer interface.
+func (s *Server) Listener(stream pb.Chatter_ListenerServer) error {
+	p, err := s.ListenerH.Decode(stream.Context(), nil)
+	if err != nil {
+		sts, ok := status.FromError(err)
+		if ok {
+			return err
+		} else if en, ok := err.(ErrorNamer); ok {
+			switch en.ErrorName() {
+			case "unauthorized":
+				return status.Error(codes.Unauthenticated, err.Error())
+			case "invalid-scopes":
+				return status.Error(codes.Unauthenticated, err.Error())
+			}
+		}
+		return sts.Err()
+	}
 	ep := &chattersvc.ListenerEndpointInput{
 		Stream:  &listenerServerStream{stream: stream},
-		Payload: payload,
+		Payload: p.(*chattersvc.ListenerPayload),
 	}
-	_, err = s.endpoints.Listener(stream.Context(), ep)
+	err = s.ListenerH.Handle(stream.Context(), ep)
 	if err != nil {
-		en, ok := err.(ErrorNamer)
-		if !ok {
+		sts, ok := status.FromError(err)
+		if ok {
 			return err
+		} else if en, ok := err.(ErrorNamer); ok {
+			switch en.ErrorName() {
+			case "unauthorized":
+				return status.Error(codes.Unauthenticated, err.Error())
+			case "invalid-scopes":
+				return status.Error(codes.Unauthenticated, err.Error())
+			}
 		}
-		switch en.ErrorName() {
-		case "unauthorized":
-			return status.Error(codes.Unauthenticated, err.Error())
-		case "invalid-scopes":
-			return status.Error(codes.Unauthenticated, err.Error())
-		}
+		return sts.Err()
 	}
 	return nil
 }
 
-// Summary implements the "Summary" method in chatterpb.ChatterServer interface.
-func (s *Server) Summary(stream chatterpb.Chatter_SummaryServer) error {
-	p, err := DecodeSummaryRequest(stream.Context(), nil)
-	if err != nil {
-		return status.Error(codes.InvalidArgument, err.Error())
+// NewSummaryHandler creates a gRPC handler which serves the "chatter" service
+// "summary" endpoint.
+func NewSummaryHandler(endpoint goa.Endpoint, h goagrpc.StreamHandler) goagrpc.StreamHandler {
+	if h == nil {
+		h = goagrpc.NewStreamHandler(endpoint, DecodeSummaryRequest)
 	}
-	payload := p.(*chattersvc.SummaryPayload)
+	return h
+}
+
+// Summary implements the "Summary" method in pb.ChatterServer interface.
+func (s *Server) Summary(stream pb.Chatter_SummaryServer) error {
+	p, err := s.SummaryH.Decode(stream.Context(), nil)
+	if err != nil {
+		sts, ok := status.FromError(err)
+		if ok {
+			return err
+		} else if en, ok := err.(ErrorNamer); ok {
+			switch en.ErrorName() {
+			case "unauthorized":
+				return status.Error(codes.Unauthenticated, err.Error())
+			case "invalid-scopes":
+				return status.Error(codes.Unauthenticated, err.Error())
+			}
+		}
+		return sts.Err()
+	}
 	ep := &chattersvc.SummaryEndpointInput{
 		Stream:  &summaryServerStream{stream: stream},
-		Payload: payload,
+		Payload: p.(*chattersvc.SummaryPayload),
 	}
-	_, err = s.endpoints.Summary(stream.Context(), ep)
+	err = s.SummaryH.Handle(stream.Context(), ep)
 	if err != nil {
-		en, ok := err.(ErrorNamer)
-		if !ok {
+		sts, ok := status.FromError(err)
+		if ok {
 			return err
+		} else if en, ok := err.(ErrorNamer); ok {
+			switch en.ErrorName() {
+			case "unauthorized":
+				return status.Error(codes.Unauthenticated, err.Error())
+			case "invalid-scopes":
+				return status.Error(codes.Unauthenticated, err.Error())
+			}
 		}
-		switch en.ErrorName() {
-		case "unauthorized":
-			return status.Error(codes.Unauthenticated, err.Error())
-		case "invalid-scopes":
-			return status.Error(codes.Unauthenticated, err.Error())
-		}
+		return sts.Err()
 	}
 	return nil
 }
 
-// History implements the "History" method in chatterpb.ChatterServer interface.
-func (s *Server) History(message *chatterpb.HistoryRequest, stream chatterpb.Chatter_HistoryServer) error {
-	p, err := DecodeHistoryRequest(stream.Context(), message)
-	if err != nil {
-		return status.Error(codes.InvalidArgument, err.Error())
+// NewHistoryHandler creates a gRPC handler which serves the "chatter" service
+// "history" endpoint.
+func NewHistoryHandler(endpoint goa.Endpoint, h goagrpc.StreamHandler) goagrpc.StreamHandler {
+	if h == nil {
+		h = goagrpc.NewStreamHandler(endpoint, DecodeHistoryRequest)
 	}
-	payload := p.(*chattersvc.HistoryPayload)
+	return h
+}
+
+// History implements the "History" method in pb.ChatterServer interface.
+func (s *Server) History(message *pb.HistoryRequest, stream pb.Chatter_HistoryServer) error {
+	p, err := s.HistoryH.Decode(stream.Context(), message)
+	if err != nil {
+		sts, ok := status.FromError(err)
+		if ok {
+			return err
+		} else if en, ok := err.(ErrorNamer); ok {
+			switch en.ErrorName() {
+			case "unauthorized":
+				return status.Error(codes.Unauthenticated, err.Error())
+			case "invalid-scopes":
+				return status.Error(codes.Unauthenticated, err.Error())
+			}
+		}
+		return sts.Err()
+	}
 	ep := &chattersvc.HistoryEndpointInput{
 		Stream:  &historyServerStream{stream: stream},
-		Payload: payload,
+		Payload: p.(*chattersvc.HistoryPayload),
 	}
-	_, err = s.endpoints.History(stream.Context(), ep)
+	err = s.HistoryH.Handle(stream.Context(), ep)
 	if err != nil {
-		en, ok := err.(ErrorNamer)
-		if !ok {
+		sts, ok := status.FromError(err)
+		if ok {
 			return err
+		} else if en, ok := err.(ErrorNamer); ok {
+			switch en.ErrorName() {
+			case "unauthorized":
+				return status.Error(codes.Unauthenticated, err.Error())
+			case "invalid-scopes":
+				return status.Error(codes.Unauthenticated, err.Error())
+			}
 		}
-		switch en.ErrorName() {
-		case "unauthorized":
-			return status.Error(codes.Unauthenticated, err.Error())
-		case "invalid-scopes":
-			return status.Error(codes.Unauthenticated, err.Error())
-		}
+		return sts.Err()
 	}
 	return nil
 }
 
-// Send streams instances of "string" to the "echoer" endpoint gRPC stream.
+// Send streams instances of "pb.EchoerResponse" to the "echoer" endpoint gRPC
+// stream.
 func (s *echoerServerStream) Send(res string) error {
 	v := NewEchoerResponse(res)
 	return s.stream.Send(v)
 }
 
-// Recv reads instances of "chatterpb.EchoerStreamingRequest" from the "echoer"
+// Recv reads instances of "pb.EchoerStreamingRequest" from the "echoer"
 // endpoint gRPC stream.
 func (s *echoerServerStream) Recv() (string, error) {
 	var res string
@@ -205,8 +305,7 @@ func (s *echoerServerStream) Recv() (string, error) {
 	if err != nil {
 		return res, err
 	}
-	res = NewEchoerStreamingRequest(v)
-	return res, nil
+	return NewEchoerStreamingRequest(v), nil
 }
 
 func (s *echoerServerStream) Close() error {
@@ -214,16 +313,15 @@ func (s *echoerServerStream) Close() error {
 	return nil
 }
 
-// Recv reads instances of "chatterpb.ListenerStreamingRequest" from the
-// "listener" endpoint gRPC stream.
+// Recv reads instances of "pb.ListenerStreamingRequest" from the "listener"
+// endpoint gRPC stream.
 func (s *listenerServerStream) Recv() (string, error) {
 	var res string
 	v, err := s.stream.Recv()
 	if err != nil {
 		return res, err
 	}
-	res = NewListenerStreamingRequest(v)
-	return res, nil
+	return NewListenerStreamingRequest(v), nil
 }
 
 func (s *listenerServerStream) Close() error {
@@ -231,29 +329,30 @@ func (s *listenerServerStream) Close() error {
 	return nil
 }
 
-// SendAndClose streams instances of "chattersvc.ChatSummaryCollection" to the
+// SendAndClose streams instances of "pb.ChatSummaryCollection" to the
 // "summary" endpoint gRPC stream.
 func (s *summaryServerStream) SendAndClose(res chattersvc.ChatSummaryCollection) error {
-	v := NewChatSummaryCollection(res)
+	vres := chattersvc.NewViewedChatSummaryCollection(res, "default")
+	v := NewChatSummaryCollection(vres.Projected)
 	return s.stream.SendAndClose(v)
 }
 
-// Recv reads instances of "chatterpb.SummaryStreamingRequest" from the
-// "summary" endpoint gRPC stream.
+// Recv reads instances of "pb.SummaryStreamingRequest" from the "summary"
+// endpoint gRPC stream.
 func (s *summaryServerStream) Recv() (string, error) {
 	var res string
 	v, err := s.stream.Recv()
 	if err != nil {
 		return res, err
 	}
-	res = NewSummaryStreamingRequest(v)
-	return res, nil
+	return NewSummaryStreamingRequest(v), nil
 }
 
-// Send streams instances of "chattersvc.ChatSummary" to the "history" endpoint
+// Send streams instances of "pb.HistoryResponse" to the "history" endpoint
 // gRPC stream.
 func (s *historyServerStream) Send(res *chattersvc.ChatSummary) error {
-	v := NewHistoryResponse(res)
+	vres := chattersvc.NewViewedChatSummary(res, s.view)
+	v := NewHistoryResponse(vres.Projected)
 	return s.stream.Send(v)
 }
 
@@ -264,4 +363,5 @@ func (s *historyServerStream) Close() error {
 
 // SetView sets the view.
 func (s *historyServerStream) SetView(view string) {
+	s.view = view
 }

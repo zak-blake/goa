@@ -12,13 +12,14 @@ import (
 	"context"
 
 	dividersvc "goa.design/goa/examples/error/gen/divider"
-	dividerpb "goa.design/goa/examples/error/gen/grpc/divider"
+	"goa.design/goa/examples/error/gen/grpc/divider/pb"
 	goagrpc "goa.design/goa/grpc"
+	"google.golang.org/grpc/metadata"
 )
 
-// EncodeIntegerDivideResponse encodes responses from the divider
-// integer_divide endpoint.
-func EncodeIntegerDivideResponse(ctx context.Context, v interface{}) (interface{}, error) {
+// EncodeIntegerDivideResponse encodes responses from the "divider" service
+// "integer_divide" endpoint.
+func EncodeIntegerDivideResponse(ctx context.Context, v interface{}, hdr, trlr *metadata.MD) (interface{}, error) {
 	res, ok := v.(int)
 	if !ok {
 		return nil, goagrpc.ErrInvalidType("divider", "integer_divide", "int", v)
@@ -27,25 +28,31 @@ func EncodeIntegerDivideResponse(ctx context.Context, v interface{}) (interface{
 	return resp, nil
 }
 
-// DecodeIntegerDivideRequest decodes requests sent to divider integer_divide
-// endpoint.
-func DecodeIntegerDivideRequest(ctx context.Context, v interface{}) (interface{}, error) {
+// DecodeIntegerDivideRequest decodes requests sent to "divider" service
+// "integer_divide" endpoint.
+func DecodeIntegerDivideRequest(ctx context.Context, v interface{}, md metadata.MD) (interface{}, error) {
+	var (
+		message *pb.IntegerDivideRequest
+		ok      bool
+	)
+	{
+		if message, ok = v.(*pb.IntegerDivideRequest); !ok {
+			return nil, goagrpc.ErrInvalidType("divider", "integer_divide", "*pb.IntegerDivideRequest", v)
+		}
+	}
 	var (
 		payload *dividersvc.IntOperands
 		err     error
 	)
 	{
-		message, ok := v.(*dividerpb.IntegerDivideRequest)
-		if !ok {
-			return nil, goagrpc.ErrInvalidType("divider", "integer_divide", "*dividerpb.IntegerDivideRequest", v)
-		}
 		payload = NewIntOperands(message)
 	}
 	return payload, err
 }
 
-// EncodeDivideResponse encodes responses from the divider divide endpoint.
-func EncodeDivideResponse(ctx context.Context, v interface{}) (interface{}, error) {
+// EncodeDivideResponse encodes responses from the "divider" service "divide"
+// endpoint.
+func EncodeDivideResponse(ctx context.Context, v interface{}, hdr, trlr *metadata.MD) (interface{}, error) {
 	res, ok := v.(float64)
 	if !ok {
 		return nil, goagrpc.ErrInvalidType("divider", "divide", "float64", v)
@@ -54,17 +61,23 @@ func EncodeDivideResponse(ctx context.Context, v interface{}) (interface{}, erro
 	return resp, nil
 }
 
-// DecodeDivideRequest decodes requests sent to divider divide endpoint.
-func DecodeDivideRequest(ctx context.Context, v interface{}) (interface{}, error) {
+// DecodeDivideRequest decodes requests sent to "divider" service "divide"
+// endpoint.
+func DecodeDivideRequest(ctx context.Context, v interface{}, md metadata.MD) (interface{}, error) {
+	var (
+		message *pb.DivideRequest
+		ok      bool
+	)
+	{
+		if message, ok = v.(*pb.DivideRequest); !ok {
+			return nil, goagrpc.ErrInvalidType("divider", "divide", "*pb.DivideRequest", v)
+		}
+	}
 	var (
 		payload *dividersvc.FloatOperands
 		err     error
 	)
 	{
-		message, ok := v.(*dividerpb.DivideRequest)
-		if !ok {
-			return nil, goagrpc.ErrInvalidType("divider", "divide", "*dividerpb.DivideRequest", v)
-		}
 		payload = NewFloatOperands(message)
 	}
 	return payload, err

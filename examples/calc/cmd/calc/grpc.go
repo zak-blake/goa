@@ -6,7 +6,7 @@ import (
 
 	grpcmiddleware "github.com/grpc-ecosystem/go-grpc-middleware"
 	calcsvc "goa.design/goa/examples/calc/gen/calc"
-	calcpb "goa.design/goa/examples/calc/gen/grpc/calc"
+	"goa.design/goa/examples/calc/gen/grpc/calc/pb"
 	calcsvcsvr "goa.design/goa/examples/calc/gen/grpc/calc/server"
 	"goa.design/goa/grpc/middleware"
 	"google.golang.org/grpc"
@@ -49,7 +49,7 @@ func newGRPCServer(scheme, host string, calcEndpoints *calcsvc.Endpoints, logger
 	)
 
 	// Register the servers.
-	calcpb.RegisterCalcServer(srv, calcServer)
+	pb.RegisterCalcServer(srv, calcServer)
 
 	return &grpcsvr{svr: srv, addr: host}
 }
