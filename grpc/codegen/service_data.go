@@ -51,6 +51,7 @@ type (
 		// TransformHelpers is the list of transform functions required by the
 		// constructors.
 		TransformHelpers []*codegen.TransformFunctionData
+		Validations      []*ValidationData
 	}
 
 	// EndpointData contains the data used to render the code related to
@@ -218,7 +219,23 @@ type (
 		TgtRef string
 		// Init contains the data required to render the constructor if any
 		// to transform the source type to a target type.
-		Init *InitData
+		Init       *InitData
+		Validation *ValidationData
+	}
+
+	// ValidationData contains the data necessary to render the validation
+	// function.
+	ValidationData struct {
+		// Name is the validation function name.
+		Name string
+		// Def is the validation function definition.
+		Def string
+		// VarName is the name of the argument.
+		ArgName string
+		// SrcName is the fully qualified name of the type being validated.
+		SrcName string
+		// SrcRef is the fully qualified reference to the type being validated.
+		SrcRef string
 	}
 
 	// InitData contains the data required to render a constructor.
@@ -356,6 +373,17 @@ func (sd *ServiceData) HasStreamingEndpoint() bool {
 	return false
 }
 
+// ValidationFor returns the validation data (if any) for the given src.
+func (sd *ServiceData) ValidationFor(src *expr.AttributeExpr) *ValidationData {
+	srcName := protoBufMessageName(src, sd.Service.Scope)
+	for _, v := range sd.Validations {
+		if v.SrcName == srcName {
+			return v
+		}
+	}
+	return nil
+}
+
 // analyze creates the data necessary to render the code of the given service.
 func (d ServicesData) analyze(gs *expr.GRPCServiceExpr) *ServiceData {
 	var (
@@ -452,6 +480,7 @@ func (d ServicesData) analyze(gs *expr.GRPCServiceExpr) *ServiceData {
 					TypeRef:   m.TypeRef,
 					Pointer:   m.Pointer,
 					Required:  m.Required,
+					Validate:  m.Validate,
 					Example:   m.Example,
 				})
 			}
@@ -543,14 +572,26 @@ func collectMessages(at *expr.AttributeExpr, seen map[string]struct{}, sd *Servi
 		if _, ok := seen[dt.Name()]; ok {
 			return nil
 		}
+		name := protoBufMessageName(at, sd.Service.Scope)
+		ref := protoBufGoFullTypeRef(at, sd.PkgName, sd.Service.Scope)
 		data = append(data, &service.UserTypeData{
 			Name:        dt.Name(),
-			VarName:     protoBufMessageName(at, sd.Service.Scope),
+			VarName:     name,
 			Description: dt.Attribute().Description,
 			Def:         protoBufMessageDef(dt.Attribute(), sd.Service.Scope),
-			Ref:         protoBufGoFullTypeRef(at, sd.PkgName, sd.Service.Scope),
+			Ref:         ref,
 			Type:        dt,
 		})
+		vDef := codegen.RecursiveValidationCode(at, true, false, true, "message", newProtoBufAttributeHelper())
+		if vDef != "" {
+			sd.Validations = append(sd.Validations, &ValidationData{
+				Name:    "Validate" + name,
+				Def:     vDef,
+				ArgName: "message",
+				SrcName: name,
+				SrcRef:  ref,
+			})
+		}
 		seen[dt.Name()] = struct{}{}
 		data = append(data, collect(dt.Attribute())...)
 	case *expr.Object:
@@ -607,12 +648,13 @@ func buildRequestConvertData(e *expr.GRPCEndpointExpr, md []*MetadataData, sd *S
 						TypeRef:   m.TypeRef,
 						Pointer:   m.Pointer,
 						Required:  m.Required,
+						Validate:  m.Validate,
 						Example:   m.Example,
 					})
 				}
 				return data
 			}
-			td = buildConvertData(e.Request, e.MethodExpr.Payload, "message", "v", sd.PkgName, svc.PkgName, false, sd, fn)
+			td = buildConvertData(e.Request, e.MethodExpr.Payload, "message", "payload", sd.PkgName, svc.PkgName, false, sd, fn)
 		} else {
 			fn := func(data *InitData) *InitData {
 				data.Description = fmt.Sprintf("%s builds the gRPC request type from the payload of the %q endpoint of the %q service.", data.Name, e.Name(), svc.Name)
@@ -623,7 +665,7 @@ func buildRequestConvertData(e *expr.GRPCEndpointExpr, md []*MetadataData, sd *S
 				}
 				return data
 			}
-			td = buildConvertData(e.MethodExpr.Payload, e.Request, "p", "v", svc.PkgName, sd.PkgName, true, sd, fn)
+			td = buildConvertData(e.MethodExpr.Payload, e.Request, "payload", "message", svc.PkgName, sd.PkgName, true, sd, fn)
 		}
 	}
 	return td
@@ -663,7 +705,7 @@ func buildResponseConvertData(e *expr.GRPCEndpointExpr, hdrs, trlrs []*MetadataD
 				data.Description = fmt.Sprintf("%s builds the gRPC response type from the %sresult of the %q endpoint of the %q service.", data.Name, proj, e.Name(), svc.Name)
 				return data
 			}
-			td = buildConvertData(result, e.Response.Message, "res", "v", resultPkg, sd.PkgName, true, sd, fn)
+			td = buildConvertData(result, e.Response.Message, "result", "message", resultPkg, sd.PkgName, true, sd, fn)
 		} else {
 			fn := func(data *InitData) *InitData {
 				data.Description = fmt.Sprintf("%s builds the %sresult type of the %q endpoint of the %q service from the gRPC response type.", data.Name, proj, e.Name(), svc.Name)
@@ -677,6 +719,7 @@ func buildResponseConvertData(e *expr.GRPCEndpointExpr, hdrs, trlrs []*MetadataD
 						TypeRef:   m.TypeRef,
 						Pointer:   m.Pointer,
 						Required:  m.Required,
+						Validate:  m.Validate,
 						Example:   m.Example,
 					})
 				}
@@ -690,12 +733,13 @@ func buildResponseConvertData(e *expr.GRPCEndpointExpr, hdrs, trlrs []*MetadataD
 						TypeRef:   m.TypeRef,
 						Pointer:   m.Pointer,
 						Required:  m.Required,
+						Validate:  m.Validate,
 						Example:   m.Example,
 					})
 				}
 				return data
 			}
-			td = buildConvertData(e.Response.Message, result, "resp", "v", sd.PkgName, resultPkg, false, sd, fn)
+			td = buildConvertData(e.Response.Message, result, "message", "result", sd.PkgName, resultPkg, false, sd, fn)
 		}
 	}
 	return td
@@ -712,24 +756,27 @@ func buildResponseConvertData(e *expr.GRPCEndpointExpr, hdrs, trlrs []*MetadataD
 // metadata as args and CLI args)
 func buildConvertData(src, tgt *expr.AttributeExpr, srcVar, tgtVar, srcPkg, tgtPkg string, proto bool, sd *ServiceData, fn func(*InitData) *InitData) *ConvertData {
 	var (
-		data    *InitData
-		srcName string
-		srcRef  string
-		tgtName string
-		tgtRef  string
+		data       *InitData
+		srcName    string
+		srcRef     string
+		tgtName    string
+		tgtRef     string
+		validation *ValidationData
 
 		svc = sd.Service
 	)
 	{
-		srcName = protoBufGoFullTypeName(src, srcPkg, svc.Scope)
-		srcRef = protoBufGoFullTypeRef(src, srcPkg, svc.Scope)
-		tgtName = svc.Scope.GoFullTypeName(tgt, tgtPkg)
-		tgtRef = svc.Scope.GoFullTypeRef(tgt, tgtPkg)
 		if proto {
 			srcName = svc.Scope.GoFullTypeName(src, srcPkg)
 			srcRef = svc.Scope.GoFullTypeRef(src, srcPkg)
 			tgtName = protoBufGoFullTypeName(tgt, tgtPkg, svc.Scope)
 			tgtRef = protoBufGoFullTypeRef(tgt, tgtPkg, svc.Scope)
+		} else {
+			srcName = protoBufGoFullTypeName(src, srcPkg, svc.Scope)
+			srcRef = protoBufGoFullTypeRef(src, srcPkg, svc.Scope)
+			tgtName = svc.Scope.GoFullTypeName(tgt, tgtPkg)
+			tgtRef = svc.Scope.GoFullTypeRef(tgt, tgtPkg)
+			validation = sd.ValidationFor(src)
 		}
 		var (
 			name     string
@@ -775,11 +822,12 @@ func buildConvertData(src, tgt *expr.AttributeExpr, srcVar, tgtVar, srcPkg, tgtP
 		}
 	}
 	return &ConvertData{
-		SrcName: srcName,
-		SrcRef:  srcRef,
-		TgtName: tgtName,
-		TgtRef:  tgtRef,
-		Init:    data,
+		SrcName:    srcName,
+		SrcRef:     srcRef,
+		TgtName:    tgtName,
+		TgtRef:     tgtRef,
+		Init:       data,
+		Validation: validation,
 	}
 }
 
@@ -835,11 +883,11 @@ func buildStreamData(e *expr.GRPCEndpointExpr, sd *ServiceData, svr bool) *Strea
 	)
 	{
 		result := e.MethodExpr.Result
-		resVar := "res"
+		resVar := "result"
 		resPkg := svc.PkgName
 		if md.ViewedResult != nil {
 			result = expr.AsObject(md.ViewedResult.Type).Attribute("projected")
-			resVar = "vres"
+			resVar = "vresult"
 			resPkg = md.ViewedResult.ViewsPkg
 		}
 		if svr {
@@ -855,7 +903,7 @@ func buildStreamData(e *expr.GRPCEndpointExpr, sd *ServiceData, svr bool) *Strea
 			if e.MethodExpr.StreamingPayload.Type != expr.Empty {
 				recvName = md.ServerStream.RecvName
 				recvRef = svc.Scope.GoFullTypeRef(e.MethodExpr.StreamingPayload, svc.PkgName)
-				recvType = buildConvertData(e.StreamingRequest, e.MethodExpr.StreamingPayload, "v", "p", sd.PkgName, svc.PkgName, false, sd, nil)
+				recvType = buildConvertData(e.StreamingRequest, e.MethodExpr.StreamingPayload, "v", "spayload", sd.PkgName, svc.PkgName, false, sd, nil)
 			}
 			mustClose = md.ServerStream.MustClose
 		} else {
@@ -866,7 +914,7 @@ func buildStreamData(e *expr.GRPCEndpointExpr, sd *ServiceData, svr bool) *Strea
 			if e.MethodExpr.StreamingPayload.Type != expr.Empty {
 				sendName = md.ClientStream.SendName
 				sendRef = svc.Scope.GoFullTypeRef(e.MethodExpr.StreamingPayload, svc.PkgName)
-				sendType = buildConvertData(e.MethodExpr.StreamingPayload, e.StreamingRequest, "res", "v", svc.PkgName, sd.PkgName, true, sd, nil)
+				sendType = buildConvertData(e.MethodExpr.StreamingPayload, e.StreamingRequest, "spayload", "v", svc.PkgName, sd.PkgName, true, sd, nil)
 			}
 			if result.Type != expr.Empty {
 				recvName = md.ClientStream.RecvName
@@ -937,6 +985,7 @@ func extractMetadata(a *expr.MappedAttributeExpr, serviceType *expr.AttributeExp
 				mp.KeyType.Type.Kind() == expr.StringKind &&
 				mp.ElemType.Type.Kind() == expr.ArrayKind &&
 				expr.AsArray(mp.ElemType.Type).ElemType.Type.Kind() == expr.StringKind,
+			Validate:     codegen.RecursiveValidationCode(c, required, false, c.DefaultValue != nil, varn, newProtoBufAttributeHelper()),
 			DefaultValue: c.DefaultValue,
 			Example:      c.Example(expr.Root.API.Random()),
 		})
@@ -955,6 +1004,29 @@ func needInit(dt expr.DataType) bool {
 	}
 	return true
 }
+
+// input: InitData
+const typeInitT = `{{ comment .Description }}
+func {{ .Name }}({{ range .Args }}{{ .Name }} {{ .TypeRef }}, {{ end }}) {{ .ReturnTypeRef }} {
+	{{ .Code }}
+{{- if .ReturnIsStruct }}
+	{{- range .Args }}
+		{{- if .FieldName }}
+			{{ $.ReturnVarName }}.{{ .FieldName }} = {{ if .Pointer }}&{{ end }}{{ .Name }}
+		{{- end }}
+	{{- end }}
+{{- end }}
+	return {{ .ReturnVarName }}
+}
+`
+
+// input: ValidationData
+const validateT = `{{ printf "%s runs the validations defined on %s." .Name .SrcName | comment }}
+func {{ .Name }}({{ .ArgName }} {{ .SrcRef }}) (err error) {
+	{{ .Def }}
+	return
+}
+`
 
 // streamSendT renders the function implementing the Send method in
 // stream interface.

@@ -31,22 +31,22 @@ func BuildLoginFunc(grpccli pb.ChatterClient, cliopts ...grpc.CallOption) goagrp
 
 // EncodeLoginRequest encodes requests sent to chatter login endpoint.
 func EncodeLoginRequest(ctx context.Context, v interface{}, md *metadata.MD) (interface{}, error) {
-	p, ok := v.(*chattersvc.LoginPayload)
+	payload, ok := v.(*chattersvc.LoginPayload)
 	if !ok {
 		return nil, goagrpc.ErrInvalidType("chatter", "login", "*chattersvc.LoginPayload", v)
 	}
-	(*md).Append("user", p.User)
-	(*md).Append("password", p.Password)
-	return NewLoginRequest(p), nil
+	(*md).Append("user", payload.User)
+	(*md).Append("password", payload.Password)
+	return NewLoginRequest(payload), nil
 }
 
 // DecodeLoginResponse decodes responses from the chatter login endpoint.
 func DecodeLoginResponse(ctx context.Context, v interface{}, hdr, trlr metadata.MD) (interface{}, error) {
-	resp, ok := v.(*pb.LoginResponse)
+	message, ok := v.(*pb.LoginResponse)
 	if !ok {
 		return nil, goagrpc.ErrInvalidType("chatter", "login", "*pb.LoginResponse", v)
 	}
-	res := NewLoginResponse(resp)
+	res := NewLoginResponse(message)
 	return res, nil
 }
 
@@ -63,11 +63,11 @@ func BuildEchoerFunc(grpccli pb.ChatterClient, cliopts ...grpc.CallOption) goagr
 
 // EncodeEchoerRequest encodes requests sent to chatter echoer endpoint.
 func EncodeEchoerRequest(ctx context.Context, v interface{}, md *metadata.MD) (interface{}, error) {
-	p, ok := v.(*chattersvc.EchoerPayload)
+	payload, ok := v.(*chattersvc.EchoerPayload)
 	if !ok {
 		return nil, goagrpc.ErrInvalidType("chatter", "echoer", "*chattersvc.EchoerPayload", v)
 	}
-	(*md).Append("authorization", p.Token)
+	(*md).Append("authorization", payload.Token)
 	return nil, nil
 }
 
@@ -91,11 +91,11 @@ func BuildListenerFunc(grpccli pb.ChatterClient, cliopts ...grpc.CallOption) goa
 
 // EncodeListenerRequest encodes requests sent to chatter listener endpoint.
 func EncodeListenerRequest(ctx context.Context, v interface{}, md *metadata.MD) (interface{}, error) {
-	p, ok := v.(*chattersvc.ListenerPayload)
+	payload, ok := v.(*chattersvc.ListenerPayload)
 	if !ok {
 		return nil, goagrpc.ErrInvalidType("chatter", "listener", "*chattersvc.ListenerPayload", v)
 	}
-	(*md).Append("authorization", p.Token)
+	(*md).Append("authorization", payload.Token)
 	return nil, nil
 }
 
@@ -112,11 +112,11 @@ func BuildSummaryFunc(grpccli pb.ChatterClient, cliopts ...grpc.CallOption) goag
 
 // EncodeSummaryRequest encodes requests sent to chatter summary endpoint.
 func EncodeSummaryRequest(ctx context.Context, v interface{}, md *metadata.MD) (interface{}, error) {
-	p, ok := v.(*chattersvc.SummaryPayload)
+	payload, ok := v.(*chattersvc.SummaryPayload)
 	if !ok {
 		return nil, goagrpc.ErrInvalidType("chatter", "summary", "*chattersvc.SummaryPayload", v)
 	}
-	(*md).Append("authorization", p.Token)
+	(*md).Append("authorization", payload.Token)
 	return nil, nil
 }
 
@@ -147,15 +147,15 @@ func BuildHistoryFunc(grpccli pb.ChatterClient, cliopts ...grpc.CallOption) goag
 
 // EncodeHistoryRequest encodes requests sent to chatter history endpoint.
 func EncodeHistoryRequest(ctx context.Context, v interface{}, md *metadata.MD) (interface{}, error) {
-	p, ok := v.(*chattersvc.HistoryPayload)
+	payload, ok := v.(*chattersvc.HistoryPayload)
 	if !ok {
 		return nil, goagrpc.ErrInvalidType("chatter", "history", "*chattersvc.HistoryPayload", v)
 	}
-	if p.View != nil {
-		(*md).Append("view", *p.View)
+	if payload.View != nil {
+		(*md).Append("view", *payload.View)
 	}
-	(*md).Append("authorization", p.Token)
-	return NewHistoryRequest(p), nil
+	(*md).Append("authorization", payload.Token)
+	return NewHistoryRequest(payload), nil
 }
 
 // DecodeHistoryResponse decodes responses from the chatter history endpoint.

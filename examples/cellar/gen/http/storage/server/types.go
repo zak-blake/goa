@@ -293,8 +293,8 @@ func NewMultiUpdatePayload(body *MultiUpdateRequestBody, ids []string) *storage.
 	return v
 }
 
-// Validate runs the validations defined on addRequestBody
-func (body *AddRequestBody) Validate() (err error) {
+// ValidateAddRequestBody runs the validations defined on addRequestBody
+func ValidateAddRequestBody(body *AddRequestBody) (err error) {
 	if body.Name == nil {
 		err = goa.MergeErrors(err, goa.MissingFieldError("name", "body"))
 	}
@@ -310,7 +310,7 @@ func (body *AddRequestBody) Validate() (err error) {
 		}
 	}
 	if body.Winery != nil {
-		if err2 := body.Winery.Validate(); err2 != nil {
+		if err2 := ValidateWineryRequestBody(body.Winery); err2 != nil {
 			err = goa.MergeErrors(err, err2)
 		}
 	}
@@ -326,7 +326,7 @@ func (body *AddRequestBody) Validate() (err error) {
 	}
 	for _, e := range body.Composition {
 		if e != nil {
-			if err2 := e.Validate(); err2 != nil {
+			if err2 := ValidateComponentRequestBody(e); err2 != nil {
 				err = goa.MergeErrors(err, err2)
 			}
 		}
@@ -349,14 +349,15 @@ func (body *AddRequestBody) Validate() (err error) {
 	return
 }
 
-// Validate runs the validations defined on multi_updateRequestBody
-func (body *MultiUpdateRequestBody) Validate() (err error) {
+// ValidateMultiUpdateRequestBody runs the validations defined on
+// multi_updateRequestBody
+func ValidateMultiUpdateRequestBody(body *MultiUpdateRequestBody) (err error) {
 	if body.Bottles == nil {
 		err = goa.MergeErrors(err, goa.MissingFieldError("bottles", "body"))
 	}
 	for _, e := range body.Bottles {
 		if e != nil {
-			if err2 := e.Validate(); err2 != nil {
+			if err2 := ValidateBottleRequestBody(e); err2 != nil {
 				err = goa.MergeErrors(err, err2)
 			}
 		}
@@ -364,8 +365,9 @@ func (body *MultiUpdateRequestBody) Validate() (err error) {
 	return
 }
 
-// Validate runs the validations defined on StoredBottleResponseBodyTiny
-func (body *StoredBottleResponseBodyTiny) Validate() (err error) {
+// ValidateStoredBottleResponseBodyTiny runs the validations defined on
+// StoredBottleResponseBodyTiny
+func ValidateStoredBottleResponseBodyTiny(body *StoredBottleResponseBodyTiny) (err error) {
 	if body.Winery == nil {
 		err = goa.MergeErrors(err, goa.MissingFieldError("winery", "body"))
 	}
@@ -375,8 +377,9 @@ func (body *StoredBottleResponseBodyTiny) Validate() (err error) {
 	return
 }
 
-// Validate runs the validations defined on ComponentResponseBody
-func (body *ComponentResponseBody) Validate() (err error) {
+// ValidateComponentResponseBody runs the validations defined on
+// ComponentResponseBody
+func ValidateComponentResponseBody(body *ComponentResponseBody) (err error) {
 	err = goa.MergeErrors(err, goa.ValidatePattern("body.varietal", body.Varietal, "[A-Za-z' ]+"))
 	if utf8.RuneCountInString(body.Varietal) > 100 {
 		err = goa.MergeErrors(err, goa.InvalidLengthError("body.varietal", body.Varietal, utf8.RuneCountInString(body.Varietal), 100, false))
@@ -394,8 +397,8 @@ func (body *ComponentResponseBody) Validate() (err error) {
 	return
 }
 
-// Validate runs the validations defined on WineryRequestBody
-func (body *WineryRequestBody) Validate() (err error) {
+// ValidateWineryRequestBody runs the validations defined on WineryRequestBody
+func ValidateWineryRequestBody(body *WineryRequestBody) (err error) {
 	if body.Name == nil {
 		err = goa.MergeErrors(err, goa.MissingFieldError("name", "body"))
 	}
@@ -417,8 +420,9 @@ func (body *WineryRequestBody) Validate() (err error) {
 	return
 }
 
-// Validate runs the validations defined on ComponentRequestBody
-func (body *ComponentRequestBody) Validate() (err error) {
+// ValidateComponentRequestBody runs the validations defined on
+// ComponentRequestBody
+func ValidateComponentRequestBody(body *ComponentRequestBody) (err error) {
 	if body.Varietal == nil {
 		err = goa.MergeErrors(err, goa.MissingFieldError("varietal", "body"))
 	}
@@ -443,8 +447,8 @@ func (body *ComponentRequestBody) Validate() (err error) {
 	return
 }
 
-// Validate runs the validations defined on BottleRequestBody
-func (body *BottleRequestBody) Validate() (err error) {
+// ValidateBottleRequestBody runs the validations defined on BottleRequestBody
+func ValidateBottleRequestBody(body *BottleRequestBody) (err error) {
 	if body.Name == nil {
 		err = goa.MergeErrors(err, goa.MissingFieldError("name", "body"))
 	}
@@ -460,7 +464,7 @@ func (body *BottleRequestBody) Validate() (err error) {
 		}
 	}
 	if body.Winery != nil {
-		if err2 := body.Winery.Validate(); err2 != nil {
+		if err2 := ValidateWineryRequestBody(body.Winery); err2 != nil {
 			err = goa.MergeErrors(err, err2)
 		}
 	}
@@ -476,7 +480,7 @@ func (body *BottleRequestBody) Validate() (err error) {
 	}
 	for _, e := range body.Composition {
 		if e != nil {
-			if err2 := e.Validate(); err2 != nil {
+			if err2 := ValidateComponentRequestBody(e); err2 != nil {
 				err = goa.MergeErrors(err, err2)
 			}
 		}

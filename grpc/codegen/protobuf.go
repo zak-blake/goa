@@ -9,6 +9,25 @@ import (
 	"goa.design/goa/expr"
 )
 
+type (
+	protobufAttribute struct{}
+)
+
+// newProtoBufAttributeHelper returns an AttributeHelper for protocol buffer
+// types.
+func newProtoBufAttributeHelper() codegen.AttributeHelper {
+	return &protobufAttribute{}
+}
+
+// IsPointer returns true if the given attribute expression is a pointer type.
+//
+// In proto3 syntax, primitive fields are always non-pointers even when
+// optional or has default values.
+//
+func (p *protobufAttribute) IsPointer(att *expr.AttributeExpr, required, pointer, useDefault bool) bool {
+	return false
+}
+
 // makeProtoBufMessage recursively transforms the given attribute expression
 // to generate a valid protocol buffer message definition in the proto file.
 // A protocol buffer message is always a user type in goa v2.
@@ -109,6 +128,7 @@ func wrapAttr(att *expr.AttributeExpr, tname string) {
 					},
 				},
 			},
+			Validation: &expr.ValidationExpr{Required: []string{"field"}},
 		}
 	}
 	switch dt := att.Type.(type) {

@@ -25,29 +25,40 @@ func ClientTypeFiles(genpkg string, root *expr.RootExpr) []*codegen.File {
 // to prevent duplicate code generation.
 func clientType(genpkg string, svc *expr.GRPCServiceExpr, seen map[string]struct{}) *codegen.File {
 	var (
-		path     string
-		initData []*InitData
+		path      string
+		initData  []*InitData
+		validated []*ValidationData
 
 		sd = GRPCServices.Get(svc.Name())
 	)
 	{
+		collect := func(c *ConvertData) {
+			if c.Init != nil {
+				initData = append(initData, c.Init)
+			}
+		}
+
 		path = filepath.Join(codegen.Gendir, "grpc", codegen.SnakeCase(svc.Name()), "client", "types.go")
 		for _, a := range svc.GRPCEndpoints {
 			ed := sd.Endpoint(a.Name())
-			if c := ed.Request.ClientConvert; c != nil && c.Init != nil {
-				initData = append(initData, c.Init)
+			if c := ed.Request.ClientConvert; c != nil {
+				collect(c)
 			}
-			if c := ed.Response.ClientConvert; c != nil && c.Init != nil {
-				initData = append(initData, c.Init)
+			if c := ed.Response.ClientConvert; c != nil {
+				collect(c)
 			}
 			if ed.ClientStream != nil {
-				if c := ed.ClientStream.RecvConvert; c != nil && c.Init != nil {
-					initData = append(initData, c.Init)
+				if c := ed.ClientStream.RecvConvert; c != nil {
+					collect(c)
 				}
-				if c := ed.ClientStream.SendConvert; c != nil && c.Init != nil {
-					initData = append(initData, c.Init)
+				if c := ed.ClientStream.SendConvert; c != nil {
+					collect(c)
 				}
 			}
+		}
+
+		for _, v := range sd.Validations {
+			validated = append(validated, v)
 		}
 	}
 
@@ -66,6 +77,13 @@ func clientType(genpkg string, svc *expr.GRPCServiceExpr, seen map[string]struct
 			Name:   "client-type-init",
 			Source: typeInitT,
 			Data:   init,
+		})
+	}
+	for _, data := range validated {
+		sections = append(sections, &codegen.SectionTemplate{
+			Name:   "client-validate",
+			Source: validateT,
+			Data:   data,
 		})
 	}
 

@@ -192,9 +192,6 @@ func (e *GRPCEndpointExpr) Finalize() {
 				e.Metadata.Map(tName, field)
 			}
 			if e.MethodExpr.Payload.IsRequired(field) {
-				if e.Metadata.Validation == nil {
-					e.Metadata.Validation = &ValidationExpr{}
-				}
 				e.Metadata.Validation.AddRequired(field)
 			}
 		}
@@ -254,9 +251,13 @@ func (e *GRPCEndpointExpr) Finalize() {
 		for _, nat := range *AsObject(e.Metadata.Type) {
 			// initialize metadata attribute from method payload
 			initAttrFromDesign(nat.Attribute, pobj.Attribute(nat.Name))
+			if e.MethodExpr.Payload.IsRequired(nat.Name) {
+				e.Metadata.Validation.AddRequired(nat.Name)
+			}
 			// remove metadata attributes from the message attributes
 			msgObj.Delete(nat.Name)
 		}
+
 		// add any message attributes to request message if not added already
 		if len(*msgObj) > 0 {
 			if e.Request.Type == Empty {

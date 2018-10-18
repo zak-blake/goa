@@ -163,8 +163,9 @@ func NewHistoryUnauthorized(body HistoryUnauthorizedResponseBody) chattersvc.Una
 	return v
 }
 
-// Validate runs the validations defined on ChatSummaryResponseBody
-func (body *ChatSummaryResponseBody) Validate() (err error) {
+// ValidateChatSummaryResponseBody runs the validations defined on
+// ChatSummaryResponseBody
+func ValidateChatSummaryResponseBody(body *ChatSummaryResponseBody) (err error) {
 	if body.Message == nil {
 		err = goa.MergeErrors(err, goa.MissingFieldError("message", "body"))
 	}

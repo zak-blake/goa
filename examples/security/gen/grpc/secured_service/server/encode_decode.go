@@ -22,11 +22,11 @@ import (
 // EncodeSigninResponse encodes responses from the "secured_service" service
 // "signin" endpoint.
 func EncodeSigninResponse(ctx context.Context, v interface{}, hdr, trlr *metadata.MD) (interface{}, error) {
-	res, ok := v.(*securedservice.Creds)
+	result, ok := v.(*securedservice.Creds)
 	if !ok {
 		return nil, goagrpc.ErrInvalidType("secured_service", "signin", "*securedservice.Creds", v)
 	}
-	resp := NewSigninResponse(res)
+	resp := NewSigninResponse(result)
 	return resp, nil
 }
 
@@ -71,11 +71,11 @@ func DecodeSigninRequest(ctx context.Context, v interface{}, md metadata.MD) (in
 // EncodeSecureResponse encodes responses from the "secured_service" service
 // "secure" endpoint.
 func EncodeSecureResponse(ctx context.Context, v interface{}, hdr, trlr *metadata.MD) (interface{}, error) {
-	res, ok := v.(string)
+	result, ok := v.(string)
 	if !ok {
 		return nil, goagrpc.ErrInvalidType("secured_service", "secure", "string", v)
 	}
-	resp := NewSecureResponse(res)
+	resp := NewSecureResponse(result)
 	return resp, nil
 }
 
@@ -119,11 +119,11 @@ func DecodeSecureRequest(ctx context.Context, v interface{}, md metadata.MD) (in
 // EncodeDoublySecureResponse encodes responses from the "secured_service"
 // service "doubly_secure" endpoint.
 func EncodeDoublySecureResponse(ctx context.Context, v interface{}, hdr, trlr *metadata.MD) (interface{}, error) {
-	res, ok := v.(string)
+	result, ok := v.(string)
 	if !ok {
 		return nil, goagrpc.ErrInvalidType("secured_service", "doubly_secure", "string", v)
 	}
-	resp := NewDoublySecureResponse(res)
+	resp := NewDoublySecureResponse(result)
 	return resp, nil
 }
 
@@ -167,11 +167,11 @@ func DecodeDoublySecureRequest(ctx context.Context, v interface{}, md metadata.M
 // EncodeAlsoDoublySecureResponse encodes responses from the "secured_service"
 // service "also_doubly_secure" endpoint.
 func EncodeAlsoDoublySecureResponse(ctx context.Context, v interface{}, hdr, trlr *metadata.MD) (interface{}, error) {
-	res, ok := v.(string)
+	result, ok := v.(string)
 	if !ok {
 		return nil, goagrpc.ErrInvalidType("secured_service", "also_doubly_secure", "string", v)
 	}
-	resp := NewAlsoDoublySecureResponse(res)
+	resp := NewAlsoDoublySecureResponse(result)
 	return resp, nil
 }
 

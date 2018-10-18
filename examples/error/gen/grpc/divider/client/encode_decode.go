@@ -32,21 +32,21 @@ func BuildIntegerDivideFunc(grpccli pb.DividerClient, cliopts ...grpc.CallOption
 // EncodeIntegerDivideRequest encodes requests sent to divider integer_divide
 // endpoint.
 func EncodeIntegerDivideRequest(ctx context.Context, v interface{}, md *metadata.MD) (interface{}, error) {
-	p, ok := v.(*dividersvc.IntOperands)
+	payload, ok := v.(*dividersvc.IntOperands)
 	if !ok {
 		return nil, goagrpc.ErrInvalidType("divider", "integer_divide", "*dividersvc.IntOperands", v)
 	}
-	return NewIntegerDivideRequest(p), nil
+	return NewIntegerDivideRequest(payload), nil
 }
 
 // DecodeIntegerDivideResponse decodes responses from the divider
 // integer_divide endpoint.
 func DecodeIntegerDivideResponse(ctx context.Context, v interface{}, hdr, trlr metadata.MD) (interface{}, error) {
-	resp, ok := v.(*pb.IntegerDivideResponse)
+	message, ok := v.(*pb.IntegerDivideResponse)
 	if !ok {
 		return nil, goagrpc.ErrInvalidType("divider", "integer_divide", "*pb.IntegerDivideResponse", v)
 	}
-	res := NewIntegerDivideResponse(resp)
+	res := NewIntegerDivideResponse(message)
 	return res, nil
 }
 
@@ -63,19 +63,19 @@ func BuildDivideFunc(grpccli pb.DividerClient, cliopts ...grpc.CallOption) goagr
 
 // EncodeDivideRequest encodes requests sent to divider divide endpoint.
 func EncodeDivideRequest(ctx context.Context, v interface{}, md *metadata.MD) (interface{}, error) {
-	p, ok := v.(*dividersvc.FloatOperands)
+	payload, ok := v.(*dividersvc.FloatOperands)
 	if !ok {
 		return nil, goagrpc.ErrInvalidType("divider", "divide", "*dividersvc.FloatOperands", v)
 	}
-	return NewDivideRequest(p), nil
+	return NewDivideRequest(payload), nil
 }
 
 // DecodeDivideResponse decodes responses from the divider divide endpoint.
 func DecodeDivideResponse(ctx context.Context, v interface{}, hdr, trlr metadata.MD) (interface{}, error) {
-	resp, ok := v.(*pb.DivideResponse)
+	message, ok := v.(*pb.DivideResponse)
 	if !ok {
 		return nil, goagrpc.ErrInvalidType("divider", "divide", "*pb.DivideResponse", v)
 	}
-	res := NewDivideResponse(resp)
+	res := NewDivideResponse(message)
 	return res, nil
 }

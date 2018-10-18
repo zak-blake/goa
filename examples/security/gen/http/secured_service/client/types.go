@@ -116,8 +116,8 @@ func NewAlsoDoublySecureUnauthorized(body AlsoDoublySecureUnauthorizedResponseBo
 	return v
 }
 
-// Validate runs the validations defined on signinResponseBody
-func (body *SigninResponseBody) Validate() (err error) {
+// ValidateSigninResponseBody runs the validations defined on signinResponseBody
+func ValidateSigninResponseBody(body *SigninResponseBody) (err error) {
 	if body.JWT == nil {
 		err = goa.MergeErrors(err, goa.MissingFieldError("jwt", "body"))
 	}

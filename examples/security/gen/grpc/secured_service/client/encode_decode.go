@@ -31,23 +31,23 @@ func BuildSigninFunc(grpccli pb.SecuredServiceClient, cliopts ...grpc.CallOption
 
 // EncodeSigninRequest encodes requests sent to secured_service signin endpoint.
 func EncodeSigninRequest(ctx context.Context, v interface{}, md *metadata.MD) (interface{}, error) {
-	p, ok := v.(*securedservice.SigninPayload)
+	payload, ok := v.(*securedservice.SigninPayload)
 	if !ok {
 		return nil, goagrpc.ErrInvalidType("secured_service", "signin", "*securedservice.SigninPayload", v)
 	}
-	(*md).Append("username", p.Username)
-	(*md).Append("password", p.Password)
-	return NewSigninRequest(p), nil
+	(*md).Append("username", payload.Username)
+	(*md).Append("password", payload.Password)
+	return NewSigninRequest(payload), nil
 }
 
 // DecodeSigninResponse decodes responses from the secured_service signin
 // endpoint.
 func DecodeSigninResponse(ctx context.Context, v interface{}, hdr, trlr metadata.MD) (interface{}, error) {
-	resp, ok := v.(*pb.SigninResponse)
+	message, ok := v.(*pb.SigninResponse)
 	if !ok {
 		return nil, goagrpc.ErrInvalidType("secured_service", "signin", "*pb.SigninResponse", v)
 	}
-	res := NewCreds(resp)
+	res := NewCreds(message)
 	return res, nil
 }
 
@@ -64,22 +64,22 @@ func BuildSecureFunc(grpccli pb.SecuredServiceClient, cliopts ...grpc.CallOption
 
 // EncodeSecureRequest encodes requests sent to secured_service secure endpoint.
 func EncodeSecureRequest(ctx context.Context, v interface{}, md *metadata.MD) (interface{}, error) {
-	p, ok := v.(*securedservice.SecurePayload)
+	payload, ok := v.(*securedservice.SecurePayload)
 	if !ok {
 		return nil, goagrpc.ErrInvalidType("secured_service", "secure", "*securedservice.SecurePayload", v)
 	}
-	(*md).Append("authorization", p.Token)
-	return NewSecureRequest(p), nil
+	(*md).Append("authorization", payload.Token)
+	return NewSecureRequest(payload), nil
 }
 
 // DecodeSecureResponse decodes responses from the secured_service secure
 // endpoint.
 func DecodeSecureResponse(ctx context.Context, v interface{}, hdr, trlr metadata.MD) (interface{}, error) {
-	resp, ok := v.(*pb.SecureResponse)
+	message, ok := v.(*pb.SecureResponse)
 	if !ok {
 		return nil, goagrpc.ErrInvalidType("secured_service", "secure", "*pb.SecureResponse", v)
 	}
-	res := NewSecureResponse(resp)
+	res := NewSecureResponse(message)
 	return res, nil
 }
 
@@ -97,22 +97,22 @@ func BuildDoublySecureFunc(grpccli pb.SecuredServiceClient, cliopts ...grpc.Call
 // EncodeDoublySecureRequest encodes requests sent to secured_service
 // doubly_secure endpoint.
 func EncodeDoublySecureRequest(ctx context.Context, v interface{}, md *metadata.MD) (interface{}, error) {
-	p, ok := v.(*securedservice.DoublySecurePayload)
+	payload, ok := v.(*securedservice.DoublySecurePayload)
 	if !ok {
 		return nil, goagrpc.ErrInvalidType("secured_service", "doubly_secure", "*securedservice.DoublySecurePayload", v)
 	}
-	(*md).Append("authorization", p.Token)
-	return NewDoublySecureRequest(p), nil
+	(*md).Append("authorization", payload.Token)
+	return NewDoublySecureRequest(payload), nil
 }
 
 // DecodeDoublySecureResponse decodes responses from the secured_service
 // doubly_secure endpoint.
 func DecodeDoublySecureResponse(ctx context.Context, v interface{}, hdr, trlr metadata.MD) (interface{}, error) {
-	resp, ok := v.(*pb.DoublySecureResponse)
+	message, ok := v.(*pb.DoublySecureResponse)
 	if !ok {
 		return nil, goagrpc.ErrInvalidType("secured_service", "doubly_secure", "*pb.DoublySecureResponse", v)
 	}
-	res := NewDoublySecureResponse(resp)
+	res := NewDoublySecureResponse(message)
 	return res, nil
 }
 
@@ -130,26 +130,26 @@ func BuildAlsoDoublySecureFunc(grpccli pb.SecuredServiceClient, cliopts ...grpc.
 // EncodeAlsoDoublySecureRequest encodes requests sent to secured_service
 // also_doubly_secure endpoint.
 func EncodeAlsoDoublySecureRequest(ctx context.Context, v interface{}, md *metadata.MD) (interface{}, error) {
-	p, ok := v.(*securedservice.AlsoDoublySecurePayload)
+	payload, ok := v.(*securedservice.AlsoDoublySecurePayload)
 	if !ok {
 		return nil, goagrpc.ErrInvalidType("secured_service", "also_doubly_secure", "*securedservice.AlsoDoublySecurePayload", v)
 	}
-	if p.OauthToken != nil {
-		(*md).Append("oauth", *p.OauthToken)
+	if payload.OauthToken != nil {
+		(*md).Append("oauth", *payload.OauthToken)
 	}
-	if p.Token != nil {
-		(*md).Append("authorization", *p.Token)
+	if payload.Token != nil {
+		(*md).Append("authorization", *payload.Token)
 	}
-	return NewAlsoDoublySecureRequest(p), nil
+	return NewAlsoDoublySecureRequest(payload), nil
 }
 
 // DecodeAlsoDoublySecureResponse decodes responses from the secured_service
 // also_doubly_secure endpoint.
 func DecodeAlsoDoublySecureResponse(ctx context.Context, v interface{}, hdr, trlr metadata.MD) (interface{}, error) {
-	resp, ok := v.(*pb.AlsoDoublySecureResponse)
+	message, ok := v.(*pb.AlsoDoublySecureResponse)
 	if !ok {
 		return nil, goagrpc.ErrInvalidType("secured_service", "also_doubly_secure", "*pb.AlsoDoublySecureResponse", v)
 	}
-	res := NewAlsoDoublySecureResponse(resp)
+	res := NewAlsoDoublySecureResponse(message)
 	return res, nil
 }

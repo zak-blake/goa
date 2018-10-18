@@ -131,8 +131,9 @@ func NewPickNoMatch(body PickNoMatchResponseBody) sommelier.NoMatch {
 	return v
 }
 
-// Validate runs the validations defined on StoredBottleResponseBody
-func (body *StoredBottleResponseBody) Validate() (err error) {
+// ValidateStoredBottleResponseBody runs the validations defined on
+// StoredBottleResponseBody
+func ValidateStoredBottleResponseBody(body *StoredBottleResponseBody) (err error) {
 	if body.ID == nil {
 		err = goa.MergeErrors(err, goa.MissingFieldError("id", "body"))
 	}
@@ -151,7 +152,7 @@ func (body *StoredBottleResponseBody) Validate() (err error) {
 		}
 	}
 	if body.Winery != nil {
-		if err2 := body.Winery.Validate(); err2 != nil {
+		if err2 := ValidateWineryResponseBody(body.Winery); err2 != nil {
 			err = goa.MergeErrors(err, err2)
 		}
 	}
@@ -167,7 +168,7 @@ func (body *StoredBottleResponseBody) Validate() (err error) {
 	}
 	for _, e := range body.Composition {
 		if e != nil {
-			if err2 := e.Validate(); err2 != nil {
+			if err2 := ValidateComponentResponseBody(e); err2 != nil {
 				err = goa.MergeErrors(err, err2)
 			}
 		}
@@ -190,8 +191,8 @@ func (body *StoredBottleResponseBody) Validate() (err error) {
 	return
 }
 
-// Validate runs the validations defined on WineryResponseBody
-func (body *WineryResponseBody) Validate() (err error) {
+// ValidateWineryResponseBody runs the validations defined on WineryResponseBody
+func ValidateWineryResponseBody(body *WineryResponseBody) (err error) {
 	if body.Name == nil {
 		err = goa.MergeErrors(err, goa.MissingFieldError("name", "body"))
 	}
@@ -213,8 +214,9 @@ func (body *WineryResponseBody) Validate() (err error) {
 	return
 }
 
-// Validate runs the validations defined on ComponentResponseBody
-func (body *ComponentResponseBody) Validate() (err error) {
+// ValidateComponentResponseBody runs the validations defined on
+// ComponentResponseBody
+func ValidateComponentResponseBody(body *ComponentResponseBody) (err error) {
 	if body.Varietal == nil {
 		err = goa.MergeErrors(err, goa.MissingFieldError("varietal", "body"))
 	}

@@ -146,6 +146,9 @@ func (r *GRPCResponseExpr) Finalize(a *GRPCEndpointExpr, svcAtt *AttributeExpr) 
 		for _, nat := range *AsObject(r.Headers.Type) {
 			// initialize metadata attribute from method result
 			initAttrFromDesign(nat.Attribute, svcObj.Attribute(nat.Name))
+			if svcAtt.IsRequired(nat.Name) {
+				r.Headers.Validation.AddRequired(nat.Name)
+			}
 			// remove metadata attributes from the message attributes
 			msgObj.Delete(nat.Name)
 		}
@@ -153,6 +156,9 @@ func (r *GRPCResponseExpr) Finalize(a *GRPCEndpointExpr, svcAtt *AttributeExpr) 
 		for _, nat := range *AsObject(r.Trailers.Type) {
 			// initialize metadata attribute from method result
 			initAttrFromDesign(nat.Attribute, svcObj.Attribute(nat.Name))
+			if svcAtt.IsRequired(nat.Name) {
+				r.Trailers.Validation.AddRequired(nat.Name)
+			}
 			// remove metadata attributes from the message attributes
 			msgObj.Delete(nat.Name)
 		}

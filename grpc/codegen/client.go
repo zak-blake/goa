@@ -224,9 +224,15 @@ func Decode{{ .Method.VarName }}Response(ctx context.Context, v interface{}, hdr
 	{
 		{{- range .Response.Headers }}
 			{{ template "metadata_decoder" (metadataEncodeDecodeData . "hdr") }}
+			{{- if .Validate }}
+				{{ .Validate }}
+			{{- end }}
 		{{- end }}
 		{{- range .Response.Trailers }}
 			{{ template "metadata_decoder" (metadataEncodeDecodeData . "trlr") }}
+			{{- if .Validate }}
+				{{ .Validate }}
+			{{- end }}
 		{{- end }}
 	}
 	if err != nil {
@@ -249,10 +255,13 @@ func Decode{{ .Method.VarName }}Response(ctx context.Context, v interface{}, hdr
 	{{- end }}
 	}, nil
 {{- else }}
-	resp, ok := v.({{ .Response.ServerConvert.TgtRef }})
+	message, ok := v.({{ .Response.ClientConvert.SrcRef }})
 	if !ok {
-		return nil, goagrpc.ErrInvalidType("{{ .ServiceName }}", "{{ .Method.Name }}", "{{ .Response.ServerConvert.TgtRef }}", v)
+		return nil, goagrpc.ErrInvalidType("{{ .ServiceName }}", "{{ .Method.Name }}", "{{ .Response.ClientConvert.SrcRef }}", v)
 	}
+	{{- if .Response.ClientConvert.Validation }}
+		err = {{ .Response.ClientConvert.Validation.Name }}(message)
+	{{- end }}
 	res := {{ .Response.ClientConvert.Init.Name }}({{ range .Response.ClientConvert.Init.Args }}{{ .Name }}, {{ end }})
 	{{- if .ViewedResultRef }}
 		vres := {{ if not .Method.ViewedResult.IsCollection }}&{{ end }}{{ .Method.ViewedResult.FullName }}{Projected: res}
@@ -292,11 +301,11 @@ func Decode{{ .Method.VarName }}Response(ctx context.Context, v interface{}, hdr
 			if {{ .Metadata.VarName }}Raw := {{ .VarName }}.Get({{ printf "%q" .Metadata.Name }}); len({{ .Metadata.VarName }}Raw) == 0 {
 				err = goa.MergeErrors(err, goa.MissingFieldError({{ printf "%q" .Metadata.Name }}, "metadata"))
 			} else {
-				{{- template "slice_conversion" . }}
+				{{- template "slice_conversion" .Metadata }}
 			}
 		{{- else }}
 			if {{ .Metadata.VarName }}Raw := {{ .VarName }}.Get({{ printf "%q" .Metadata.Name }}); len({{ .Metadata.VarName }}Raw) > 0 {
-				{{- template "slice_conversion" . }}
+				{{- template "slice_conversion" .Metadata }}
 			}
 		{{- end }}
 	{{- else }}
@@ -305,12 +314,12 @@ func Decode{{ .Method.VarName }}Response(ctx context.Context, v interface{}, hdr
 				err = goa.MergeErrors(err, goa.MissingFieldError({{ printf "%q" .Metadata.Name }}, "metadata"))
 			} else {
 				{{ .Metadata.VarName }}Raw = vals[0]
-				{{ template "type_conversion" . }}
+				{{ template "type_conversion" .Metadata }}
 			}
 		{{- else }}
 			if vals := {{ .VarName }}.Get({{ printf "%q" .Metadata.Name }}); len(vals) > 0 {
 				{{ .Metadata.VarName }}Raw = vals[0]
-				{{ template "type_conversion" . }}
+				{{ template "type_conversion" .Metadata }}
 			}
 		{{- end }}
 	{{- end }}
@@ -320,34 +329,34 @@ func Decode{{ .Method.VarName }}Response(ctx context.Context, v interface{}, hdr
 // input: EndpointData
 const requestEncoderT = `{{ printf "Encode%sRequest encodes requests sent to %s %s endpoint." .Method.VarName .ServiceName .Method.Name | comment }}
 func Encode{{ .Method.VarName }}Request(ctx context.Context, v interface{}, md *metadata.MD) (interface{}, error) {
-	p, ok := v.({{ .PayloadRef }})
+	payload, ok := v.({{ .PayloadRef }})
 	if !ok {
 		return nil, goagrpc.ErrInvalidType("{{ .ServiceName }}", "{{ .Method.Name }}", "{{ .PayloadRef }}", v)
 	}
 {{- range .Request.Metadata }}
 	{{- if .StringSlice }}
-		for _, value := range p.{{ .FieldName }} {
+		for _, value := range payload.{{ .FieldName }} {
 			(*md).Append({{ printf "%q" .Name }}, value)
 		}
 	{{- else if .Slice }}
-		for _, value := range p.{{ .FieldName }} {
+		for _, value := range payload.{{ .FieldName }} {
 			{{ template "string_conversion" (typeConversionData .Type.ElemType.Type "valueStr" "value") }}
 			(*md).Append({{ printf "%q" .Name }}, valueStr)
 		}
 	{{- else }}
 		{{- if .Pointer }}
-			if p.{{ .FieldName }} != nil {
+			if payload.{{ .FieldName }} != nil {
 		{{- end }}
 			{{- if (and (eq .Name "Authorization") (isBearer $.MetadataSchemes)) }}
-				if !strings.Contains({{ if .Pointer }}*{{ end }}p.{{ .FieldName }}, " ") {
-					(*md).Append(ctx, {{ printf "%q" .Name }}, "Bearer "+{{ if .Pointer }}*{{ end }}p.{{ .FieldName }})
+				if !strings.Contains({{ if .Pointer }}*{{ end }}payload.{{ .FieldName }}, " ") {
+					(*md).Append(ctx, {{ printf "%q" .Name }}, "Bearer "+{{ if .Pointer }}*{{ end }}payload.{{ .FieldName }})
 				} else {
 			{{- end }}
 				(*md).Append({{ printf "%q" .Name }},
 					{{- if eq .Type.Name "bytes" }} string(
 					{{- else if not (eq .Type.Name "string") }} fmt.Sprintf("%v",
 					{{- end }}
-					{{- if .Pointer }}*{{ end }}p.{{ .FieldName }}
+					{{- if .Pointer }}*{{ end }}payload.{{ .FieldName }}
 					{{- if or (eq .Type.Name "bytes") (not (eq .Type.Name "string")) }})
 					{{- end }})
 			{{- if (and (eq .Name "Authorization") (isBearer $.MetadataSchemes)) }}

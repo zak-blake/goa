@@ -31,19 +31,19 @@ func BuildAddFunc(grpccli pb.CalcClient, cliopts ...grpc.CallOption) goagrpc.Rem
 
 // EncodeAddRequest encodes requests sent to calc add endpoint.
 func EncodeAddRequest(ctx context.Context, v interface{}, md *metadata.MD) (interface{}, error) {
-	p, ok := v.(*calcsvc.AddPayload)
+	payload, ok := v.(*calcsvc.AddPayload)
 	if !ok {
 		return nil, goagrpc.ErrInvalidType("calc", "add", "*calcsvc.AddPayload", v)
 	}
-	return NewAddRequest(p), nil
+	return NewAddRequest(payload), nil
 }
 
 // DecodeAddResponse decodes responses from the calc add endpoint.
 func DecodeAddResponse(ctx context.Context, v interface{}, hdr, trlr metadata.MD) (interface{}, error) {
-	resp, ok := v.(*pb.AddResponse)
+	message, ok := v.(*pb.AddResponse)
 	if !ok {
 		return nil, goagrpc.ErrInvalidType("calc", "add", "*pb.AddResponse", v)
 	}
-	res := NewAddResponse(resp)
+	res := NewAddResponse(message)
 	return res, nil
 }

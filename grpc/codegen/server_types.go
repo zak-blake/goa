@@ -25,29 +25,40 @@ func ServerTypeFiles(genpkg string, root *expr.RootExpr) []*codegen.File {
 // to prevent duplicate code generation.
 func serverType(genpkg string, svc *expr.GRPCServiceExpr, seen map[string]struct{}) *codegen.File {
 	var (
-		path     string
-		initData []*InitData
+		path      string
+		initData  []*InitData
+		validated []*ValidationData
 
 		sd = GRPCServices.Get(svc.Name())
 	)
 	{
+		collect := func(c *ConvertData) {
+			if c.Init != nil {
+				initData = append(initData, c.Init)
+			}
+		}
+
 		path = filepath.Join(codegen.Gendir, "grpc", codegen.SnakeCase(svc.Name()), "server", "types.go")
 		for _, a := range svc.GRPCEndpoints {
 			ed := sd.Endpoint(a.Name())
-			if c := ed.Request.ServerConvert; c != nil && c.Init != nil {
-				initData = append(initData, c.Init)
+			if c := ed.Request.ServerConvert; c != nil {
+				collect(c)
 			}
-			if c := ed.Response.ServerConvert; c != nil && c.Init != nil {
-				initData = append(initData, c.Init)
+			if c := ed.Response.ServerConvert; c != nil {
+				collect(c)
 			}
 			if ed.ServerStream != nil {
-				if c := ed.ServerStream.SendConvert; c != nil && c.Init != nil {
-					initData = append(initData, c.Init)
+				if c := ed.ServerStream.SendConvert; c != nil {
+					collect(c)
 				}
-				if c := ed.ServerStream.RecvConvert; c != nil && c.Init != nil {
-					initData = append(initData, c.Init)
+				if c := ed.ServerStream.RecvConvert; c != nil {
+					collect(c)
 				}
 			}
+		}
+
+		for _, v := range sd.Validations {
+			validated = append(validated, v)
 		}
 	}
 
@@ -68,21 +79,13 @@ func serverType(genpkg string, svc *expr.GRPCServiceExpr, seen map[string]struct
 			Data:   init,
 		})
 	}
+	for _, data := range validated {
+		sections = append(sections, &codegen.SectionTemplate{
+			Name:   "server-validate",
+			Source: validateT,
+			Data:   data,
+		})
+	}
 
 	return &codegen.File{Path: path, SectionTemplates: sections}
 }
-
-// input: InitData
-const typeInitT = `{{ comment .Description }}
-func {{ .Name }}({{ range .Args }}{{ .Name }} {{ .TypeRef }}, {{ end }}) {{ .ReturnTypeRef }} {
-  {{ .Code }}
-{{- if .ReturnIsStruct }}
-	{{- range .Args }}
-		{{- if .FieldName }}
-			{{ $.ReturnVarName }}.{{ .FieldName }} = {{ if .Pointer }}&{{ end }}{{ .Name }}
-		{{- end }}
-	{{- end }}
-{{- end }}
-  return {{ .ReturnVarName }}
-}
-`

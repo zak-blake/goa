@@ -31,9 +31,9 @@ func BuildAddPayload(calcAddMessage string) (*calcsvc.AddPayload, error) {
 	if err != nil {
 		return nil, err
 	}
-	v := &calcsvc.AddPayload{
+	payload := &calcsvc.AddPayload{
 		A: int(message.A),
 		B: int(message.B),
 	}
-	return v, nil
+	return payload, nil
 }

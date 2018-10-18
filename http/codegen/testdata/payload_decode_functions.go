@@ -3114,7 +3114,7 @@ func DecodeMethodBodyStringValidateRequest(mux goahttp.Muxer, decoder func(*http
 			}
 			return nil, goa.DecodePayloadError(err.Error())
 		}
-		err = body.Validate()
+		err = ValidateMethodBodyStringValidateRequestBody(&body)
 		if err != nil {
 			return nil, err
 		}
@@ -3162,7 +3162,7 @@ func DecodeMethodBodyUserValidateRequest(mux goahttp.Muxer, decoder func(*http.R
 			}
 			return nil, goa.DecodePayloadError(err.Error())
 		}
-		err = body.Validate()
+		err = ValidateMethodBodyUserValidateRequestBody(&body)
 		if err != nil {
 			return nil, err
 		}
@@ -3211,7 +3211,7 @@ func DecodeMethodBodyArrayStringValidateRequest(mux goahttp.Muxer, decoder func(
 			}
 			return nil, goa.DecodePayloadError(err.Error())
 		}
-		err = body.Validate()
+		err = ValidateMethodBodyArrayStringValidateRequestBody(&body)
 		if err != nil {
 			return nil, err
 		}
@@ -3237,7 +3237,7 @@ func DecodeMethodBodyArrayUserRequest(mux goahttp.Muxer, decoder func(*http.Requ
 			}
 			return nil, goa.DecodePayloadError(err.Error())
 		}
-		err = body.Validate()
+		err = ValidateMethodBodyArrayUserRequestBody(&body)
 		if err != nil {
 			return nil, err
 		}
@@ -3263,7 +3263,7 @@ func DecodeMethodBodyArrayUserValidateRequest(mux goahttp.Muxer, decoder func(*h
 			}
 			return nil, goa.DecodePayloadError(err.Error())
 		}
-		err = body.Validate()
+		err = ValidateMethodBodyArrayUserValidateRequestBody(&body)
 		if err != nil {
 			return nil, err
 		}
@@ -3311,7 +3311,7 @@ func DecodeMethodBodyMapStringValidateRequest(mux goahttp.Muxer, decoder func(*h
 			}
 			return nil, goa.DecodePayloadError(err.Error())
 		}
-		err = body.Validate()
+		err = ValidateMethodBodyMapStringValidateRequestBody(&body)
 		if err != nil {
 			return nil, err
 		}
@@ -3337,7 +3337,7 @@ func DecodeMethodBodyMapUserRequest(mux goahttp.Muxer, decoder func(*http.Reques
 			}
 			return nil, goa.DecodePayloadError(err.Error())
 		}
-		err = body.Validate()
+		err = ValidateMethodBodyMapUserRequestBody(&body)
 		if err != nil {
 			return nil, err
 		}
@@ -3363,7 +3363,7 @@ func DecodeMethodBodyMapUserValidateRequest(mux goahttp.Muxer, decoder func(*htt
 			}
 			return nil, goa.DecodePayloadError(err.Error())
 		}
-		err = body.Validate()
+		err = ValidateMethodBodyMapUserValidateRequestBody(&body)
 		if err != nil {
 			return nil, err
 		}
@@ -3525,7 +3525,7 @@ func DecodeMethodBodyPrimitiveArrayUserValidateRequest(mux goahttp.Muxer, decode
 		}
 		for _, e := range body {
 			if e != nil {
-				if err2 := e.Validate(); err2 != nil {
+				if err2 := ValidatePayloadTypeRequestBody(e); err2 != nil {
 					err = goa.MergeErrors(err, err2)
 				}
 			}
@@ -3641,7 +3641,7 @@ func DecodeMethodBodyQueryObjectValidateRequest(mux goahttp.Muxer, decoder func(
 			}
 			return nil, goa.DecodePayloadError(err.Error())
 		}
-		err = body.Validate()
+		err = ValidateMethodBodyQueryObjectValidateRequestBody(&body)
 		if err != nil {
 			return nil, err
 		}
@@ -3709,7 +3709,7 @@ func DecodeMethodBodyQueryUserValidateRequest(mux goahttp.Muxer, decoder func(*h
 			}
 			return nil, goa.DecodePayloadError(err.Error())
 		}
-		err = body.Validate()
+		err = ValidateMethodBodyQueryUserValidateRequestBody(&body)
 		if err != nil {
 			return nil, err
 		}
@@ -3777,7 +3777,7 @@ func DecodeMethodBodyPathObjectValidateRequest(mux goahttp.Muxer, decoder func(*
 			}
 			return nil, goa.DecodePayloadError(err.Error())
 		}
-		err = body.Validate()
+		err = ValidateMethodBodyPathObjectValidateRequestBody(&body)
 		if err != nil {
 			return nil, err
 		}
@@ -3843,7 +3843,7 @@ func DecodeMethodUserBodyPathValidateRequest(mux goahttp.Muxer, decoder func(*ht
 			}
 			return nil, goa.DecodePayloadError(err.Error())
 		}
-		err = body.Validate()
+		err = ValidateMethodUserBodyPathValidateRequestBody(&body)
 		if err != nil {
 			return nil, err
 		}
@@ -3915,7 +3915,7 @@ func DecodeMethodBodyQueryPathObjectValidateRequest(mux goahttp.Muxer, decoder f
 			}
 			return nil, goa.DecodePayloadError(err.Error())
 		}
-		err = body.Validate()
+		err = ValidateMethodBodyQueryPathObjectValidateRequestBody(&body)
 		if err != nil {
 			return nil, err
 		}
@@ -3993,7 +3993,7 @@ func DecodeMethodBodyQueryPathUserValidateRequest(mux goahttp.Muxer, decoder fun
 			}
 			return nil, goa.DecodePayloadError(err.Error())
 		}
-		err = body.Validate()
+		err = ValidateMethodBodyQueryPathUserValidateRequestBody(&body)
 		if err != nil {
 			return nil, err
 		}
@@ -4101,7 +4101,7 @@ func DecodeMethodMapQueryObjectRequest(mux goahttp.Muxer, decoder func(*http.Req
 			}
 			return nil, goa.DecodePayloadError(err.Error())
 		}
-		err = body.Validate()
+		err = ValidateMethodMapQueryObjectRequestBody(&body)
 		if err != nil {
 			return nil, err
 		}

@@ -67,7 +67,7 @@ func DecodeMethodBodyMultipleViewResponse(decoder func(*http.Response) goahttp.D
 			p := NewMethodBodyMultipleViewResulttypemultipleviewsOK(&body, c)
 			view := resp.Header.Get("goa-view")
 			vres := &servicebodymultipleviewviews.Resulttypemultipleviews{p, view}
-			if err = vres.Validate(); err != nil {
+			if err = servicebodymultipleviewviews.ValidateResulttypemultipleviews(vres); err != nil {
 				return nil, goahttp.ErrValidationError("ServiceBodyMultipleView", "MethodBodyMultipleView", err)
 			}
 			return servicebodymultipleview.NewResulttypemultipleviews(vres), nil
@@ -156,7 +156,7 @@ func DecodeMethodExplicitBodyUserResultMultipleViewResponse(decoder func(*http.R
 			p := NewMethodExplicitBodyUserResultMultipleViewResulttypemultipleviewsOK(&body, c)
 			view := resp.Header.Get("goa-view")
 			vres := &serviceexplicitbodyuserresultmultipleviewviews.Resulttypemultipleviews{p, view}
-			if err = vres.Validate(); err != nil {
+			if err = serviceexplicitbodyuserresultmultipleviewviews.ValidateResulttypemultipleviews(vres); err != nil {
 				return nil, goahttp.ErrValidationError("ServiceExplicitBodyUserResultMultipleView", "MethodExplicitBodyUserResultMultipleView", err)
 			}
 			return serviceexplicitbodyuserresultmultipleview.NewResulttypemultipleviews(vres), nil
@@ -206,7 +206,7 @@ func DecodeMethodTagMultipleViewsResponse(decoder func(*http.Response) goahttp.D
 			p := NewMethodTagMultipleViewsResulttypemultipleviewsAccepted(&body, c)
 			view := resp.Header.Get("goa-view")
 			vres := &servicetagmultipleviewsviews.Resulttypemultipleviews{p, view}
-			if err = vres.Validate(); err != nil {
+			if err = servicetagmultipleviewsviews.ValidateResulttypemultipleviews(vres); err != nil {
 				return nil, goahttp.ErrValidationError("ServiceTagMultipleViews", "MethodTagMultipleViews", err)
 			}
 			return servicetagmultipleviews.NewResulttypemultipleviews(vres), nil
@@ -222,7 +222,7 @@ func DecodeMethodTagMultipleViewsResponse(decoder func(*http.Response) goahttp.D
 			p := NewMethodTagMultipleViewsResulttypemultipleviewsOK(&body)
 			view := resp.Header.Get("goa-view")
 			vres := &servicetagmultipleviewsviews.Resulttypemultipleviews{p, view}
-			if err = vres.Validate(); err != nil {
+			if err = servicetagmultipleviewsviews.ValidateResulttypemultipleviews(vres); err != nil {
 				return nil, goahttp.ErrValidationError("ServiceTagMultipleViews", "MethodTagMultipleViews", err)
 			}
 			return servicetagmultipleviews.NewResulttypemultipleviews(vres), nil

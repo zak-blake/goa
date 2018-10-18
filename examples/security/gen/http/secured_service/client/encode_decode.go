@@ -78,7 +78,7 @@ func DecodeSigninResponse(decoder func(*http.Response) goahttp.Decoder, restoreB
 			if err != nil {
 				return nil, goahttp.ErrDecodingError("secured_service", "signin", err)
 			}
-			err = body.Validate()
+			err = ValidateSigninResponseBody(&body)
 			if err != nil {
 				return nil, goahttp.ErrValidationError("secured_service", "signin", err)
 			}

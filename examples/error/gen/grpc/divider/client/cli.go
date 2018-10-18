@@ -32,11 +32,11 @@ func BuildIntegerDividePayload(dividerIntegerDivideMessage string) (*dividersvc.
 	if err != nil {
 		return nil, err
 	}
-	v := &dividersvc.IntOperands{
+	payload := &dividersvc.IntOperands{
 		A: int(message.A),
 		B: int(message.B),
 	}
-	return v, nil
+	return payload, nil
 }
 
 // BuildDividePayload builds the payload for the divider divide endpoint from
@@ -55,9 +55,9 @@ func BuildDividePayload(dividerDivideMessage string) (*dividersvc.FloatOperands,
 	if err != nil {
 		return nil, err
 	}
-	v := &dividersvc.FloatOperands{
+	payload := &dividersvc.FloatOperands{
 		A: message.A,
 		B: message.B,
 	}
-	return v, nil
+	return payload, nil
 }

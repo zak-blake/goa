@@ -15,17 +15,17 @@ import (
 
 // NewAddRequest builds the gRPC request type from the payload of the "add"
 // endpoint of the "calc" service.
-func NewAddRequest(p *calcsvc.AddPayload) *pb.AddRequest {
-	v := &pb.AddRequest{
-		A: int32(p.A),
-		B: int32(p.B),
+func NewAddRequest(payload *calcsvc.AddPayload) *pb.AddRequest {
+	message := &pb.AddRequest{
+		A: int32(payload.A),
+		B: int32(payload.B),
 	}
-	return v
+	return message
 }
 
 // NewAddResponse builds the result type of the "add" endpoint of the "calc"
 // service from the gRPC response type.
-func NewAddResponse(resp *pb.AddResponse) int {
-	v := int(resp.Field)
-	return v
+func NewAddResponse(message *pb.AddResponse) int {
+	result := int(message.Field)
+	return result
 }

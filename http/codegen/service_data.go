@@ -1825,7 +1825,7 @@ func buildRequestBodyType(sd *ServiceData, e *expr.HTTPEndpointExpr, body, att *
 				// generate validation code for unmarshaled type (server-side).
 				validateDef = codegen.RecursiveValidationCode(body, true, svr, !svr, "body")
 				if validateDef != "" {
-					validateRef = "err = body.Validate()"
+					validateRef = fmt.Sprintf("err = Validate%s(&body)", varname)
 				}
 			}
 		} else {
@@ -1958,7 +1958,7 @@ func buildResponseBodyType(sd *ServiceData, e *expr.HTTPEndpointExpr, body, att 
 				// generate validation code for unmarshaled type (client-side).
 				validateDef = codegen.RecursiveValidationCode(body, true, !svr, svr, "body")
 				if validateDef != "" {
-					validateRef = "err = body.Validate()"
+					validateRef = fmt.Sprintf("err = Validate%s(&body)", varname)
 				}
 			}
 		} else if !expr.IsPrimitive(body.Type) && mustInit {
@@ -2257,7 +2257,7 @@ func attributeTypeData(ut expr.UserType, req, ptr, server bool, scope *codegen.N
 		def = goTypeDef(scope, ut.Attribute(), ptr, useDefault)
 		validate = codegen.RecursiveValidationCode(ut.Attribute(), true, ptr, useDefault, "body")
 		if validate != "" {
-			validateRef = "err = v.Validate()"
+			validateRef = fmt.Sprintf("err = Validate%s(v)", name)
 		}
 	}
 	return &TypeData{
@@ -2553,7 +2553,7 @@ func (s *{{ .VarName }}) {{ .RecvName }}() ({{ .RecvTypeRef }}, error) {
 		res := {{ .Response.ResultInit.Name }}({{ range .Response.ResultInit.ClientArgs }}{{ .Ref }},{{ end }})
 		{{- if .Endpoint.Method.ViewedResult }}{{ with .Endpoint.Method.ViewedResult }}
 			vres := {{ if not .IsCollection }}&{{ end }}{{ .ViewsPkg }}.{{ .VarName }}{res, {{ if .ViewName }}{{ printf "%q" .ViewName }}{{ else }}s.view{{ end }} }
-			if err := vres.Validate(); err != nil {
+			if err := {{ .ViewsPkg }}.Validate{{ $.Endpoint.Method.Result }}(vres); err != nil {
 				return rv, goahttp.ErrValidationError("{{ $.Endpoint.ServiceName }}", "{{ $.Endpoint.Method.Name }}", err)
 			}
 			return {{ $.PkgName }}.{{ .ResultInit.Name }}(vres){{ end }}, nil

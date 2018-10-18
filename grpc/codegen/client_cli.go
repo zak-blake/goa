@@ -751,11 +751,11 @@ func {{ .Name }}({{ range .FormalParams }}{{ . }} string, {{ end }}) ({{ .Result
 	{{- if .ReturnIsStruct }}
 		{{- range .Args }}
 			{{- if .FieldName }}
-				v.{{ .FieldName }} = {{ .Name }}
+				payload.{{ .FieldName }} = {{ .Name }}
 			{{- end }}
 		{{- end }}
 	{{- end }}
-	return v, nil
+	return payload, nil
 {{- end }}
 }
 `

@@ -19,11 +19,11 @@ import (
 
 // EncodeAddResponse encodes responses from the "calc" service "add" endpoint.
 func EncodeAddResponse(ctx context.Context, v interface{}, hdr, trlr *metadata.MD) (interface{}, error) {
-	res, ok := v.(int)
+	result, ok := v.(int)
 	if !ok {
 		return nil, goagrpc.ErrInvalidType("calc", "add", "int", v)
 	}
-	resp := NewAddResponse(res)
+	resp := NewAddResponse(result)
 	return resp, nil
 }
 
@@ -32,6 +32,7 @@ func DecodeAddRequest(ctx context.Context, v interface{}, md metadata.MD) (inter
 	var (
 		message *pb.AddRequest
 		ok      bool
+		err     error
 	)
 	{
 		if message, ok = v.(*pb.AddRequest); !ok {
@@ -40,7 +41,6 @@ func DecodeAddRequest(ctx context.Context, v interface{}, md metadata.MD) (inter
 	}
 	var (
 		payload *calcsvc.AddPayload
-		err     error
 	)
 	{
 		payload = NewAddPayload(message)

@@ -330,23 +330,32 @@ func Decode{{ .Method.VarName }}Request(ctx context.Context, v interface{}, md m
 				}
 			{{- end }}
 		{{- end }}
+		{{- if .Validate }}
+			{{ .Validate }}
+		{{- end }}
 	{{- end }}
 	}
 {{- end }}
 {{- if not .Method.StreamingPayload }}
 	var (
-		message {{ .Request.Message.Ref }}
+		message {{ .Request.ServerConvert.SrcRef }}
 		ok bool
+	{{- if not .Request.Metadata }}
+		err error
+	{{- end }}
 	)
 	{
-		if message, ok = v.({{ .Request.Message.Ref }}); !ok {
+		if message, ok = v.({{ .Request.ServerConvert.SrcRef }}); !ok {
 			return nil, goagrpc.ErrInvalidType("{{ .ServiceName }}", "{{ .Method.Name }}", "{{ .Request.Message.Ref }}", v)
 		}
+	{{- if .Request.ServerConvert.Validation }}
+		err = {{ .Request.ServerConvert.Validation.Name }}(message)
+	{{- end }}
 	}
 {{- end }}
 	var (
 		payload {{ .PayloadRef }}
-	{{- if not .Request.Metadata }}
+	{{- if and (not .Request.Metadata) .Method.StreamingPayload }}
 		err error
 	{{- end }}
 	)
@@ -380,10 +389,10 @@ func Encode{{ .Method.VarName }}Response(ctx context.Context, v interface{}, hdr
 	if !ok {
 		return nil, goagrpc.ErrInvalidType("{{ .ServiceName }}", "{{ .Method.Name }}", "{{ .ViewedResultRef }}", v)
 	}
-	res := vres.Projected
+	result := vres.Projected
 	*hdr.Append("goa-view", vres.View)
 {{- else }}
-	res, ok := v.({{ .ResultRef }})
+	result, ok := v.({{ .ResultRef }})
 	if !ok {
 		return nil, goagrpc.ErrInvalidType("{{ .ServiceName }}", "{{ .Method.Name }}", "{{ .ResultRef }}", v)
 	}
@@ -500,7 +509,7 @@ const convertStringToTypeT = `{{- define "slice_conversion" }}
 
 {{- define "type_conversion" }}
 	{{- if eq .Type.Name "bytes" }}
-		{{ .VarName }} = []byte({{.VarName}}Raw)
+		{{ .VarName }} = []byte({{ .VarName }}Raw)
 	{{- else if eq .Type.Name "int" }}
 		v, err2 := strconv.ParseInt({{ .VarName }}Raw, 10, strconv.IntSize)
 		if err2 != nil {

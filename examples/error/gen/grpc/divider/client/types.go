@@ -15,34 +15,34 @@ import (
 
 // NewIntegerDivideRequest builds the gRPC request type from the payload of the
 // "integer_divide" endpoint of the "divider" service.
-func NewIntegerDivideRequest(p *dividersvc.IntOperands) *pb.IntegerDivideRequest {
-	v := &pb.IntegerDivideRequest{
-		A: int32(p.A),
-		B: int32(p.B),
+func NewIntegerDivideRequest(payload *dividersvc.IntOperands) *pb.IntegerDivideRequest {
+	message := &pb.IntegerDivideRequest{
+		A: int32(payload.A),
+		B: int32(payload.B),
 	}
-	return v
+	return message
 }
 
 // NewIntegerDivideResponse builds the result type of the "integer_divide"
 // endpoint of the "divider" service from the gRPC response type.
-func NewIntegerDivideResponse(resp *pb.IntegerDivideResponse) int {
-	v := int(resp.Field)
-	return v
+func NewIntegerDivideResponse(message *pb.IntegerDivideResponse) int {
+	result := int(message.Field)
+	return result
 }
 
 // NewDivideRequest builds the gRPC request type from the payload of the
 // "divide" endpoint of the "divider" service.
-func NewDivideRequest(p *dividersvc.FloatOperands) *pb.DivideRequest {
-	v := &pb.DivideRequest{
-		A: p.A,
-		B: p.B,
+func NewDivideRequest(payload *dividersvc.FloatOperands) *pb.DivideRequest {
+	message := &pb.DivideRequest{
+		A: payload.A,
+		B: payload.B,
 	}
-	return v
+	return message
 }
 
 // NewDivideResponse builds the result type of the "divide" endpoint of the
 // "divider" service from the gRPC response type.
-func NewDivideResponse(resp *pb.DivideResponse) float64 {
-	v := resp.Field
-	return v
+func NewDivideResponse(message *pb.DivideResponse) float64 {
+	result := message.Field
+	return result
 }

@@ -22,11 +22,11 @@ import (
 // EncodeLoginResponse encodes responses from the "chatter" service "login"
 // endpoint.
 func EncodeLoginResponse(ctx context.Context, v interface{}, hdr, trlr *metadata.MD) (interface{}, error) {
-	res, ok := v.(string)
+	result, ok := v.(string)
 	if !ok {
 		return nil, goagrpc.ErrInvalidType("chatter", "login", "string", v)
 	}
-	resp := NewLoginResponse(res)
+	resp := NewLoginResponse(result)
 	return resp, nil
 }
 
