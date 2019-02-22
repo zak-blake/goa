@@ -119,7 +119,6 @@ const (
 	httpCLIStreamingT = `{{- if needStreaming .Services }}
 	var (
     dialer *websocket.Dialer
-		connConfigFn goahttp.ConnConfigureFunc
   )
   {
     dialer = websocket.DefaultDialer
@@ -137,7 +136,13 @@ const (
 		debug,
 		{{- if needStreaming .Services }}
 		dialer,
-		connConfigFn,
+			{{- range .Services }}
+				{{- range .Endpoints }}
+					{{- if .ServerStream }}
+						nil,
+					{{- end }}
+				{{- end }}
+			{{- end }}
 		{{- end }}
 		{{- range .Services }}
 			{{- range .Endpoints }}
