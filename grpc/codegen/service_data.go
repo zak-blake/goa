@@ -1092,7 +1092,7 @@ func extractMetadata(a *expr.MappedAttributeExpr, service *codegen.ContextualAtt
 			if !expr.IsObject(service.Attribute.Expr().Type) {
 				fieldName = ""
 			}
-			if pointer = a.IsPrimitivePointer(name, true); pointer {
+			if a.IsPrimitivePointer(name, true) {
 				typeRef = "*" + typeRef
 			}
 		}

@@ -54,9 +54,7 @@ func clientType(genpkg string, svc *expr.GRPCServiceExpr, seen map[string]struct
 				}
 			}
 		}
-		for _, v := range sd.Validations {
-			validated = append(validated, v)
-		}
+		validated = append(validated, sd.Validations...)
 	}
 
 	var (
