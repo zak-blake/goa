@@ -52,7 +52,7 @@ func exampleServiceFile(genpkg string, root *expr.RootExpr, svc *expr.ServiceExp
 		return nil // file already exists, skip it.
 	}
 	data := Services.Get(svc.Name)
-	apiPkg := strings.ToLower(codegen.Goify(root.API.Name, false))
+	apiPkg := codegen.APIPkg(root)
 	sections := []*codegen.SectionTemplate{
 		codegen.Header("", apiPkg, []*codegen.ImportSpec{
 			{Path: "context"},
