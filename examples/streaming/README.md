@@ -135,9 +135,11 @@ stop repeating me
 ## Customizing HTTP Websocket Connections
 
 goa v2 uses [gorilla websocket](https://godoc.org/github.com/gorilla/websocket)
-underneath to implement streaming via websocket in the HTTP transport layer.
-By default, goa v2 uses the default [`Upgrader`](https://godoc.org/github.com/gorilla/websocket#Upgrader)
-server side to upgrade HTTP connection to a websocket connection and the [`DefaultDialer`](https://godoc.org/github.com/gorilla/websocket#pkg-variables)
+underneath to implement streaming via websocket in the HTTP transport layer.  By
+default, goa v2 uses the default
+[`Upgrader`](https://godoc.org/github.com/gorilla/websocket#Upgrader) server
+side to upgrade HTTP connection to a websocket connection and the
+[`DefaultDialer`](https://godoc.org/github.com/gorilla/websocket#pkg-variables)
 client side to dial a websocket connection.
 
 Developers can use custom Upgrader and Dialer as shown below
@@ -154,13 +156,15 @@ var (
     ReadBufferSize: 512,
     WriteBufferSize: 512,
   }
-  chatterServer = chattersvcsvr.New(chatterEndpoints, mux, dec, enc, eh, myUpgrader, nil, nil, nil, nil)
+  chatterConfigurer := chattersvcsvr.NewConnConfigurer(nil)
+  chatterConfigurer.SubscribeFn = pingPonger(logger)
+  chatterServer = chattersvcsvr.New(chatterEndpoints, mux, dec, enc, eh, myUpgrader, chatterConfigurer)
 }
 
 // In client main.go
 
 var (
-  myDialer         *websocket.Dialer
+  myDialer *websocket.Dialer
 )
 {
   myDialer = websocket.Dialer{
@@ -177,9 +181,6 @@ endpoint, payload, err := cli.ParseEndpoint(
   goahttp.ResponseDecoder,
   debug,
   myDialer,
-  nil,
-  nil,
-  nil,
   nil,
 )
 ```
