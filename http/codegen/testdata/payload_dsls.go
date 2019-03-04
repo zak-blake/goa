@@ -1339,6 +1339,28 @@ var PayloadExtendedQueryStringDSL = func() {
 	})
 }
 
+var PayloadExtendedValidateDSL = func() {
+	var UT = Type("UserType", func() {
+		Attribute("q", String)
+		Attribute("h", Int)
+		Attribute("body", String)
+		Required("h")
+	})
+	Service("ServiceQueryStringExtendedValidatePayload", func() {
+		Method("MethodQueryStringExtendedValidatePayload", func() {
+			Payload(func() {
+				Extend(UT)
+				Required("q", "body")
+			})
+			HTTP(func() {
+				GET("/")
+				Param("q")
+				Header("h:Location")
+			})
+		})
+	})
+}
+
 var PayloadPathStringDSL = func() {
 	Service("ServicePathString", func() {
 		Method("MethodPathString", func() {
@@ -2552,6 +2574,29 @@ var MultipleMethodsDSL = func() {
 			Payload(PayloadType)
 			HTTP(func() {
 				PUT("/")
+			})
+		})
+	})
+}
+
+var MixedPayloadInBodyDSL = func() {
+	var BPayload = Type("BPayload", func() {
+		Attribute("int", Int)
+		Attribute("bytes", Bytes)
+		Required("int")
+	})
+	var APayload = Type("APayload", func() {
+		Attribute("any", Any)
+		Attribute("array", ArrayOf(Float32))
+		Attribute("map", MapOf(UInt, Any))
+		Attribute("object", BPayload)
+		Required("array", "object")
+	})
+	Service("ServiceMixedPayloadInBody", func() {
+		Method("MethodA", func() {
+			Payload(APayload)
+			HTTP(func() {
+				POST("/")
 			})
 		})
 	})

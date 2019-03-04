@@ -68,7 +68,9 @@ func TestClientTypes(t *testing.T) {
 		DSL  func()
 		Code string
 	}{
+		{"mixed-payload-attrs", testdata.MixedPayloadInBodyDSL, MixedPayloadInBodyClientTypesFile},
 		{"multiple-methods", testdata.MultipleMethodsDSL, MultipleMethodsClientTypesFile},
+		{"payload-extend-validate", testdata.PayloadExtendedValidateDSL, PayloadExtendedValidateClientTypesFile},
 	}
 	for _, c := range cases {
 		t.Run(c.Name, func(t *testing.T) {
@@ -182,6 +184,48 @@ func NewMethodExplicitBodyUserResultMultipleViewResulttypemultipleviewsOK(body *
 }
 `
 
+const MixedPayloadInBodyClientTypesFile = `// MethodARequestBody is the type of the "ServiceMixedPayloadInBody" service
+// "MethodA" endpoint HTTP request body.
+type MethodARequestBody struct {
+	Any    interface{}          ` + "`" + `form:"any,omitempty" json:"any,omitempty" xml:"any,omitempty"` + "`" + `
+	Array  []float32            ` + "`" + `form:"array" json:"array" xml:"array"` + "`" + `
+	Map    map[uint]interface{} ` + "`" + `form:"map,omitempty" json:"map,omitempty" xml:"map,omitempty"` + "`" + `
+	Object *BPayloadRequestBody ` + "`" + `form:"object" json:"object" xml:"object"` + "`" + `
+}
+
+// BPayloadRequestBody is used to define fields on request body types.
+type BPayloadRequestBody struct {
+	Int   int    ` + "`" + `form:"int" json:"int" xml:"int"` + "`" + `
+	Bytes []byte ` + "`" + `form:"bytes,omitempty" json:"bytes,omitempty" xml:"bytes,omitempty"` + "`" + `
+}
+
+// NewMethodARequestBody builds the HTTP request body from the payload of the
+// "MethodA" endpoint of the "ServiceMixedPayloadInBody" service.
+func NewMethodARequestBody(p *servicemixedpayloadinbody.APayload) *MethodARequestBody {
+	body := &MethodARequestBody{
+		Any: p.Any,
+	}
+	if p.Array != nil {
+		body.Array = make([]float32, len(p.Array))
+		for i, val := range p.Array {
+			body.Array[i] = val
+		}
+	}
+	if p.Map != nil {
+		body.Map = make(map[uint]interface{}, len(p.Map))
+		for key, val := range p.Map {
+			tk := key
+			tv := val
+			body.Map[tk] = tv
+		}
+	}
+	if p.Object != nil {
+		body.Object = marshalServicemixedpayloadinbodyBPayloadToBPayloadRequestBody(p.Object)
+	}
+	return body
+}
+`
+
 const MultipleMethodsClientTypesFile = `// MethodARequestBody is the type of the "ServiceMultipleMethods" service
 // "MethodA" endpoint HTTP request body.
 type MethodARequestBody struct {
@@ -230,5 +274,24 @@ func ValidateAPayloadRequestBody(body *APayloadRequestBody) (err error) {
 		err = goa.MergeErrors(err, goa.ValidatePattern("body.a", *body.A, "patterna"))
 	}
 	return
+}
+`
+
+const PayloadExtendedValidateClientTypesFile = `// MethodQueryStringExtendedValidatePayloadRequestBody is the type of the
+// "ServiceQueryStringExtendedValidatePayload" service
+// "MethodQueryStringExtendedValidatePayload" endpoint HTTP request body.
+type MethodQueryStringExtendedValidatePayloadRequestBody struct {
+	Body string ` + "`" + `form:"body" json:"body" xml:"body"` + "`" + `
+}
+
+// NewMethodQueryStringExtendedValidatePayloadRequestBody builds the HTTP
+// request body from the payload of the
+// "MethodQueryStringExtendedValidatePayload" endpoint of the
+// "ServiceQueryStringExtendedValidatePayload" service.
+func NewMethodQueryStringExtendedValidatePayloadRequestBody(p *servicequerystringextendedvalidatepayload.MethodQueryStringExtendedValidatePayloadPayload) *MethodQueryStringExtendedValidatePayloadRequestBody {
+	body := &MethodQueryStringExtendedValidatePayloadRequestBody{
+		Body: p.Body,
+	}
+	return body
 }
 `
