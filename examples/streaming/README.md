@@ -152,12 +152,19 @@ var (
 )
 {
   eh := ErrorHandler(logger)
+
+  // my custom websocket Upgrader
   myUpgrader := &websocket.Upgrader{
     ReadBufferSize: 512,
     WriteBufferSize: 512,
   }
-  chatterConfigurer := chattersvcsvr.NewConnConfigurer(nil)
-  chatterConfigurer.SubscribeFn = pingPonger(logger)
+
+  // pass a ConnConfigureFunc type as an argument to apply the connection
+  // configurer to all the streaming endpoints
+  chatterConfigurer := chattersvcsvr.NewConnConfigurer(myConfigurerFn)
+  // or override the connection configurer for a specific streaming endpoint
+  chatterConfigurer.SubscribeFn = mySubscriberConfigurerFn
+
   chatterServer = chattersvcsvr.New(chatterEndpoints, mux, dec, enc, eh, myUpgrader, chatterConfigurer)
 }
 
