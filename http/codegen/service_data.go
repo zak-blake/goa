@@ -1924,7 +1924,7 @@ func buildRequestBodyType(body, att *expr.AttributeExpr, e *expr.HTTPEndpointExp
 
 		if ut, ok := body.Type.(expr.UserType); ok {
 			varname = codegen.Goify(ut.Name(), true)
-			def = goTypeDef(sd.Scope, ut.Attribute(), svr, !svr)
+			def = goTypeDef(sd.Scope, ut.Attribute(), svr, false)
 			desc = fmt.Sprintf("%s is the type of the %q service %q endpoint HTTP request body.",
 				varname, svc.Name, e.Name())
 			if svr {
